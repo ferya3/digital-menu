@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Check,
   BellRing,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CoverFlowCarousel } from "@/components/ui/3-d-coverflow-carousel";
@@ -31,7 +32,11 @@ import {
   fetchOrder,
   uploadTableReceipt,
   createRequest,
+  fetchSettings,
+  submitFeedback,
+  formatMoney,
   type Bill,
+  type PublicSettings,
 } from "@/api";
 import {
   connectTable,
@@ -45,7 +50,9 @@ import {
 const faDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
 const toFa = (v: string | number) =>
   String(v).replace(/[0-9]/g, (d) => faDigits[+d]);
-const money = (n: number) => toFa(n.toLocaleString("en-US")) + " تومان";
+// واحد پول از تنظیمات خوانده می‌شود (قیمت‌ها بر پایهٔ تومان ذخیره می‌شوند)
+let CURRENCY: "toman" | "rial" = "toman";
+const money = (n: number) => formatMoney(n, CURRENCY);
 
 type ViewMode = "coverflow" | "grid" | "list";
 
@@ -84,6 +91,13 @@ export default function App() {
   const [online, setOnline] = useState(false);
   const [cats, setCats] = useState<{ id: string; name: string }[]>([]);
   const [allDishes, setAllDishes] = useState<Dish[]>([]);
+  const [settings, setSettings] = useState<PublicSettings | null>(null);
+
+  // feedback
+  const [fbOrder, setFbOrder] = useState<string | null>(null);
+  const [fbRating, setFbRating] = useState(5);
+  const [fbComment, setFbComment] = useState("");
+  const [fbSending, setFbSending] = useState(false);
 
   // ordering + bill
   const [submitting, setSubmitting] = useState(false);
@@ -112,7 +126,36 @@ export default function App() {
       setOnline(m.online);
       setLoading(false);
     });
+    fetchSettings()
+      .then((s) => {
+        CURRENCY = s.currency || "toman";
+        setSettings(s);
+      })
+      .catch(() => {});
   }, []);
+
+  const cafeName = settings?.cafe?.name || "کافه";
+  const cafeLogo = settings?.cafe?.logo || "";
+  const payment = settings?.payment;
+
+  async function sendFeedback() {
+    if (!online) {
+      flash("ثبت نظر با اتصال به سرور ممکن است.");
+      return;
+    }
+    setFbSending(true);
+    try {
+      await submitFeedback({ table, orderId: fbOrder || undefined, rating: fbRating, comment: fbComment });
+      setFbOrder(null);
+      setFbComment("");
+      setFbRating(5);
+      flash("نظرت ثبت شد، ممنون 🙏");
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "خطا در ثبت نظر");
+    } finally {
+      setFbSending(false);
+    }
+  }
 
   const flash = (m: string) => {
     setToast(m);
@@ -298,13 +341,17 @@ export default function App() {
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
-              <Coffee className="h-5 w-5" />
-            </span>
+            {/^https?:|^data:|^\/images\//.test(cafeLogo) ? (
+              <img src={cafeLogo} alt="" className="h-10 w-10 rounded-2xl object-cover" />
+            ) : (
+              <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-xl text-primary-foreground shadow-lg shadow-primary/25">
+                {cafeLogo || <Coffee className="h-5 w-5" />}
+              </span>
+            )}
             <div className="leading-tight">
-              <h1 className="text-lg font-extrabold tracking-tight">کافه آرتاویل</h1>
+              <h1 className="text-lg font-extrabold tracking-tight">{cafeName}</h1>
               <p className="text-[11px] text-muted-foreground">
-                منوی دیجیتال · میز {toFa(table)}
+                {settings?.cafe?.tagline || "منوی دیجیتال"} · میز {toFa(table)}
               </p>
             </div>
           </div>
@@ -411,7 +458,7 @@ export default function App() {
                     <div className="relative aspect-[4/3] overflow-hidden">
                       <img src={d.img} alt={d.titleLine1} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                       <span className="pointer-events-none absolute inset-0 grid place-items-center text-center text-white/10 text-lg font-black">
-                        کافه آرتاویل
+                        {cafeName}
                       </span>
                       {d.tag && (
                         <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
@@ -577,6 +624,32 @@ export default function App() {
                 </div>
               )}
 
+              {payment && (payment.card || payment.link || payment.holder) && (
+                <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-3 text-sm">
+                  <div className="mb-1.5 font-bold">اطلاعات پرداخت</div>
+                  {payment.card && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span dir="ltr" className="font-mono tracking-wider">{toFa(payment.card)}</span>
+                      <button
+                        onClick={() =>
+                          navigator.clipboard?.writeText(String(payment.card)).then(() => flash("شماره کارت کپی شد")).catch(() => {})
+                        }
+                        className="shrink-0 rounded-lg bg-card px-2 py-1 text-xs font-semibold text-primary"
+                      >
+                        کپی
+                      </button>
+                    </div>
+                  )}
+                  {payment.holder && <div className="mt-0.5 text-xs text-muted-foreground">به نام {payment.holder}</div>}
+                  {payment.note && <div className="mt-0.5 text-xs text-muted-foreground">{payment.note}</div>}
+                  {payment.link && (
+                    <a href={payment.link} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                      پرداخت آنلاین ↗
+                    </a>
+                  )}
+                </div>
+              )}
+
               <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickReceipt} />
               <Button className="mt-3 h-11 w-full rounded-xl text-base" onClick={() => fileRef.current?.click()}>
                 <Upload className="h-5 w-5" />
@@ -630,11 +703,37 @@ export default function App() {
               {myOrders.map((o) => (
                 <OrderTracker key={o.id} order={o} />
               ))}
+              <Button variant="outline" className="w-full rounded-xl" onClick={() => setFbOrder(myOrders[0]?.id || "")}>
+                <Star className="h-4 w-4" /> ثبت نظر و امتیاز
+              </Button>
               <p className="pt-1 text-center text-[11px] text-muted-foreground">
                 وضعیت به‌صورت زنده به‌روزرسانی می‌شود.
               </p>
             </div>
           )}
+        </Drawer>
+      )}
+
+      {/* ===== Feedback drawer ===== */}
+      {fbOrder !== null && (
+        <Drawer title="نظر و امتیاز" onClose={() => setFbOrder(null)}>
+          <p className="mb-3 text-sm text-muted-foreground">تجربه‌ات از {cafeName} چطور بود؟</p>
+          <div className="mb-4 flex justify-center gap-1.5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <button key={i} onClick={() => setFbRating(i)} aria-label={`${i} ستاره`}>
+                <Star className={cn("h-9 w-9 transition", i <= fbRating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40")} />
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={fbComment}
+            onChange={(e) => setFbComment(e.target.value)}
+            placeholder="توضیح (اختیاری)…"
+            className="min-h-[80px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+          <Button className="mt-3 h-11 w-full rounded-xl text-base" onClick={sendFeedback} disabled={fbSending}>
+            {fbSending ? <Loader2 className="h-5 w-5 animate-spin" /> : "ثبت نظر"}
+          </Button>
         </Drawer>
       )}
 

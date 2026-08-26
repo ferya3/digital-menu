@@ -285,3 +285,86 @@ export function tableMenuUrl(table: string | number): string {
   const origin = API || (typeof window !== "undefined" ? window.location.origin : "");
   return `${origin}/?table=${encodeURIComponent(String(table))}`;
 }
+
+/* ---------- تنظیمات ---------- */
+export interface CafeInfo {
+  name: string;
+  logo: string;
+  tagline?: string;
+  cover?: string;
+  address?: string;
+  mapUrl?: string;
+  instagram?: string;
+}
+export interface PaymentInfo {
+  link?: string;
+  card?: string;
+  holder?: string;
+  note?: string;
+}
+export interface PublicSettings {
+  cafe: CafeInfo;
+  currency: "toman" | "rial";
+  orderCode: "number" | "id";
+  payment: PaymentInfo;
+  payments: { id: string; name: string }[];
+}
+export interface AdminSettings extends PublicSettings {
+  sms: { provider: string; apiKey: string; sender: string; template: string };
+  payments: { id: string; name: string; enabled: boolean; config: Record<string, string> }[];
+  auth: { hasPassword: boolean };
+}
+
+export function fetchSettings(): Promise<PublicSettings> {
+  return jsonFetch("/api/settings");
+}
+export function fetchSettingsAdmin(): Promise<AdminSettings> {
+  return jsonFetch("/api/settings/admin");
+}
+export function updateSettings(body: unknown): Promise<AdminSettings> {
+  return jsonFetch("/api/settings/admin", { method: "PUT", body: JSON.stringify(body) });
+}
+
+/* ---------- مشتری‌ها ---------- */
+export interface Customer {
+  phone: string;
+  tables?: string[];
+  visits: number;
+  firstSeen: string;
+  lastSeen: string;
+}
+export function fetchCustomers(): Promise<Customer[]> {
+  return jsonFetch("/api/customers");
+}
+export function customersCsvUrl(): string {
+  return `${API}/api/customers/export`;
+}
+
+/* ---------- نظرسنجی ---------- */
+export interface Feedback {
+  id: string;
+  table: string | null;
+  orderId: string | null;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+export function fetchFeedback(): Promise<Feedback[]> {
+  return jsonFetch("/api/feedback");
+}
+export function submitFeedback(body: {
+  table?: string;
+  orderId?: string;
+  rating: number;
+  comment?: string;
+}): Promise<{ ok: boolean }> {
+  return jsonFetch("/api/feedback", { method: "POST", body: JSON.stringify(body) });
+}
+
+/* واحد پول برای نمایش: قیمت‌ها بر پایهٔ تومان ذخیره می‌شوند */
+export function formatMoney(toman: number, currency: "toman" | "rial" = "toman"): string {
+  const faDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+  const fa = (v: string | number) => String(v).replace(/[0-9]/g, (d) => faDigits[+d]);
+  const val = currency === "rial" ? toman * 10 : toman;
+  return fa(val.toLocaleString("en-US")) + (currency === "rial" ? " ریال" : " تومان");
+}

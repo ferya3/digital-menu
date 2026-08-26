@@ -14,6 +14,9 @@ import {
   Ban,
   AlertTriangle,
   UtensilsCrossed,
+  Settings as SettingsIcon,
+  Users,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -26,10 +29,16 @@ import {
   patchOrder,
   fetchRequests,
   patchRequest,
+  fetchFeedback,
+  fetchSettings,
   type CafeRequest,
+  type Feedback,
 } from "@/api";
 import { connectStaff, STATUS_FA, type ServerOrder } from "@/socket";
 import ManageMenu from "@/ManageMenu";
+import StaffSettings from "@/StaffSettings";
+import StaffCustomers from "@/StaffCustomers";
+import StaffFeedback from "@/StaffFeedback";
 
 /* ---------- helpers ---------- */
 const faDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
@@ -61,9 +70,13 @@ export default function StaffApp() {
   const [loginErr, setLoginErr] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const [tab, setTab] = useState<"orders" | "requests" | "manage">("orders");
+  const [tab, setTab] = useState<
+    "orders" | "requests" | "feedback" | "customers" | "manage" | "settings"
+  >("orders");
   const [orders, setOrders] = useState<ServerOrder[]>([]);
   const [requests, setRequests] = useState<CafeRequest[]>([]);
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
+  const [cafeName, setCafeName] = useState("");
   const [toast, setToast] = useState("");
   const [viewReceipt, setViewReceipt] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
@@ -89,6 +102,7 @@ export default function StaffApp() {
   // auth check
   useEffect(() => {
     me().then(setAuthed);
+    fetchSettings().then((s) => setCafeName(s.cafe?.name || "")).catch(() => {});
   }, []);
 
   // load data + live subscription (once authed)
@@ -96,8 +110,14 @@ export default function StaffApp() {
     if (!authed) return;
     fetchOrders().then(setOrders).catch(() => {});
     fetchRequests().then(setRequests).catch(() => {});
+    fetchFeedback().then(setFeedback).catch(() => {});
 
     const socket = connectStaff({
+      onFeedback: (f) => {
+        const fb = f as Feedback;
+        setFeedback((l) => (l.some((x) => x.id === fb.id) ? l : [fb, ...l]));
+        flash(`نظر جدید ثبت شد ⭐ (${fb.rating}/۵)`);
+      },
       onOrder: (o) => {
         setOrders((list) => {
           const exists = list.some((x) => x.id === o.id);
@@ -248,7 +268,7 @@ export default function StaffApp() {
             </span>
             <div className="leading-tight">
               <h1 className="text-lg font-extrabold">پنل کارکنان</h1>
-              <p className="text-[11px] text-muted-foreground">کافه آرتاویل · زنده</p>
+              <p className="text-[11px] text-muted-foreground">{cafeName ? cafeName + " · " : ""}زنده</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -270,27 +290,13 @@ export default function StaffApp() {
         </div>
 
         {/* tabs */}
-        <div className="mx-auto flex max-w-5xl gap-2 px-4 pb-3">
-          <TabBtn
-            active={tab === "orders"}
-            onClick={() => setTab("orders")}
-            icon={<ClipboardList className="h-4 w-4" />}
-            label="سفارش‌ها"
-            badge={activeOrders}
-          />
-          <TabBtn
-            active={tab === "requests"}
-            onClick={() => setTab("requests")}
-            icon={<BellRing className="h-4 w-4" />}
-            label="درخواست‌ها"
-            badge={pendingReq}
-          />
-          <TabBtn
-            active={tab === "manage"}
-            onClick={() => setTab("manage")}
-            icon={<UtensilsCrossed className="h-4 w-4" />}
-            label="مدیریت منو"
-          />
+        <div className="no-scrollbar mx-auto flex max-w-5xl gap-2 overflow-x-auto px-4 pb-3">
+          <TabBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={<ClipboardList className="h-4 w-4" />} label="سفارش‌ها" badge={activeOrders} />
+          <TabBtn active={tab === "requests"} onClick={() => setTab("requests")} icon={<BellRing className="h-4 w-4" />} label="درخواست‌ها" badge={pendingReq} />
+          <TabBtn active={tab === "feedback"} onClick={() => setTab("feedback")} icon={<Star className="h-4 w-4" />} label="نظرسنجی" badge={feedback.length} />
+          <TabBtn active={tab === "customers"} onClick={() => setTab("customers")} icon={<Users className="h-4 w-4" />} label="مشتری‌ها" />
+          <TabBtn active={tab === "manage"} onClick={() => setTab("manage")} icon={<UtensilsCrossed className="h-4 w-4" />} label="مدیریت منو" />
+          <TabBtn active={tab === "settings"} onClick={() => setTab("settings")} icon={<SettingsIcon className="h-4 w-4" />} label="تنظیمات" />
         </div>
       </header>
 
@@ -335,7 +341,10 @@ export default function StaffApp() {
           </>
         )}
 
+        {tab === "feedback" && <StaffFeedback items={feedback} />}
+        {tab === "customers" && <StaffCustomers />}
         {tab === "manage" && <ManageMenu flash={flash} />}
+        {tab === "settings" && <StaffSettings flash={flash} />}
       </main>
 
       {/* receipt lightbox */}
@@ -398,7 +407,7 @@ function TabBtn({
     <button
       onClick={onClick}
       className={cn(
-        "relative flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition",
+        "relative flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition",
         active ? "bg-primary text-primary-foreground shadow" : "bg-secondary text-secondary-foreground hover:bg-muted"
       )}
     >

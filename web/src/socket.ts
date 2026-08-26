@@ -34,6 +34,7 @@ export function connectTable(
 export function connectStaff(handlers: {
   onOrder?: (o: ServerOrder) => void;
   onRequest?: (r: unknown) => void;
+  onFeedback?: (f: unknown) => void;
 }): Socket {
   const socket: Socket = io(API || undefined, {
     path: "/socket.io",
@@ -49,6 +50,7 @@ export function connectStaff(handlers: {
     socket.on("request:new", handlers.onRequest);
     socket.on("request:updated", handlers.onRequest);
   }
+  if (handlers.onFeedback) socket.on("feedback:new", handlers.onFeedback);
   return socket;
 }
 
