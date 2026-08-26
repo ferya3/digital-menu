@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>نظرسنجی | کافه نمونه</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo">☕</span>
+      <h1>نظرسنجی</h1>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card center" id="formCard">
+      <div class="big-emoji">📝</div>
+      <h3>تجربه‌ی شما چطور بود؟</h3>
+      <p class="muted">با ثبت نظر به بهتر شدن ما کمک کنید</p>
+
+      <div class="stars">
+        <input type="radio" name="rate" id="r5" value="5" /><label for="r5">★</label>
+        <input type="radio" name="rate" id="r4" value="4" /><label for="r4">★</label>
+        <input type="radio" name="rate" id="r3" value="3" /><label for="r3">★</label>
+        <input type="radio" name="rate" id="r2" value="2" /><label for="r2">★</label>
+        <input type="radio" name="rate" id="r1" value="1" /><label for="r1">★</label>
+      </div>
+
+      <textarea id="comment" placeholder="نظر، پیشنهاد یا انتقاد شما (اختیاری)…"></textarea>
+      <button class="btn primary block" id="submitFb">ثبت نظر</button>
+    </div>
+
+    <div class="card center" id="thanksCard" hidden>
+      <div class="big-emoji">🙏</div>
+      <h3>سپاس از همراهی شما</h3>
+      <p class="muted">نظر شما با موفقیت ثبت شد</p>
+      <a class="btn block" id="backToMenu" href="/">بازگشت به منو</a>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="/js/feedback.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+node_modules/
+web/node_modules/
+web/dist/
+npm-debug.log*
+.env
+.DS_Store
+*.log
+data/runtime.json
+data/settings.json
+data/customers.json
+# عکس‌های آپلودشده (رسید/محصول) — دادهٔ محلی
+public/images/*
+!public/images/.gitkeep

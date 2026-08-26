@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>داشبورد کارکنان | کافه نمونه</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <script>if (window.self !== window.top) document.documentElement.classList.add('embedded');</script>
+</head>
+<body class="staff">
+  <div class="net-banner" id="netBanner" hidden>
+    ⚠️ اتصال به سرور برقرار نشد. مطمئن شوید سرور با <b>npm start</b> اجراست و این صفحه را از <b>http://localhost:3000/staff</b> باز کنید (نه با باز کردن مستقیم فایل).
+  </div>
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo">👨‍🍳</span>
+      <div>
+        <h1>داشبورد کارکنان</h1>
+        <span class="muted" id="connState">در حال اتصال…</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <label class="muted" style="display:flex;gap:6px;align-items:center;color:#f3e9df">
+        <input type="checkbox" id="soundToggle" checked /> صدای اعلان
+      </label>
+      <a class="icon-btn" href="/manage" title="مدیریت محصولات" style="text-decoration:none">📋</a>
+      <a class="icon-btn" href="/admin" title="تنظیمات مدیریت" style="text-decoration:none">⚙️</a>
+    </div>
+  </header>
+
+  <main class="staff-main">
+    <section class="panel">
+      <h2>🧾 سفارش‌ها <span class="count" id="ordersCount">۰</span></h2>
+      <div id="orders"><p class="empty">سفارشی ثبت نشده است</p></div>
+    </section>
+
+    <section class="panel">
+      <h2>⭐ نظرها <span class="count" id="fbCount">۰</span></h2>
+      <div id="feedback"><p class="empty">نظری ثبت نشده است</p></div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/staff.js"></script>
+</body>
+</html>

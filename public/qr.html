@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>کدهای QR میزها | کافه نمونه</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <script>if (window.self !== window.top) document.documentElement.classList.add('embedded');</script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo">🔳</span>
+      <h1>کدهای QR میزها</h1>
+    </div>
+    <button class="icon-btn" onclick="window.print()" title="چاپ">🖨️</button>
+  </header>
+
+  <div class="toolbar">
+    <span>تعداد میزها:</span>
+    <input type="number" id="count" min="1" max="100" value="10" />
+    <button class="btn primary" id="generate">ساخت کدها</button>
+    <span class="muted">هر کد را چاپ و روی میز مربوطه قرار دهید.</span>
+  </div>
+
+  <div class="qr-grid" id="grid"></div>
+
+  <script src="/js/qr.js"></script>
+</body>
+</html>

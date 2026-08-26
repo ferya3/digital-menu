@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>صندوق | کافه نمونه</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <script>if (window.self !== window.top) document.documentElement.classList.add('embedded');</script>
+</head>
+<body class="staff">
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo">💳</span>
+      <div><h1>صندوق</h1><span class="muted" id="connState">در حال اتصال…</span></div>
+    </div>
+    <a class="icon-btn" href="/manager" title="داشبورد" style="text-decoration:none">🏠</a>
+  </header>
+
+  <div class="net-banner" id="netBanner" hidden>
+    ⚠️ اتصال به سرور برقرار نشد. این صفحه را با سرور درحال‌اجرا از <b>http://localhost:3000/cashier</b> باز کنید.
+  </div>
+
+  <main style="padding:16px;max-width:900px;margin:0 auto">
+    <section class="panel">
+      <h2>💳 پرداخت‌های در انتظار تأیید <span class="count" id="pendCount">۰</span></h2>
+      <div id="pending"><p class="empty">پرداختی در انتظار نیست</p></div>
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <h2>✅ تأییدشده‌ها</h2>
+      <div id="confirmed"><p class="empty">—</p></div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/cashier.js"></script>
+</body>
+</html>
