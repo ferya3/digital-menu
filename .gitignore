@@ -11,3 +11,4 @@ data/customers.json
 # عکس‌های آپلودشده (رسید/محصول) — دادهٔ محلی
 public/images/*
 !public/images/.gitkeep
+data/menu.json

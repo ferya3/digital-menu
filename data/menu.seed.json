@@ -33,11 +33,6 @@
       "id": "breakfast",
       "name": "صبحانه",
       "icon": "🍳"
-    },
-    {
-      "id": "cat_7d9d530a",
-      "name": "ویژه",
-      "icon": "⭐"
     }
   ],
   "items": [
@@ -292,18 +287,6 @@
       "available": true,
       "oldPrice": 0,
       "rating": 5
-    },
-    {
-      "id": "item_5c4188be",
-      "categoryId": "hot-coffee",
-      "name": "تست موکاچینو",
-      "description": "محصول تستی برای بررسی مدیریت منو",
-      "price": 99000,
-      "oldPrice": 0,
-      "rating": 0,
-      "emoji": "🍫",
-      "image": "",
-      "available": true
     }
   ]
 }

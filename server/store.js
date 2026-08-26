@@ -17,6 +17,11 @@ let menu = { cafe: { name: 'کافه', currency: 'تومان' }, categories: [],
 
 function loadMenu() {
   try {
+    // اولین اجرا: اگر menu.json نبود، از منوی نمونه (seed) بساز تا با به‌روزرسانی‌ها (git pull) پاک نشود
+    if (!fs.existsSync(menuPath)) {
+      const seed = path.join(__dirname, '..', 'data', 'menu.seed.json');
+      if (fs.existsSync(seed)) fs.copyFileSync(seed, menuPath);
+    }
     menu = JSON.parse(fs.readFileSync(menuPath, 'utf8'));
   } catch (err) {
     console.error('خطا در خواندن فایل منو:', err.message);
