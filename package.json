@@ -1,20 +1,17 @@
 {
-  "name": "digital-menu",
-  "version": "1.0.0",
-  "description": "منوی دیجیتال کافه — بک‌اند Node/Express/Socket.IO + رابط React (مشتری و کارکنان)",
+  "name": "cafe-digital-menu",
+  "version": "0.1.0",
+  "description": "منوی دیجیتال کافه با سفارش‌گیری آنلاین، درخواست گارسون و فاکتور، و نظرسنجی",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node --watch server/index.js",
-    "build:web": "cd web && npm install && npm run build",
-    "setup": "npm install && npm run build:web"
+    "dev": "node --watch server/index.js"
   },
   "keywords": [
     "cafe",
     "restaurant",
     "digital-menu",
-    "qr-menu",
-    "react"
+    "qr-menu"
   ],
   "license": "MIT",
   "dependencies": {

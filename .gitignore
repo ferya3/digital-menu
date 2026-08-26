@@ -1,6 +1,4 @@
 node_modules/
-web/node_modules/
-web/dist/
 npm-debug.log*
 .env
 .DS_Store
@@ -8,7 +6,6 @@ npm-debug.log*
 data/runtime.json
 data/settings.json
 data/customers.json
-# عکس‌های آپلودشده (رسید/محصول) — دادهٔ محلی
+# عکس‌های آپلودشده‌ی محصولات (داده‌ی محلی)
 public/images/*
 !public/images/.gitkeep
-data/menu.json

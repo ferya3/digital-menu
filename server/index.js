@@ -31,8 +31,15 @@ app.use(express.json({ limit: '6mb' })); // limit بالاتر برای آپلو
 // ورود/خروج مدیر (عمومی)
 app.use('/api/auth', require('./routes/auth')());
 
-// در نسخهٔ React، مسیرِ /staff خودش صفحهٔ ورود را نشان می‌دهد و امنیت روی API است
-// (همهٔ مسیرهای مدیریتیِ /api با requireAuth محافظت می‌شوند)، پس گیتِ سطحِ صفحه لازم نیست.
+// محافظت از صفحات مدیریتی: بدون ورود → هدایت به صفحه‌ی ورود
+const PROTECTED_PAGES = new Set(['/staff', '/requests', '/manager', '/cashier', '/manage', '/admin', '/customers', '/qr', '/print']);
+app.use((req, res, next) => {
+  if (req.method === 'GET') {
+    const p = req.path.replace(/\.html$/, '');
+    if (PROTECTED_PAGES.has(p) && !auth.isAuthed(req)) return res.redirect('/login');
+  }
+  next();
+});
 
 // extensions: مسیرها بدون پسوند .html هم کار کنند
 // صفحه‌ی اشتراک محصول: تگ‌های Open Graph/Twitter را تزریق می‌کند تا لینکِ به‌اشتراک‌گذاشته‌شده
@@ -77,13 +84,7 @@ app.get('/product', (req, res, next) => {
   } catch (e) { next(); }
 });
 
-// تصاویرِ آپلودشده (رسید پرداخت / عکس محصول) از public/images سرو می‌شوند
-app.use('/images', express.static(path.join(__dirname, '..', 'public', 'images')));
-
-// خروجیِ بیلدِ Reactِ سمتِ کاربر و کارکنان (پس از `cd web && npm run build`)
-const webDist = path.join(__dirname, '..', 'web', 'dist');
-const hasWeb = fs.existsSync(path.join(webDist, 'index.html'));
-if (hasWeb) app.use(express.static(webDist));
+app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
 
 // ---- API ----
 app.use('/api/menu', require('./routes/menu')(io));
@@ -106,16 +107,6 @@ app.get('/api/qr', async (req, res) => {
     res.status(500).json({ error: 'خطا در تولید QR' });
   }
 });
-
-// SPA fallback: هر مسیرِ GETِ غیرِ API/سوکت/تصویر به اپِ React می‌رسد
-// (مشتری روی «/» و کارکنان روی «/staff» — مسیریابی سمتِ کلاینت است)
-if (hasWeb) {
-  app.get('*', (req, res, next) => {
-    const p = req.path;
-    if (p.startsWith('/api') || p.startsWith('/socket.io') || p.startsWith('/images') || p === '/product') return next();
-    res.sendFile(path.join(webDist, 'index.html'));
-  });
-}
 
 // ---- Socket.IO: اتاق‌ها ----
 io.on('connection', (socket) => {
