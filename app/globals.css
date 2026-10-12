@@ -132,3 +132,59 @@
 .splash-seen #hero-splash {
   display: none;
 }
+
+/* ===== نسخهٔ سبکِ صحنهٔ هیرو (CSS خالص، قبل از لود Three.js یا روی گوشی ضعیف) ===== */
+.hero-lite {
+  --hx: 50%;
+  --hy: 44%;
+  --hs: 1;
+}
+@media (min-width: 640px) {
+  .hero-lite { --hx: 26%; --hy: 50%; --hs: 1.5; }
+}
+.hero-lite-ring,
+.hero-lite-ball {
+  position: absolute;
+  left: var(--hx);
+  top: var(--hy);
+  translate: -50% -50%;
+  border-radius: 9999px;
+}
+.hero-lite-ring {
+  width: calc(240px * var(--hs));
+  height: calc(240px * var(--hs));
+  border: calc(22px * var(--hs)) solid transparent;
+  background:
+    linear-gradient(hsl(var(--background)), hsl(var(--background))) padding-box,
+    conic-gradient(from 200deg, #7a0d16, #e11d2a, #ff8a8f, #b3121e, #5c0910, #e11d2a, #7a0d16) border-box;
+  transform: rotateX(68deg) rotateZ(-14deg);
+  box-shadow: 0 30px 50px -20px rgba(120, 10, 20, 0.45);
+  animation: hero-lite-float 6s ease-in-out infinite;
+}
+.hero-lite-ball {
+  width: calc(96px * var(--hs));
+  height: calc(96px * var(--hs));
+  background: radial-gradient(circle at 35% 30%, #fff, #efe6da 35%, #c9b8a3 70%, #a8927a);
+  box-shadow: 0 18px 30px -12px rgba(80, 50, 30, 0.45), inset -8px -10px 18px rgba(225, 29, 42, 0.18);
+  animation: hero-lite-float 5s ease-in-out infinite reverse;
+}
+@keyframes hero-lite-float {
+  0%, 100% { margin-top: -6px; }
+  50% { margin-top: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-lite-ring, .hero-lite-ball { animation: none; }
+}
+
+/* ورودِ نرم با CSS خالص: از همان HTMLِ سرور اجرا می‌شود و منتظرِ جاوااسکریپت نمی‌ماند */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(16px); }
+}
+@keyframes rise-down {
+  from { opacity: 0; transform: translateY(-16px); }
+}
+.rise { animation: rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+.rise-down { animation: rise-down 0.8s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .rise, .rise-down { animation: none; }
+}

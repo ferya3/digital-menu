@@ -24,6 +24,9 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
   const setPicks = useUI((s) => s.setPicks);
   const [ready, setReady] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  // صحنهٔ سه‌بعدی بعد از آماده‌شدنِ صفحه و بیکار شدنِ گوشی لود می‌شود تا دکمه‌ها زودتر کار کنند
+  const [show3D, setShow3D] = useState(false);
+  const [scene3D, setScene3D] = useState(false);
 
   // قبل از اولین نقاشی: اگر در این نشست دیده شده، بسته بماند
   useLayoutEffect(() => {
@@ -33,6 +36,29 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
     document.documentElement.classList.remove("splash-seen");
     setReady(true);
   }, [setSplash]);
+
+  useEffect(() => {
+    if (!ready || !open || cafe.heroVideo) return;
+    const nav = navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string }; deviceMemory?: number };
+    const lite =
+      nav.connection?.saveData ||
+      /(^|-)2g|3g/.test(nav.connection?.effectiveType || "") ||
+      (nav.deviceMemory !== undefined && nav.deviceMemory <= 2) ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (lite) return; // روی گوشی ضعیف/اینترنت کند همان نسخهٔ سبک می‌ماند
+    let idle = 0;
+    const go = () => {
+      const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+      idle = w.requestIdleCallback ? w.requestIdleCallback(() => setShow3D(true), { timeout: 2500 }) : window.setTimeout(() => setShow3D(true), 400);
+    };
+    if (document.readyState === "complete") go();
+    else window.addEventListener("load", go, { once: true });
+    return () => {
+      window.removeEventListener("load", go);
+      const w = window as Window & { cancelIdleCallback?: (id: number) => void };
+      if (w.cancelIdleCallback) w.cancelIdleCallback(idle); else window.clearTimeout(idle);
+    };
+  }, [ready, open, cafe.heroVideo]);
 
   // تا وقتی باز است صفحهٔ پشت اسکرول نشود
   useEffect(() => {
@@ -72,11 +98,19 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
           transition={{ duration: 0.45, ease }}
           className={cn("fixed inset-0 z-[80] isolate flex flex-col overflow-hidden bg-background", video && "text-white")}
         >
+          {/* نسخهٔ سبکِ CSS: از همان HTMLِ سرور دیده می‌شود؛ وقتی صحنهٔ سه‌بعدی آماده شد محو می‌شود */}
+          {!cafe.heroVideo && (
+            <div aria-hidden className={cn("hero-lite pointer-events-none absolute inset-0 -z-10 transition-opacity duration-700", scene3D && "opacity-0")}>
+              <span className="hero-lite-ring" />
+              <span className="hero-lite-ball" />
+            </div>
+          )}
           {ready &&
             (video ? (
               <>
                 <video
                   src={video}
+                  poster={cafe.heroPoster || undefined}
                   autoPlay
                   muted
                   loop
@@ -88,7 +122,13 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
                 <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-b from-black/60 via-black/25 to-black/75" />
               </>
             ) : (
-              <Hero3D />
+              <>
+                {show3D && (
+                  <div className={cn("absolute inset-0 -z-10 transition-opacity duration-700", scene3D ? "opacity-100" : "opacity-0")}>
+                    <Hero3D onReady={() => setScene3D(true)} />
+                  </div>
+                )}
+              </>
             ))}
 
           <button
@@ -103,11 +143,7 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
           </button>
 
           {/* نام کافه — بالای هیرو */}
-          <motion.header
-            initial={{ opacity: 0, y: -18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease }}
-            className="relative z-10 flex flex-col items-center px-4 pt-8 text-center sm:pt-12"
+          <header className="rise-down relative z-10 flex flex-col items-center px-4 pt-8 text-center sm:pt-12"
           >
             <span
               className={cn(
@@ -139,43 +175,27 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
             ) : (
               <span className={cn("mt-3 h-px w-24 bg-gradient-to-l from-transparent to-transparent", video ? "via-white/70" : "via-primary/70")} />
             )}
-          </motion.header>
+          </header>
 
           <div className="relative z-10 flex flex-1 items-end px-4 pb-14 sm:items-center sm:pb-12">
             <div className="relative mx-auto w-full max-w-xl text-center sm:me-auto sm:ms-[8vw] sm:max-w-lg sm:text-right">
               {!video && <div aria-hidden className="absolute -inset-8 -z-10 rounded-full bg-background/70 blur-2xl" />}
-              <motion.div
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.15 }}
-                className={cn(
+              <div style={{ animationDelay: "150ms" }} className={cn("rise", 
                   "mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold backdrop-blur",
                   video ? "border-white/30 bg-white/10 text-white" : "border-border bg-card/70 text-primary"
                 )}
               >
                 <Sparkles className="size-3.5" /> {cafe.tagline || "قهوهٔ تازه، تجربهٔ متفاوت"}
-              </motion.div>
-              <motion.h2
-                initial={{ opacity: 0, y: 22 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.2, ease }}
-                className={cn("text-balance text-3xl font-black leading-snug sm:text-5xl", video && "drop-shadow-[0_3px_14px_rgba(0,0,0,.5)]")}
+              </div>
+              <h2 style={{ animationDelay: "200ms" }} className={cn("rise", "text-balance text-3xl font-black leading-snug sm:text-5xl", video && "drop-shadow-[0_3px_14px_rgba(0,0,0,.5)]")}
               >
                 طعمی که به یاد می‌ماند
-              </motion.h2>
-              <motion.p
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.3 }}
-                className={cn("mx-auto mt-3 max-w-md text-balance text-base sm:mx-0 sm:text-lg", video ? "text-white/85" : "text-muted-foreground")}
+              </h2>
+              <p style={{ animationDelay: "300ms" }} className={cn("rise", "mx-auto mt-3 max-w-md text-balance text-base sm:mx-0 sm:text-lg", video ? "text-white/85" : "text-muted-foreground")}
               >
                 منو را ببین و همین‌جا، از روی میز، سفارش بده.
-              </motion.p>
-              <motion.div
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.4 }}
-                className="mt-6 flex flex-wrap items-center justify-center gap-3 sm:justify-start"
+              </p>
+              <div style={{ animationDelay: "400ms" }} className="rise mt-6 flex flex-wrap items-center justify-center gap-3 sm:justify-start"
               >
                 <Button size="lg" className="rounded-full px-7" onClick={() => close()}>
                   مشاهدهٔ منو <ArrowLeft className="size-4" />
@@ -188,7 +208,7 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
                 >
                   <Sparkles className="size-4" /> منتخب باریستا
                 </Button>
-              </motion.div>
+              </div>
             </div>
           </div>
         </motion.div>

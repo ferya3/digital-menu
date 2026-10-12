@@ -3,6 +3,7 @@ import path from "node:path";
 import { isAuthed } from "@/lib/auth";
 import { getSetting, setSetting } from "@/lib/queries";
 import { UPLOADS, deleteUpload } from "@/lib/images";
+import { optimizeHeroVideo } from "@/lib/video";
 import type { CafeInfo } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -57,9 +58,12 @@ export async function POST(req: Request) {
 
   const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
   if (cur.heroVideo) deleteUpload(cur.heroVideo);
+  if (cur.heroPoster) deleteUpload(cur.heroPoster);
   const heroVideo = "/uploads/" + file;
-  setSetting("cafe", { ...cur, heroVideo });
-  return json({ ok: true, heroVideo });
+  setSetting("cafe", { ...cur, heroVideo, heroPoster: "" });
+  // سبک‌سازی در پس‌زمینه (اگر ffmpeg روی سرور باشد)
+  const optimizing = optimizeHeroVideo(heroVideo);
+  return json({ ok: true, heroVideo, optimizing });
 }
 
 /** حذف ویدیو → هیرو به صحنهٔ سه‌بعدی برمی‌گردد */
@@ -67,6 +71,18 @@ export async function DELETE() {
   if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
   const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
   if (cur.heroVideo) deleteUpload(cur.heroVideo);
-  setSetting("cafe", { ...cur, heroVideo: "" });
+  if (cur.heroPoster) deleteUpload(cur.heroPoster);
+  setSetting("cafe", { ...cur, heroVideo: "", heroPoster: "" });
   return json({ ok: true });
+}
+
+/** سبک‌سازیِ ویدیوی فعلی (برای ویدیوهایی که قبل از این قابلیت آپلود شده‌اند) */
+export async function PATCH() {
+  if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
+  const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
+  if (!cur.heroVideo) return json({ ok: false, error: "ویدیویی نیست" }, 400);
+  if (/-web\.mp4$/.test(cur.heroVideo)) return json({ ok: true, optimizing: false, already: true });
+  const optimizing = optimizeHeroVideo(cur.heroVideo);
+  if (!optimizing) return json({ ok: false, error: "ffmpeg روی سرور نصب نیست — یک بار update.sh را اجرا کنید" }, 400);
+  return json({ ok: true, optimizing });
 }

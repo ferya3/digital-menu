@@ -72,14 +72,19 @@ function Scene() {
   );
 }
 
-export function Hero3D() {
+export function Hero3D({ onReady }: { onReady?: () => void }) {
   const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => setMounted(true), []);
   return (
     <div ref={ref} className="pointer-events-none absolute inset-0 -z-10">
       {mounted && (
-        <Canvas camera={{ position: [0, 0, 6.5], fov: 45 }} dpr={[1, 1.8]} gl={{ antialias: true, alpha: true }}>
+        <Canvas
+          camera={{ position: [0, 0, 6.5], fov: 45 }}
+          dpr={[1, 1.6]}
+          gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+          onCreated={() => requestAnimationFrame(() => requestAnimationFrame(() => onReady?.()))}
+        >
           <ambientLight intensity={0.6} />
           <directionalLight position={[4, 5, 3]} intensity={1.8} color="#fff0e0" />
           <pointLight position={[-4, -2, 2]} intensity={30} color={RED} />

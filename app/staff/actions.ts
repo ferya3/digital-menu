@@ -208,7 +208,7 @@ export async function staffUpdateSettingsAction(input: {
     let logo = input.cafe?.logo ?? cur.logo;
     if (logoBuf) logo = await saveImageWebp(logoBuf, "logo", 512);
     // ویدیوی هیرو فقط از مسیر آپلود خودش عوض می‌شود
-    setSetting("cafe", { ...cur, ...input.cafe, logo, heroVideo: cur.heroVideo });
+    setSetting("cafe", { ...cur, ...input.cafe, logo, heroVideo: cur.heroVideo, heroPoster: cur.heroPoster });
   }
   if (input.payment) {
     setSetting("payment", { ...DEFAULT_PAYMENT, ...getSetting<PaymentInfo>("payment", DEFAULT_PAYMENT), ...input.payment });

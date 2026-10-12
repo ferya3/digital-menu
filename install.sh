@@ -26,7 +26,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 say "نصب پیش‌نیازها"
 apt-get update -y
-apt-get install -y curl git nginx ca-certificates
+apt-get install -y curl git nginx ca-certificates ffmpeg
 
 # ---------- Node.js 22 (برای node:sqlite) ----------
 NODE_MAJOR=0

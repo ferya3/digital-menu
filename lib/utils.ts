@@ -34,3 +34,7 @@ export const faTime = (iso: string) => {
 /** کد سفارش طبق تنظیمات: «#۱۲» یا شناسهٔ کامل */
 export const orderCode = (o: { id: string; number: number }, mode: "number" | "id" = "number") =>
   mode === "id" ? o.id : "#" + toFa(o.number);
+
+/** آدرسِ نسخهٔ کوچکِ عکسِ آپلودی (برای عکس‌های خارجی همان آدرس) */
+export const thumb = (src: string | undefined, w: number) =>
+  src && /^\/uploads\/[^?]+\.(webp|jpe?g|png)$/i.test(src) ? `${src}?w=${w}` : src || "";

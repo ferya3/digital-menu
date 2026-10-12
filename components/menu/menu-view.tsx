@@ -7,13 +7,13 @@ import {
   ReceiptText, Upload, Loader2, ClipboardList, Check, CheckCircle2, Menu as MenuIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, toFa, formatMoney } from "@/lib/utils";
+import { cn, thumb, toFa, formatMoney } from "@/lib/utils";
 import type { Bill, CafeInfo, Menu, MenuItem, Order, PaymentInfo } from "@/lib/types";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useUI } from "@/store/ui";
 import { scrollToId } from "@/components/fx/smooth-scroll";
 import { CoverflowCarousel, GridCard, ListRow, Stepper, ViewToggle, type ViewMode } from "@/components/menu/menu-modes";
-import { PicksSheet } from "@/components/menu/picks-sheet";
+import dynamic from "next/dynamic";
 import { PhoneGate } from "@/components/menu/phone-gate";
 import { CatIcon } from "@/components/staff/kit";
 import { compressImage, imageForm } from "@/lib/client-image";
@@ -21,6 +21,9 @@ import {
   placeOrderAction, billAction, ordersAction, uploadReceiptAction,
   requestAction, feedbackAction,
 } from "@/app/actions";
+
+// پنل منتخب‌ها (با GSAP) جدا و بعد از بارگذاری صفحه لود می‌شود
+const PicksSheet = dynamic(() => import("@/components/menu/picks-sheet").then((m) => m.PicksSheet), { ssr: false });
 
 const STATUS_STEPS = ["new", "preparing", "ready", "served"] as const;
 const STATUS_FA: Record<string, string> = {
@@ -269,7 +272,7 @@ export function MenuView({
           <div className="flex items-center gap-2.5">
             {logoIsImg ? (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={cafe.logo} alt="" className="size-10 rounded-2xl object-cover" />
+              <img src={thumb(cafe.logo, 160)} alt="" className="size-10 rounded-2xl object-cover" />
             ) : (
               <span className="grid size-10 place-items-center rounded-2xl bg-primary text-xl text-primary-foreground shadow-lg shadow-primary/25">
                 {cafe.logo || <Coffee className="size-5" />}
@@ -400,7 +403,7 @@ export function MenuView({
           >
             <motion.figure initial={{ scale: 0.92 }} animate={{ scale: 1 }} className="max-w-3xl text-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={lightbox.image} alt={lightbox.name} className="max-h-[78vh] rounded-2xl object-contain" />
+              <img src={thumb(lightbox.image, 1080)} alt={lightbox.name} className="max-h-[78vh] rounded-2xl object-contain" />
               <figcaption className="mt-3 font-bold text-white">{lightbox.name} · {money(lightbox.price)}</figcaption>
             </motion.figure>
           </motion.div>

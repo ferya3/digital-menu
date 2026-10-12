@@ -8,7 +8,7 @@ import type Lenis from "lenis";
 import { Sparkles, X, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/menu/menu-modes";
-import { toFa } from "@/lib/utils";
+import { thumb, toFa } from "@/lib/utils";
 import type { MenuItem } from "@/lib/types";
 
 if (typeof window !== "undefined") gsap.registerPlugin(useGSAP);
@@ -178,7 +178,7 @@ function PicksBody({
                 >
                   {d.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={d.image} alt={d.name} className="absolute inset-0 size-full object-cover transition duration-700 group-hover:scale-105" />
+                    <img src={thumb(d.image, 720)} alt={d.name} loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover transition duration-700 group-hover:scale-105" />
                   ) : (
                     <span className="text-[7rem] drop-shadow-xl transition duration-500 group-hover:scale-110">{d.emoji || "☕"}</span>
                   )}

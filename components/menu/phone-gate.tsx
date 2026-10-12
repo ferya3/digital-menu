@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, toFa } from "@/lib/utils";
+import { cn, thumb, toFa } from "@/lib/utils";
 import { otpRequestAction, otpVerifyAction } from "@/app/actions";
 import type { CafeInfo } from "@/lib/types";
 
@@ -69,7 +69,7 @@ export function PhoneGate({ cafe, table, onVerified }: { cafe: CafeInfo; table: 
             <span className="mx-auto mb-3 grid size-16 place-items-center overflow-hidden rounded-2xl bg-muted text-4xl">
               {isImg(cafe.logo) ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={cafe.logo} alt="" className="size-full object-cover" />
+                <img src={thumb(cafe.logo, 160)} alt="" className="size-full object-cover" />
               ) : cafe.logo || "☕"}
             </span>
             <h2 className="text-xl font-black">{cafe.name}</h2>

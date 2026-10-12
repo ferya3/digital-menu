@@ -7,7 +7,7 @@ import {
   List as ListIcon, Minus, Plus, Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, toFa } from "@/lib/utils";
+import { cn, thumb, toFa } from "@/lib/utils";
 import type { MenuItem } from "@/lib/types";
 
 export type ViewMode = "carousel" | "grid" | "list";
@@ -136,7 +136,7 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
         // eslint-disable-next-line @next/next/no-img-element
         <img
           key={current.id}
-          src={current.image}
+          src={thumb(current.image, 160)}
           alt=""
           aria-hidden
           className="pointer-events-none absolute inset-[-12%] -z-10 size-[124%] scale-110 object-cover transition-opacity duration-700"
@@ -184,9 +184,11 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
                 boxShadow: on ? "var(--cf-shadow-on)" : "var(--cf-shadow)",
               }}
             >
-              {it.image ? (
+              {it.image && p.op > 0 ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={it.image} alt={it.name} className={cn("absolute inset-0 size-full object-cover transition-transform duration-[7s]", on ? "scale-110" : "scale-[1.02]")} />
+                <img src={thumb(it.image, 720)} alt={it.name} loading="lazy" decoding="async" className={cn("absolute inset-0 size-full object-cover transition-transform duration-[7s]", on ? "scale-110" : "scale-[1.02]")} />
+              ) : it.image ? (
+                <div className="absolute inset-0 bg-[#3b2618]" />
               ) : (
                 <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_32%,#f3d9b8,#d39a68_45%,#7b4a2b)] pb-24 text-8xl drop-shadow-xl">{it.emoji || "🍽️"}</div>
               )}
@@ -253,12 +255,10 @@ export function GridCard({ item, index, ...a }: { item: MenuItem; index: number 
   const qty = a.qtyOf(item.id);
   return (
     <motion.article
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.45, delay: Math.min(index * 0.04, 0.24), ease: [0.22, 1, 0.36, 1] }}
+      // ورودِ کارت با CSS (بدون انتظار برای جاوااسکریپت)؛ هاور با framer
+      style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
       whileHover={{ y: -4 }}
-      className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+      className="rise group overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
     >
       <button
         className={cn("relative grid aspect-[4/3] w-full place-items-center overflow-hidden bg-gradient-to-br from-muted to-card", item.image && "cursor-zoom-in")}
@@ -267,7 +267,7 @@ export function GridCard({ item, index, ...a }: { item: MenuItem; index: number 
       >
         {item.image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.image} alt={item.name} className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src={thumb(item.image, 480)} alt={item.name} loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
         ) : (
           <span className="text-6xl transition group-hover:scale-110">{item.emoji}</span>
         )}
@@ -332,7 +332,7 @@ export function ListRow({ item, ...a }: { item: MenuItem } & ItemActions) {
               >
                 {item.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.image} alt={item.name} className="absolute inset-0 size-full object-cover" />
+                  <img src={thumb(item.image, 720)} alt={item.name} loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover" />
                 ) : (
                   <span className="text-7xl">{item.emoji || "🍽️"}</span>
                 )}

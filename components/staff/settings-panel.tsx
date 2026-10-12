@@ -194,15 +194,23 @@ function HeroVideoCard({ video, onChange, flash }: { video: string; onChange: (v
     xhr.upload.onprogress = (e) => e.lengthComputable && setProgress(Math.round((e.loaded / e.total) * 100));
     xhr.onload = () => {
       setProgress(null);
-      let r: { ok?: boolean; heroVideo?: string; error?: string } = {};
+      let r: { ok?: boolean; heroVideo?: string; error?: string; optimizing?: boolean } = {};
       try { r = JSON.parse(xhr.responseText); } catch {}
       if (xhr.status === 413 && !r.error) r.error = "حجم فایل برای سرور زیاد است";
-      if (r.ok && r.heroVideo) { onChange(r.heroVideo); flash("ویدیوی هیرو آپلود شد ✅"); }
+      if (r.ok && r.heroVideo) {
+        onChange(r.heroVideo);
+        flash(r.optimizing ? "ویدیو آپلود شد ✅ — در حال سبک‌سازی برای بازشدنِ سریع (تا یکی دو دقیقه)" : "ویدیوی هیرو آپلود شد ✅");
+      }
       else flash(r.error || "خطا در آپلود ویدیو");
     };
     xhr.onerror = () => { setProgress(null); flash("اتصال قطع شد"); };
     setProgress(0);
     xhr.send(f);
+  }
+
+  async function optimize() {
+    const r = await fetch("/staff/hero-video", { method: "PATCH" }).then((x) => x.json()).catch(() => ({ ok: false }));
+    flash(r.ok ? (r.already ? "ویدیو از قبل سبک شده است ✅" : "سبک‌سازی شروع شد — تا یکی دو دقیقه آماده می‌شود") : r.error || "خطا");
   }
 
   async function remove() {
@@ -239,6 +247,9 @@ function HeroVideoCard({ video, onChange, flash }: { video: string; onChange: (v
         <Button variant="outline" className="flex-1 rounded-xl" disabled={progress !== null} onClick={() => ref.current?.click()}>
           {progress !== null ? <Loader2 className="animate-spin" /> : <Upload className="size-4" />} {video ? "تعویض ویدیو" : "آپلود ویدیو"}
         </Button>
+        {video && !/-web\.mp4$/.test(video) && (
+          <Button variant="outline" className="rounded-xl" disabled={progress !== null} onClick={optimize} title="کم‌حجم‌کردنِ ویدیو برای بازشدنِ سریع">سبک‌سازی</Button>
+        )}
         {video && (
           <Button variant="outline" className="rounded-xl text-primary" disabled={removing || progress !== null} onClick={remove}>
             {removing ? <Loader2 className="animate-spin" /> : <Trash2 className="size-4" />} حذف

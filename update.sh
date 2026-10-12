@@ -20,6 +20,12 @@ say "دریافت آخرین کد ($BRANCH)"
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
+# ffmpeg برای سبک‌سازیِ خودکارِ ویدیوی صفحهٔ اول
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  say "نصب ffmpeg"
+  (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg) || echo "نصب ffmpeg انجام نشد (اختیاری)"
+fi
+
 say "نصب وابستگی‌ها و build"
 npm ci --no-audit --no-fund
 NODE_OPTIONS="--max-old-space-size=1536" npm run build

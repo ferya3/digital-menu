@@ -2,31 +2,21 @@
 
 import { useEffect } from "react";
 import Lenis from "lenis";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(ScrollTrigger);
-}
 
 export function SmoothScroll({ children }: { children: React.ReactNode }) {
   useEffect(() => {
+    // Lenis خودش حلقهٔ requestAnimationFrame را می‌گرداند (بدون نیاز به GSAP در بارگذاری اول)
     const lenis = new Lenis({
       duration: 1.1,
       smoothWheel: true,
       // روی لمس، اسکرولِ بومی طبیعی‌تر است
       touchMultiplier: 1.5,
+      autoRaf: true,
     });
-    lenis.on("scroll", ScrollTrigger.update);
-    const raf = (time: number) => lenis.raf(time * 1000);
-    gsap.ticker.add(raf);
-    gsap.ticker.lagSmoothing(0);
     // در دسترسِ بقیهٔ کامپوننت‌ها برای اسکرول نرم به لنگرها
     (window as unknown as { __lenis?: Lenis }).__lenis = lenis;
     return () => {
-      gsap.ticker.remove(raf);
       lenis.destroy();
-      ScrollTrigger.getAll().forEach((t) => t.kill());
     };
   }, []);
 

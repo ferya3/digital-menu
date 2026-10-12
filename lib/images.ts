@@ -66,7 +66,34 @@ export function deleteUpload(webPath: string) {
     if (!webPath?.startsWith("/uploads/")) return;
     const f = path.join(UPLOADS, path.basename(webPath));
     if (f.startsWith(UPLOADS) && fs.existsSync(f)) fs.unlinkSync(f);
+    const base = path.basename(f, path.extname(f));
+    if (fs.existsSync(THUMBS))
+      for (const t of fs.readdirSync(THUMBS)) if (t.startsWith(base + "-")) fs.unlinkSync(path.join(THUMBS, t));
   } catch {
     /* best effort */
   }
+}
+
+/** عرض‌های مجاز برای نسخهٔ کوچک (تا کسی نتواند بی‌نهایت فایل بسازد) */
+const THUMB_WIDTHS = [160, 320, 480, 720, 1080];
+const THUMBS = path.join(UPLOADS, ".thumbs");
+const pending = new Map<string, Promise<string>>();
+
+/** نسخهٔ کوچکِ WebP از یک عکسِ آپلودی؛ مسیرِ فایلِ کش‌شده را برمی‌گرداند */
+export async function thumbnail(src: string, width: number): Promise<string | null> {
+  const w = THUMB_WIDTHS.find((x) => x >= width) ?? THUMB_WIDTHS[THUMB_WIDTHS.length - 1];
+  const out = path.join(THUMBS, `${path.basename(src, path.extname(src))}-${w}.webp`);
+  if (fs.existsSync(out)) return out;
+  if (!fs.existsSync(src)) return null;
+  let job = pending.get(out);
+  if (!job) {
+    job = (async () => {
+      fs.mkdirSync(THUMBS, { recursive: true });
+      const buf = await sharp(src).resize(w, w, { fit: "inside", withoutEnlargement: true }).webp({ quality: 74 }).toBuffer();
+      fs.writeFileSync(out, buf);
+      return out;
+    })().finally(() => pending.delete(out));
+    pending.set(out, job);
+  }
+  return job;
 }

@@ -68,6 +68,8 @@ export interface CafeInfo {
   currency: "toman" | "rial";
   /** ویدیوی پس‌زمینهٔ هیرو؛ خالی = صحنهٔ سه‌بعدی */
   heroVideo?: string;
+  /** عکسِ کاورِ ویدیو (فریم اول) تا قبل از رسیدنِ ویدیو */
+  heroPoster?: string;
   address?: string;
   mapUrl?: string;
   instagram?: string;

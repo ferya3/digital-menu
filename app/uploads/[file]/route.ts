@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { UPLOADS } from "@/lib/images";
+import { UPLOADS, thumbnail } from "@/lib/images";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ file: st
   const name = path.basename(file); // جلوگیری از خروج از پوشه (../)
   const type = TYPES[path.extname(name).toLowerCase()];
   if (!type) return new Response("Not found", { status: 404 });
-  const full = path.join(UPLOADS, name);
+  let full = path.join(UPLOADS, name);
+  let ctype = type;
+
+  // نسخهٔ کوچکِ عکس برای منو: ?w=480 (یک‌بار ساخته و روی دیسک نگه داشته می‌شود)
+  const w = Number(new URL(req.url).searchParams.get("w"));
+  if (w && type.startsWith("image/")) {
+    const t = await thumbnail(full, w).catch(() => null);
+    if (t) { full = t; ctype = "image/webp"; }
+  }
+
   let size: number;
   try {
     size = (await fs.promises.stat(full)).size;
@@ -29,7 +38,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ file: st
     return new Response("Not found", { status: 404 });
   }
   const headers: Record<string, string> = {
-    "Content-Type": type,
+    "Content-Type": ctype,
     "Cache-Control": "public, max-age=31536000, immutable",
     "Accept-Ranges": "bytes",
   };
