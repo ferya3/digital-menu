@@ -737,10 +737,7 @@ function CategoryTitle({ cat }: { cat: MenuCategory; count?: number }) {
   const title = (
     <>
       <Ornament />
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-xl text-xl"><CatIcon icon={cat.emoji} /></span>
-        <span className="truncate">{cat.name}</span>
-      </span>
+      <span className="min-w-0 truncate">{cat.name}</span>
       <Ornament flip />
     </>
   );
