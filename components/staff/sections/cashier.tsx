@@ -5,7 +5,7 @@ import { AlertTriangle, Banknote, CheckCircle2, CreditCard, Loader2, Phone, Prin
 import { Button } from "@/components/ui/button";
 import { cn, faDateTime, orderCode, toFa } from "@/lib/utils";
 import type { Order } from "@/lib/types";
-import { staffSetPaidAction, staffTablePayAction } from "@/app/staff/actions";
+import { staffSettleTableAction, staffTablePayAction } from "@/app/staff/actions";
 import { Empty, Panel, TableBadge, useStaff } from "@/components/staff/kit";
 
 interface Group {
@@ -40,8 +40,10 @@ function groupByTable(list: Order[]): Group[] {
 
 export function CashierSection({ orders, onRefresh }: { orders: Order[]; onRefresh: () => void }) {
   const pending = groupByTable(orders.filter((o) => o.payStatus === "pending"));
+  // مشتری «کارت‌خوان سر میز» خواسته: فاکتور چاپ شود و سالن‌دار با کارت‌خوان برود
+  const pos = groupByTable(orders.filter((o) => !o.paid && o.status !== "cancelled" && o.payStatus === "pos"));
   // صورتحساب‌های باز بدون فیش (برای پرداخت نقدی/کارتخوان)
-  const open = groupByTable(orders.filter((o) => !o.paid && o.status !== "cancelled" && o.payStatus !== "pending"));
+  const open = groupByTable(orders.filter((o) => !o.paid && o.status !== "cancelled" && o.payStatus !== "pending" && o.payStatus !== "pos"));
   const confirmed = groupByTable(orders.filter((o) => o.paid)).slice(0, 30);
 
   return (
@@ -51,6 +53,12 @@ export function CashierSection({ orders, onRefresh }: { orders: Order[]; onRefre
           <div className="grid gap-3 md:grid-cols-2">{pending.map((g) => <BillCard key={g.table} g={g} kind="pending" onDone={onRefresh} />)}</div>
         )}
       </Panel>
+      {pos.length > 0 && (
+        <Panel title="کارت‌خوان سر میز" icon={<Printer className="size-5 text-blue-600" />} count={toFa(pos.length)} className="border-blue-600/30">
+          <p className="-mt-1 mb-3 text-xs text-muted-foreground">فاکتور را چاپ کنید تا سالن‌دار با فاکتور و کارت‌خوان سر میز برود؛ بعد از کشیدن کارت «پرداخت شد» را بزنید.</p>
+          <div className="grid gap-3 md:grid-cols-2">{pos.map((g) => <BillCard key={g.table} g={g} kind="pos" onDone={onRefresh} />)}</div>
+        </Panel>
+      )}
       <Panel title="صورتحساب‌های باز (بدون فیش)" icon={<Banknote className="size-5 text-amber-600" />} count={toFa(open.length)}>
         {open.length === 0 ? <Empty text="صورتحساب بازی نیست" /> : (
           <div className="grid gap-3 md:grid-cols-2">{open.map((g) => <BillCard key={g.table} g={g} kind="open" onDone={onRefresh} />)}</div>
@@ -65,7 +73,7 @@ export function CashierSection({ orders, onRefresh }: { orders: Order[]; onRefre
   );
 }
 
-function BillCard({ g, kind, onDone }: { g: Group; kind: "pending" | "open" | "paid"; onDone: () => void }) {
+function BillCard({ g, kind, onDone }: { g: Group; kind: "pending" | "open" | "paid" | "pos"; onDone: () => void }) {
   const { money, codeMode, print, viewImage, ask, flash } = useStaff();
   const [busy, setBusy] = useState<"" | "ok" | "no">("");
 
@@ -73,7 +81,7 @@ function BillCard({ g, kind, onDone }: { g: Group; kind: "pending" | "open" | "p
     setBusy("ok");
     try {
       if (kind === "pending") await staffTablePayAction(g.table, "confirmed");
-      else await Promise.all(g.orders.map((o) => staffSetPaidAction(o.id, true)));
+      else await staffSettleTableAction(g.table);
       flash(`پرداخت میز ${toFa(g.table)} تأیید شد ✅`);
       onDone();
     } catch (e) { flash(e instanceof Error ? e.message : "خطا"); } finally { setBusy(""); }
@@ -87,7 +95,7 @@ function BillCard({ g, kind, onDone }: { g: Group; kind: "pending" | "open" | "p
   }
 
   return (
-    <article className={cn("rounded-2xl border bg-background p-3.5", kind === "pending" ? "border-amber-500/40" : kind === "paid" ? "border-green-600/30 opacity-80" : "border-border")}>
+    <article className={cn("rounded-2xl border bg-background p-3.5", kind === "pending" ? "border-amber-500/40" : kind === "pos" ? "border-blue-600/40" : kind === "paid" ? "border-green-600/30 opacity-80" : "border-border")}>
       <div className="mb-2 flex items-center justify-between">
         <TableBadge table={toFa(g.table)} />
         <span className="text-xs text-muted-foreground">{toFa(g.orders.length)} سفارش</span>
@@ -126,8 +134,14 @@ function BillCard({ g, kind, onDone }: { g: Group; kind: "pending" | "open" | "p
         {kind === "open" && (
           <Button size="sm" className="h-8 flex-1 rounded-xl" disabled={!!busy} onClick={() => { if (confirm(`کل صورتحساب میز ${toFa(g.table)} پرداخت شد؟`)) confirmAll(); }}>{busy ? <Loader2 className="animate-spin" /> : <><Banknote className="size-3.5" /> پرداخت شد (نقدی/کارتخوان)</>}</Button>
         )}
+        {kind === "pos" && (
+          <>
+            <Button size="sm" className="h-8 flex-1 rounded-xl" onClick={() => print("table=" + encodeURIComponent(g.table))}><Printer className="size-3.5" /> چاپ فاکتور</Button>
+            <Button size="sm" className="h-8 flex-1 rounded-xl bg-green-600 text-white hover:bg-green-600/90" disabled={!!busy} onClick={() => { if (confirm(`مبلغ میز ${toFa(g.table)} با کارت‌خوان دریافت شد؟`)) confirmAll(); }}>{busy ? <Loader2 className="animate-spin" /> : "پرداخت شد (کارت‌خوان)"}</Button>
+          </>
+        )}
         {kind === "paid" && <span className="flex items-center gap-1 text-sm font-semibold text-green-600 dark:text-green-400"><CheckCircle2 className="size-4" /> پرداخت تأیید شد</span>}
-        <Button size="sm" variant="ghost" className="h-8 rounded-xl" onClick={() => print("orders=" + g.orders.map((o) => o.id).join(","))}><Printer className="size-3.5" /> چاپ صورتحساب</Button>
+        {kind !== "pos" && <Button size="sm" variant="ghost" className="h-8 rounded-xl" onClick={() => print("orders=" + g.orders.map((o) => o.id).join(","))}><Printer className="size-3.5" /> چاپ صورتحساب</Button>}
       </div>
     </article>
   );

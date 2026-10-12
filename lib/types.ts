@@ -1,5 +1,6 @@
 export type OrderStatus = "new" | "preparing" | "ready" | "served" | "cancelled";
-export type PayStatus = "none" | "pending" | "confirmed" | "rejected";
+/** pos = مشتری «کارت‌خوان سر میز» خواسته؛ صندوق فاکتور را چاپ می‌کند و با کارت‌خوان تسویه می‌شود */
+export type PayStatus = "none" | "pending" | "confirmed" | "rejected" | "pos";
 
 export interface OrderItem {
   id: string;
@@ -100,4 +101,8 @@ export interface PaymentInfo {
   holder: string;
   note: string;
   link: string;
+  /** روش‌های پرداخت برای مشتری (پیش‌فرض هر دو روشن) */
+  allowCard?: boolean;
+  allowPos?: boolean;
 }
+export type RequestType = "waiter" | "invoice" | "pos";

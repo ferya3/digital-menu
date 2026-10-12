@@ -5,6 +5,7 @@ import {
   getBill,
   getOrder,
   attachReceiptToTable,
+  requestPos,
   receiptReused,
   createRequest,
   createFeedback,
@@ -52,6 +53,7 @@ export async function requestAction(
   table: string,
   type: "waiter" | "invoice"
 ): Promise<{ ok: boolean }> {
+  // (نوع pos فقط از مسیرِ posRequestAction ساخته می‌شود)
   createRequest({ table, type });
   return { ok: true };
 }
@@ -72,4 +74,10 @@ export async function otpRequestAction(phone: string): Promise<{ ok: boolean; de
 }
 export async function otpVerifyAction(phone: string, code: string, table: string): Promise<{ ok: boolean; phone: string }> {
   return verifyOtp(phone, code, table);
+}
+
+/** «کارت‌خوان سر میز»: صندوق فاکتور را چاپ می‌کند و سالن‌دار با کارت‌خوان می‌آید */
+export async function posRequestAction(table: string): Promise<{ ok: boolean }> {
+  if (!String(table || "").trim()) throw new Error("شماره میز نامعتبر است");
+  return requestPos(String(table));
 }

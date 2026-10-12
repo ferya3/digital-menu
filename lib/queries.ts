@@ -10,6 +10,7 @@ import type {
   OrderItem,
   OrderStatus,
   PayStatus,
+  RequestType,
 } from "@/lib/types";
 
 const id = (p: string) => `${p}_${crypto.randomUUID().slice(0, 8)}`;
@@ -117,7 +118,9 @@ export function getBill(table: string): Bill {
   const receipt = (orders.find((o) => o.receipt)?.receipt) || "";
   const payStatus: PayStatus = orders.some((o) => o.payStatus === "pending")
     ? "pending"
-    : rejected
+    : orders.some((o) => o.payStatus === "pos")
+      ? "pos"
+      : rejected
       ? "rejected"
       : "none";
   return {
@@ -214,6 +217,28 @@ export function setPaid(orderId: string, paid: boolean): Order | null {
   return changed(getOrder(orderId));
 }
 
+/** مشتری «کارت‌خوان سر میز» خواست: همهٔ سفارش‌های بازِ میز علامت می‌خورند + درخواست برای صندوق */
+export function requestPos(table: string) {
+  const open = openBillOrders(table).filter((o) => o.payStatus !== "pending");
+  if (!open.length) throw new Error("صورتحساب بازی برای این میز نیست");
+  const upd = db().prepare("UPDATE orders SET pay_status='pos', updated_at=? WHERE id=?");
+  for (const o of open) upd.run(now(), o.id);
+  // درخواستِ تکراری نساز
+  const dup = db().prepare("SELECT id FROM requests WHERE tbl=? AND type='pos' AND status='pending'").get(String(table));
+  if (!dup) createRequest({ table, type: "pos" });
+  publish({ type: "order", table: String(table) });
+  return { ok: true };
+}
+
+/** تسویهٔ کلِ صورتحسابِ بازِ یک میز (کارت‌خوان/نقدی) + بستنِ درخواستِ کارت‌خوانِ آن میز */
+export function settleTable(table: string): number {
+  const open = openBillOrders(table);
+  for (const o of open) setPaid(o.id, true);
+  db().prepare("UPDATE requests SET status='done' WHERE tbl=? AND type='pos' AND status='pending'").run(String(table));
+  publish({ type: "request", table: String(table) });
+  return open.length;
+}
+
 /** تأیید/ردِ فیشِ کل صورتحسابِ یک میز (همهٔ سفارش‌های «در انتظار» با هم) */
 export function setTablePayStatus(table: string, pay: "confirmed" | "rejected", reason = ""): number {
   const rows = db()
@@ -224,10 +249,10 @@ export function setTablePayStatus(table: string, pay: "confirmed" | "rejected", 
 }
 
 /* ---------- requests ---------- */
-export function createRequest(input: { table: string; type: "waiter" | "invoice"; note?: string }) {
+export function createRequest(input: { table: string; type: RequestType; note?: string }) {
   const d = db();
   let amount = 0, orderCount = 0;
-  if (input.type === "invoice") {
+  if (input.type === "invoice" || input.type === "pos") {
     const open = openBillOrders(input.table);
     amount = open.reduce((s, o) => s + o.total, 0);
     orderCount = open.length;
@@ -290,7 +315,7 @@ export function setSetting(key: string, value: unknown) {
 
 /* ======================= STAFF / ADMIN ======================= */
 export interface StaffRequest {
-  id: string; table: string; type: "waiter" | "invoice"; note: string;
+  id: string; table: string; type: RequestType; note: string;
   status: "pending" | "done"; amount: number; orderCount: number; createdAt: string;
 }
 export interface StaffFeedback {
@@ -308,7 +333,7 @@ export function listOrders(limit = 200): Order[] {
 
 export function listRequests(): StaffRequest[] {
   const rows = db().prepare("SELECT * FROM requests ORDER BY created_at DESC LIMIT 300").all() as unknown as {
-    id: string; tbl: string; type: "waiter" | "invoice"; note: string; status: "pending" | "done";
+    id: string; tbl: string; type: RequestType; note: string; status: "pending" | "done";
     amount: number; order_count: number; created_at: string;
   }[];
   return rows.map((r) => ({

@@ -19,7 +19,7 @@ import { ShareSheet, copyText, nativeShare, type ShareTarget } from "@/component
 import { CatIcon } from "@/components/staff/kit";
 import { compressImage, imageForm } from "@/lib/client-image";
 import {
-  placeOrderAction, billAction, ordersAction, uploadReceiptAction,
+  placeOrderAction, billAction, ordersAction, uploadReceiptAction, posRequestAction,
   requestAction, feedbackAction,
 } from "@/app/actions";
 
@@ -78,6 +78,11 @@ export function MenuView({
   const [billOpen, setBillOpen] = useState(false);
   const [bill, setBill] = useState<Bill | null>(null);
   const [billLoading, setBillLoading] = useState(false);
+  const [payMethod, setPayMethod] = useState<"card" | "pos" | null>(null);
+  const [posSending, setPosSending] = useState(false);
+  // روش‌های پرداختِ فعال: کارت‌به‌کارت (اگر کارت/لینک تعریف شده) و کارت‌خوان سر میز
+  const cardOK = payment.allowCard !== false && !!(payment.card || payment.link);
+  const posOK = payment.allowPos !== false;
   const [reqOpen, setReqOpen] = useState(false);
   const [reqSending, setReqSending] = useState<"waiter" | "invoice" | null>(null);
   const [fbOpen, setFbOpen] = useState(false);
@@ -237,7 +242,21 @@ export function MenuView({
     }
   }
 
+  async function requestPos() {
+    setPosSending(true);
+    try {
+      await posRequestAction(table);
+      flash("درخواست کارت‌خوان ثبت شد ✅ — با فاکتور و کارت‌خوان سر میز می‌آییم", 5000);
+      setBill(await billAction(table));
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setPosSending(false);
+    }
+  }
+
   async function openBill() {
+    setPayMethod(null);
     setBillOpen(true);
     setBillLoading(true);
     try {
@@ -530,7 +549,7 @@ export function MenuView({
               <div className="mb-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm leading-7 text-amber-900 dark:text-amber-200">
                 💳 <b>سفارش شما بعد از تأیید پرداخت برای سرآشپز ارسال می‌شود.</b>
                 <br />
-                <span className="text-xs">مبلغ را کارت‌به‌کارت کنید و رسید را بفرستید، یا در صندوق پرداخت کنید.</span>
+                <span className="text-xs">{cardOK && posOK ? "کارت‌به‌کارت کنید و رسید را بفرستید، یا «کارت‌خوان سر میز» را بزنید." : posOK ? "«کارت‌خوان سر میز» را بزنید تا با فاکتور و کارت‌خوان بیاییم." : "مبلغ را کارت‌به‌کارت کنید و رسید را بفرستید، یا در صندوق پرداخت کنید."}</span>
               </div>
             )}
             <p className="mb-3 text-xs text-muted-foreground">{toFa(bill.count)} سفارش پرداخت‌نشده روی این میز — همه با هم:</p>
@@ -547,21 +566,54 @@ export function MenuView({
             <div className="mt-5 flex items-center justify-between border-t border-border pt-4"><span className="text-muted-foreground">جمع کل بدهی</span><span className="text-2xl font-black text-primary">{money(bill.total)}</span></div>
             {bill.payStatus === "pending" && <div className="mt-3 rounded-xl bg-amber-500/15 px-3 py-2 text-center text-sm text-amber-600 dark:text-amber-400">رسید ارسال شد؛ در انتظار تأیید صندوق.{payFirst && " بعد از تأیید، سفارش برای سرآشپز ارسال می‌شود."}</div>}
             {bill.payStatus === "rejected" && <div className="mt-3 rounded-xl bg-primary/10 px-3 py-2 text-center text-sm text-primary">فیش قبلی رد شد{bill.rejectedReason ? `: ${bill.rejectedReason}` : ""}. دوباره پرداخت کن.</div>}
-            {(payment.card || payment.link || payment.holder) && (
-              <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3 text-sm">
-                <div className="mb-1.5 font-bold">اطلاعات پرداخت</div>
-                {payment.card && (
-                  <div className="flex items-center justify-between gap-2">
-                    <span dir="ltr" className="font-mono tracking-wider">{toFa(payment.card)}</span>
-                    <button onClick={async () => flash((await copyText(payment.card.replace(/\D/g, ""))) ? "شماره کارت کپی شد" : "کپی نشد")} className="shrink-0 rounded-lg bg-card px-2 py-1 text-xs font-semibold text-primary">کپی</button>
-                  </div>
-                )}
-                {payment.holder && <div className="mt-0.5 text-xs text-muted-foreground">به نام {payment.holder}</div>}
-                {payment.note && <div className="mt-0.5 text-xs text-muted-foreground">{payment.note}</div>}
-                {payment.link && <a href={payment.link} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary">پرداخت آنلاین ↗</a>}
+            {bill.payStatus === "pos" && (
+              <div className="mt-3 rounded-2xl border border-primary/30 bg-primary/5 p-3 text-center text-sm leading-7">
+                🧾 <b>درخواست کارت‌خوان ثبت شد.</b>
+                <br />
+                همکاران ما با فاکتور و کارت‌خوان سر میز می‌آیند.{payFirst && " بعد از پرداخت، سفارش برای سرآشپز ارسال می‌شود."}
               </div>
             )}
-            <Button className="mt-3 h-11 w-full rounded-xl text-base" onClick={() => fileRef.current?.click()}><Upload /> ارسال رسید پرداخت</Button>
+            {bill.payStatus !== "pos" && bill.payStatus !== "pending" && cardOK && posOK && (
+              <div className="mt-4">
+                <div className="mb-2 text-sm font-bold">روش پرداخت</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setPayMethod("card")} className={cn("rounded-2xl border-2 p-3 text-center text-sm font-bold transition", payMethod === "card" ? "border-primary bg-primary/5" : "border-border")}>
+                    <span className="mb-1 block text-2xl">💳</span>کارت‌به‌کارت
+                    <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">ارسال رسید</span>
+                  </button>
+                  <button onClick={() => setPayMethod("pos")} className={cn("rounded-2xl border-2 p-3 text-center text-sm font-bold transition", payMethod === "pos" ? "border-primary bg-primary/5" : "border-border")}>
+                    <span className="mb-1 block text-2xl">🧾</span>کارت‌خوان سر میز
+                    <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">با فاکتور می‌آییم</span>
+                  </button>
+                </div>
+              </div>
+            )}
+            {bill.payStatus !== "pos" && posOK && (payMethod === "pos" || !cardOK) && bill.payStatus !== "pending" && (
+              <div className="mt-3 rounded-2xl border border-border bg-muted/40 p-3 text-sm">
+                <p className="mb-2 text-xs leading-6 text-muted-foreground">صندوق فاکتور میز را چاپ می‌کند و همکاران ما با کارت‌خوان سر میز می‌آیند.</p>
+                <Button className="h-11 w-full rounded-xl text-base" onClick={requestPos} disabled={posSending}>{posSending ? <Loader2 className="animate-spin" /> : "🧾 درخواست کارت‌خوان سر میز"}</Button>
+              </div>
+            )}
+            {cardOK && (payMethod === "card" || !posOK || bill.payStatus === "pending" || bill.payStatus === "pos") && (
+              <>
+            {(payment.card || payment.link || payment.holder) && (
+                <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3 text-sm">
+                  <div className="mb-1.5 font-bold">اطلاعات پرداخت</div>
+                  {payment.card && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span dir="ltr" className="font-mono tracking-wider">{toFa(payment.card)}</span>
+                      <button onClick={async () => flash((await copyText(payment.card.replace(/\D/g, ""))) ? "شماره کارت کپی شد" : "کپی نشد")} className="shrink-0 rounded-lg bg-card px-2 py-1 text-xs font-semibold text-primary">کپی</button>
+                    </div>
+                  )}
+                  {payment.holder && <div className="mt-0.5 text-xs text-muted-foreground">به نام {payment.holder}</div>}
+                  {payment.note && <div className="mt-0.5 text-xs text-muted-foreground">{payment.note}</div>}
+                  {payment.link && <a href={payment.link} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary">پرداخت آنلاین ↗</a>}
+                </div>
+              )}
+              <Button className="mt-3 h-11 w-full rounded-xl text-base" onClick={() => fileRef.current?.click()}><Upload /> ارسال رسید پرداخت</Button>
+              </>
+            )}
+            {!cardOK && !posOK && <p className="mt-3 text-center text-sm text-muted-foreground">برای پرداخت به صندوق مراجعه کنید.</p>}
           </>
         )}
       </Drawer>
@@ -614,22 +666,25 @@ function OrderTracker({ order, money, payFirst, onPay }: { order: Order; money: 
   if (payFirst && !order.paid && !cancelled) {
     const pending = order.payStatus === "pending";
     const rejected = order.payStatus === "rejected";
+    const pos = order.payStatus === "pos";
     return (
       <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-bold">سفارش #{toFa(order.number)}</span>
-          <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400">{pending ? "در انتظار تأیید صندوق" : "در انتظار پرداخت"}</span>
+          <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400">{pending ? "در انتظار تأیید صندوق" : pos ? "کارت‌خوان در راه است" : "در انتظار پرداخت"}</span>
         </div>
         <p className="text-xs leading-6 text-muted-foreground">
           {pending
             ? "رسید شما رسید ✅ — به‌محض تأیید صندوق، سفارش برای سرآشپز ارسال می‌شود."
-            : rejected
+            : pos
+              ? "همکاران ما با فاکتور و کارت‌خوان سر میز می‌آیند؛ بعد از پرداخت، سفارش برای سرآشپز ارسال می‌شود."
+              : rejected
               ? `فیش رد شد${order.rejectedReason ? `: ${order.rejectedReason}` : ""} — دوباره پرداخت کنید تا سفارش برای سرآشپز ارسال شود.`
               : "سفارش شما بعد از پرداخت برای سرآشپز ارسال می‌شود."}
         </p>
         <div className="mt-2 flex items-center justify-between">
           <span className="text-sm font-extrabold text-primary">{money(order.total)}</span>
-          {!pending && onPay && <Button size="sm" className="h-8 rounded-xl" onClick={onPay}>💳 پرداخت</Button>}
+          {!pending && !pos && onPay && <Button size="sm" className="h-8 rounded-xl" onClick={onPay}>💳 پرداخت</Button>}
         </div>
       </div>
     );

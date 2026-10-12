@@ -95,6 +95,7 @@ function OrderCard({ o, onChange }: { o: Order; onChange: (o: Order | null) => v
         <span className="rounded-full bg-muted px-2 py-0.5">{STATUS_FA[o.status]}</span>
         {o.paid && <span className="rounded-full bg-green-600/15 px-2 py-0.5 text-green-700 dark:text-green-400">پرداخت‌شده</span>}
         {!o.paid && o.payStatus === "pending" && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-400">فیش در انتظار تأیید</span>}
+        {!o.paid && o.payStatus === "pos" && <span className="rounded-full bg-blue-600/10 px-2 py-0.5 text-blue-700 dark:text-blue-400">کارت‌خوان سر میز</span>}
         {o.payStatus === "rejected" && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">فیش رد شد</span>}
       </div>
       <ul className="mb-2 space-y-0.5 text-sm">
@@ -155,6 +156,8 @@ function AwaitingPanel({ list, onChange, onCashier }: { list: Order[]; onChange:
               <strong className="text-primary">{money(o.total)}</strong>
               {o.payStatus === "pending" ? (
                 <button onClick={onCashier} className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">فیش رسیده ← صندوق</button>
+              ) : o.payStatus === "pos" ? (
+                <button onClick={onCashier} className="rounded-full bg-blue-600/10 px-2.5 py-1 text-[11px] font-bold text-blue-700 dark:text-blue-400">کارت‌خوان خواسته ← صندوق</button>
               ) : (
                 <span className="text-[11px] text-muted-foreground">{o.payStatus === "rejected" ? "فیش رد شد" : "هنوز پرداخت نشده"}</span>
               )}

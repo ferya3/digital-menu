@@ -17,6 +17,7 @@ import {
   setPayStatus,
   setPaid,
   setTablePayStatus,
+  settleTable,
   getMenu,
   getSetting,
   setSetting,
@@ -85,6 +86,11 @@ export async function staffRejectPayAction(id: string, reason: string): Promise<
 export async function staffSetPaidAction(id: string, paid: boolean): Promise<Order | null> {
   await gate();
   return setPaid(id, paid);
+}
+/** تسویهٔ کل صورتحسابِ میز با کارت‌خوان/نقدی */
+export async function staffSettleTableAction(table: string): Promise<{ count: number }> {
+  await gate();
+  return { count: settleTable(table) };
 }
 /** صندوق: تأیید یا ردِ فیشِ کل صورتحسابِ یک میز */
 export async function staffTablePayAction(table: string, pay: "confirmed" | "rejected", reason = ""): Promise<{ count: number }> {

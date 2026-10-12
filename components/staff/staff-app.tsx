@@ -179,7 +179,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       for (const x of r) {
         if (!s.requests.has(x.id)) {
           s.requests.add(x.id);
-          if (s.ready) notify(`${x.type === "invoice" ? "💵 درخواست صورتحساب" : "🙋 درخواست گارسون"} — میز ${toFa(x.table)}`, "درخواست جدید");
+          if (s.ready) notify(`${x.type === "pos" ? "🧾 درخواست کارت‌خوان سر میز (چاپ فاکتور)" : x.type === "invoice" ? "💵 درخواست صورتحساب" : "🙋 درخواست گارسون"} — میز ${toFa(x.table)}`, x.type === "pos" ? "کارت‌خوان" : "درخواست جدید");
         }
       }
       setRequests(r);
@@ -224,7 +224,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   /* ---- شمارنده‌های منو ---- */
   const counts = useMemo(() => {
-    const pendingTables = new Set(orders.filter((o) => o.payStatus === "pending").map((o) => o.table));
+    const pendingTables = new Set(orders.filter((o) => (o.payStatus === "pending" || o.payStatus === "pos") && !o.paid).map((o) => o.table));
     const active = (o: Order) => o.status !== "served" && o.status !== "cancelled";
     // اول پرداخت: میزهایی که سفارشِ پرداخت‌نشده دارند هم کارِ صندوق‌اند
     const waits = (o: Order) => payFirst && o.status === "new" && !o.paid;

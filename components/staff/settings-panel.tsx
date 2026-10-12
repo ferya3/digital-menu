@@ -118,7 +118,12 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
             سفارش تا تأیید پرداخت (فیش یا پرداخت در صندوق) برای سرآشپز ارسال نمی‌شود و به مشتری هم همین اعلام می‌شود — جلوی سفارشِ مزاحم از بیرونِ کافه (با عکسِ QR) را می‌گیرد. سفارشِ پرداخت‌نشده بعد از ۱ ساعت خودکار لغو می‌شود.
           </p>
         </div>
-        <p className="mb-3 text-xs text-muted-foreground">هنگام درخواست صورتحساب به مشتری نشان داده می‌شود؛ مشتری پرداخت می‌کند و فیش را آپلود می‌کند.</p>
+        <div className="mb-3 space-y-2 rounded-2xl border border-border p-3">
+          <div className="text-xs font-bold">روش‌های پرداخت برای مشتری</div>
+          <Switch checked={payment.allowCard !== false} onChange={(v) => setPayment({ allowCard: v })} label="💳 کارت‌به‌کارت / لینک پرداخت (ارسال رسید)" />
+          <Switch checked={payment.allowPos !== false} onChange={(v) => setPayment({ allowPos: v })} label="🧾 کارت‌خوان سر میز (صندوق فاکتور را چاپ می‌کند، سالن‌دار با کارت‌خوان می‌رود)" />
+        </div>
+        <p className="mb-3 text-xs text-muted-foreground">اطلاعات کارت هنگام درخواست صورتحساب به مشتری نشان داده می‌شود؛ مشتری پرداخت می‌کند و فیش را آپلود می‌کند.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="لینک پرداخت آنلاین (اختیاری)"><input value={payment.link} onChange={(e) => setPayment({ link: e.target.value })} className={inputCls} dir="ltr" placeholder="https://zarinp.al/…" /></Field>
           <Field label="شماره کارت (اختیاری)"><input value={payment.card} onChange={(e) => setPayment({ card: e.target.value })} className={inputCls} dir="ltr" placeholder="6037-xxxx-xxxx-xxxx" /></Field>
