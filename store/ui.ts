@@ -7,6 +7,9 @@ interface UIState {
   /** پنلِ «منتخب باریستا» */
   picksOpen: boolean;
   setPicks: (v: boolean) => void;
+  /** پاپ‌آپِ خوش‌آمد (هیرو) — فقط بار اولِ هر نشست */
+  splash: boolean;
+  setSplash: (v: boolean) => void;
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -15,4 +18,6 @@ export const useUI = create<UIState>((set) => ({
   toggle: () => set((s) => ({ menuOpen: !s.menuOpen })),
   picksOpen: false,
   setPicks: (v) => set({ picksOpen: v }),
+  splash: true,
+  setSplash: (v) => set({ splash: v }),
 }));

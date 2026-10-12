@@ -127,3 +127,8 @@
 .cf-floor {
   background: radial-gradient(50% 50% at 50% 50%, var(--cf-floor), transparent 72%);
 }
+
+/* پاپ‌آپ خوش‌آمد اگر در این نشست دیده شده، قبل از hydrate هم نمایش داده نشود (بدون چشمک) */
+.splash-seen #hero-splash {
+  display: none;
+}

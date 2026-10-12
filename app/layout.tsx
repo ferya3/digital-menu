@@ -14,7 +14,8 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-const themeInit = `try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}`;
+const themeInit = `try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}
+try{if(sessionStorage.getItem('cafe_splash_seen'))document.documentElement.classList.add('splash-seen')}catch(e){}`;
 
 export default function RootLayout({
   children,

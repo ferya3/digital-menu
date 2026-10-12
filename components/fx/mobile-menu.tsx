@@ -6,16 +6,16 @@ import { useUI } from "@/store/ui";
 import { scrollToId } from "@/components/fx/smooth-scroll";
 
 const LINKS = [
-  { id: "top", label: "خانه", icon: Home },
+  { id: "splash", label: "صفحهٔ خوش‌آمد", icon: Home },
   { id: "picks", label: "منتخب باریستا", icon: Sparkles },
   { id: "menu", label: "منو", icon: UtensilsCrossed },
 ];
 
 export function MobileMenu({ cafeName }: { cafeName: string }) {
-  const { menuOpen, setMenu, setPicks } = useUI();
+  const { menuOpen, setMenu, setPicks, setSplash } = useUI();
   const go = (id: string) => {
     setMenu(false);
-    window.setTimeout(() => (id === "picks" ? setPicks(true) : scrollToId(id)), 60);
+    window.setTimeout(() => (id === "picks" ? setPicks(true) : id === "splash" ? setSplash(true) : scrollToId(id)), 60);
   };
   return (
     <AnimatePresence>
