@@ -11,11 +11,13 @@ export function Landing({
   table,
   cafe,
   payment,
+  otp = false,
 }: {
   menu: Menu;
   table: string;
   cafe: CafeInfo;
   payment: PaymentInfo;
+  otp?: boolean;
 }) {
   return (
     <SmoothScroll>
@@ -26,7 +28,7 @@ export function Landing({
 
       {/* ===== MENU + ordering (پنل منتخب‌ها هم داخل همین است تا به همان سبد اضافه شود) ===== */}
       <div id="menu">
-        <MenuView menu={menu} table={table} cafe={cafe} payment={payment} />
+        <MenuView menu={menu} table={table} cafe={cafe} payment={payment} otp={otp} />
       </div>
     </SmoothScroll>
   );

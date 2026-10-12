@@ -13,3 +13,24 @@ export const formatMoney = (n: number, currency: "toman" | "rial" = "toman") => 
   const v = currency === "rial" ? n * 10 : n;
   return toFa(v.toLocaleString("en-US")) + (currency === "rial" ? " ریال" : " تومان");
 };
+
+/** تاریخ شمسی + ساعت، مثل «۱۴۰۵/۷/۲۰ · ۱۹:۳۰» */
+export const faDateTime = (iso: string) => {
+  try {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString("fa-IR")} · ${faTime(iso)}`;
+  } catch {
+    return "";
+  }
+};
+export const faTime = (iso: string) => {
+  try {
+    const d = new Date(iso);
+    return toFa(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
+  } catch {
+    return "";
+  }
+};
+/** کد سفارش طبق تنظیمات: «#۱۲» یا شناسهٔ کامل */
+export const orderCode = (o: { id: string; number: number }, mode: "number" | "id" = "number") =>
+  mode === "id" ? o.id : "#" + toFa(o.number);

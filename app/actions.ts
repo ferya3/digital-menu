@@ -10,13 +10,17 @@ import {
   createFeedback,
 } from "@/lib/queries";
 import { saveReceiptWebp, readUpload } from "@/lib/images";
+import { isVerifiedPhone, normalizePhone, requestOtp, verifyOtp } from "@/lib/otp";
 import type { Bill, Order } from "@/lib/types";
 
 export async function placeOrderAction(
   table: string,
-  items: { id: string; qty: number }[]
+  items: { id: string; qty: number }[],
+  extra?: { note?: string; phone?: string }
 ): Promise<Order> {
-  return createOrder({ table, items });
+  // شماره فقط اگر قبلاً با کد پیامکی تأیید شده باشد ثبت می‌شود
+  const phone = extra?.phone && (await isVerifiedPhone(extra.phone)) ? normalizePhone(extra.phone) : "";
+  return createOrder({ table, items, note: extra?.note, phone });
 }
 
 export async function billAction(table: string): Promise<Bill> {
@@ -40,7 +44,7 @@ export async function uploadReceiptAction(
   if (!buf) throw new Error("تصویر رسید ارسال نشد");
   const { path, hash } = await saveReceiptWebp(buf, table);
   const reused = receiptReused(hash, table);
-  attachReceiptToTable(table, path, hash);
+  attachReceiptToTable(table, path, hash, reused);
   return { ok: true, reused };
 }
 
@@ -60,4 +64,12 @@ export async function feedbackAction(input: {
 }): Promise<{ ok: boolean }> {
   createFeedback(input);
   return { ok: true };
+}
+
+/* ---------- تأیید شمارهٔ مشتری با کد پیامکی ---------- */
+export async function otpRequestAction(phone: string): Promise<{ ok: boolean; demoCode?: string }> {
+  return requestOtp(phone);
+}
+export async function otpVerifyAction(phone: string, code: string, table: string): Promise<{ ok: boolean; phone: string }> {
+  return verifyOtp(phone, code, table);
 }

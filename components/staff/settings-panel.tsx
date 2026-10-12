@@ -1,101 +1,179 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, ImageIcon, X, Save, Store, CreditCard, KeyRound, Clapperboard, Upload, Trash2 } from "lucide-react";
+import {
+  Loader2, ImageIcon, X, Save, Store, CreditCard, KeyRound, Clapperboard, Upload, Trash2,
+  MapPin, Hash, MessageSquareText, Landmark,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { compressImage, imageForm } from "@/lib/client-image";
-import type { CafeInfo, PaymentInfo } from "@/lib/types";
-import { staffSettingsAction, staffUpdateSettingsAction } from "@/app/staff/actions";
+import { staffSettingsAction, staffUpdateSettingsAction, type AdminSettings } from "@/app/staff/actions";
+import type { Gateway } from "@/lib/types";
+import { Field, Panel, Switch, inputCls, isImgSrc, useStaff } from "@/components/staff/kit";
 
-const input = "w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring";
-const isImg = (s: string) => /^https?:|^data:|^blob:|^\/uploads\//.test(s || "");
+const FIELD_LABELS: Record<string, string> = {
+  merchantId: "مرچنت‌کد / Merchant ID",
+  terminalId: "شماره ترمینال",
+  username: "نام کاربری",
+  password: "رمز عبور",
+  key: "کلید (Key)",
+};
 
-export function SettingsPanel({ flash }: { flash: (m: string) => void }) {
-  const [cafe, setCafe] = useState<CafeInfo | null>(null);
-  const [payment, setPayment] = useState<PaymentInfo | null>(null);
-  const [hasPassword, setHasPassword] = useState(false);
+export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
+  const { flash } = useStaff();
+  const [s, setS] = useState<AdminSettings | null>(null);
   const [logoBlob, setLogoBlob] = useState<Blob | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    staffSettingsAction().then((s) => { setCafe(s.cafe); setPayment(s.payment); setHasPassword(s.hasPassword); }).catch(() => {});
-  }, []);
+  useEffect(() => { staffSettingsAction().then(setS).catch(() => flash("خطا در بارگذاری تنظیمات")); }, [flash]);
+  if (!s) return <div className="grid place-items-center py-20 text-muted-foreground"><Loader2 className="size-6 animate-spin" /></div>;
 
-  if (!cafe || !payment) return <div className="grid place-items-center py-20 text-muted-foreground"><Loader2 className="size-6 animate-spin" /></div>;
+  const cafe = s.cafe, payment = s.payment, sms = s.sms;
+  const setCafe = (p: Partial<AdminSettings["cafe"]>) => setS({ ...s, cafe: { ...cafe, ...p } });
+  const setPayment = (p: Partial<AdminSettings["payment"]>) => setS({ ...s, payment: { ...payment, ...p } });
+  const setSms = (p: Partial<AdminSettings["sms"]>) => setS({ ...s, sms: { ...sms, ...p } });
+  const setGateway = (id: Gateway["id"], p: Partial<Gateway>) =>
+    setS({ ...s, gateways: s.gateways.map((g) => (g.id === id ? { ...g, ...p, config: { ...g.config, ...(p.config || {}) } } : g)) });
 
   async function save() {
     setSaving(true);
     try {
       await staffUpdateSettingsAction({
-        cafe: cafe!, payment: payment!,
+        cafe: { ...cafe, name: cafe.name.trim() || "کافه", logo: cafe.logo || "☕" },
+        payment, orderCode: s!.orderCode, sms, gateways: s!.gateways,
         ...(newPassword.trim() ? { newPassword: newPassword.trim() } : {}),
       }, logoBlob ? imageForm(logoBlob) : null);
       setLogoBlob(null);
+      if (newPassword.trim()) setS({ ...s!, hasPassword: true });
       setNewPassword("");
-      flash("تنظیمات ذخیره شد ✅");
-    } catch (e) { flash(e instanceof Error ? e.message : "خطا"); } finally { setSaving(false); }
+      flash("✅ تنظیمات با موفقیت ذخیره شد");
+      onSaved();
+    } catch (e) { flash("❌ ذخیره نشد: " + (e instanceof Error ? e.message : "خطا")); } finally { setSaving(false); }
   }
 
   const logoPreview = logoUrl || cafe.logo;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <Card icon={<Store className="size-4" />} title="اطلاعات کافه">
+    <div className="mx-auto max-w-2xl space-y-4 pb-4">
+      <Panel icon={<Store className="size-5 text-primary" />} title="مشخصات کافه">
         <div className="flex items-center gap-3">
-          {isImg(logoPreview) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoPreview} alt="" className="size-14 rounded-2xl object-cover" />
-          ) : (
-            <span className="grid size-14 place-items-center rounded-2xl bg-muted text-3xl">{logoPreview || "☕"}</span>
-          )}
-          <div className="flex-1"><Field label="نام کافه"><input value={cafe.name} onChange={(e) => setCafe({ ...cafe, name: e.target.value })} className={input} /></Field></div>
+          <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted text-3xl">
+            {isImgSrc(logoPreview) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoPreview} alt="" className="size-full object-cover" />
+            ) : logoPreview || "☕"}
+          </span>
+          <Field label="نام کافه" className="flex-1"><input value={cafe.name} onChange={(e) => setCafe({ name: e.target.value })} className={inputCls} /></Field>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="لوگو (ایموجی)">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <Field label="لوگو (ایموجی مثل ☕ یا عکس)">
             <div className="flex gap-2">
-              <input value={isImg(cafe.logo) ? "" : cafe.logo} onChange={(e) => setCafe({ ...cafe, logo: e.target.value })} placeholder="☕" className={input} />
+              <input value={isImgSrc(cafe.logo) ? "" : cafe.logo} onChange={(e) => { setCafe({ logo: e.target.value }); setLogoBlob(null); setLogoUrl(""); }} placeholder="☕" className={inputCls} />
               <input ref={fileRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { const b = await compressImage(f, 512); setLogoBlob(b); setLogoUrl(URL.createObjectURL(b)); } }} />
-              <Button variant="outline" size="icon" className="shrink-0 rounded-xl" onClick={() => fileRef.current?.click()}><ImageIcon className="size-4" /></Button>
-              {(logoUrl || isImg(cafe.logo)) && <Button variant="ghost" size="icon" onClick={() => { setLogoBlob(null); setLogoUrl(""); setCafe({ ...cafe, logo: "☕" }); }}><X /></Button>}
+              <Button variant="outline" size="icon" className="shrink-0 rounded-xl" onClick={() => fileRef.current?.click()} aria-label="آپلود لوگو"><ImageIcon className="size-4" /></Button>
+              {(logoUrl || isImgSrc(cafe.logo)) && <Button variant="ghost" size="icon" onClick={() => { setLogoBlob(null); setLogoUrl(""); setCafe({ logo: "☕" }); }} aria-label="حذف لوگو"><X /></Button>}
             </div>
           </Field>
-          <Field label="شعار / زیرعنوان"><input value={cafe.tagline} onChange={(e) => setCafe({ ...cafe, tagline: e.target.value })} className={input} /></Field>
+          <Field label="شعار / زیرعنوان (اختیاری)"><input value={cafe.tagline} onChange={(e) => setCafe({ tagline: e.target.value })} className={inputCls} placeholder="مثلاً قهوه‌ای برای لحظه‌های خاص" /></Field>
         </div>
-        <Field label="واحد پول">
+        <Field label="واحد پول" className="mt-3">
           <div className="flex gap-2">
             {(["toman", "rial"] as const).map((c) => (
-              <button key={c} onClick={() => setCafe({ ...cafe, currency: c })} className={cn("flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition", cafe.currency === c ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background")}>{c === "toman" ? "تومان" : "ریال"}</button>
+              <button key={c} onClick={() => setCafe({ currency: c })} className={cn("flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition", cafe.currency === c ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background")}>{c === "toman" ? "تومان" : "ریال"}</button>
             ))}
           </div>
         </Field>
-      </Card>
+      </Panel>
 
-      <HeroVideoCard
-        video={cafe.heroVideo || ""}
-        onChange={(v) => setCafe((c) => (c ? { ...c, heroVideo: v } : c))}
-        flash={flash}
-      />
+      <HeroVideoCard video={cafe.heroVideo || ""} onChange={(v) => setS((cur) => (cur ? { ...cur, cafe: { ...cur.cafe, heroVideo: v } } : cur))} flash={flash} />
 
-      <Card icon={<CreditCard className="size-4" />} title="اطلاعات پرداخت (کارت‌به‌کارت)">
-        <p className="text-xs text-muted-foreground">هنگام درخواست صورتحساب به مشتری نشان داده می‌شود.</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="شماره کارت"><input value={payment.card} onChange={(e) => setPayment({ ...payment, card: e.target.value })} className={input} dir="ltr" placeholder="6037-xxxx-xxxx-xxxx" /></Field>
-          <Field label="به نام"><input value={payment.holder} onChange={(e) => setPayment({ ...payment, holder: e.target.value })} className={input} /></Field>
-          <Field label="لینک پرداخت (اختیاری)"><input value={payment.link} onChange={(e) => setPayment({ ...payment, link: e.target.value })} className={input} dir="ltr" placeholder="https://…" /></Field>
-          <Field label="یادداشت"><input value={payment.note} onChange={(e) => setPayment({ ...payment, note: e.target.value })} className={input} /></Field>
+      <Panel icon={<MapPin className="size-5 text-primary" />} title="آدرس و شبکه‌های اجتماعی">
+        <p className="mb-3 text-xs text-muted-foreground">برای اشتراک‌گذاری محصولات همراه لوکیشن استفاده می‌شود.</p>
+        <div className="grid gap-3">
+          <Field label="آدرس کافه"><input value={cafe.address || ""} onChange={(e) => setCafe({ address: e.target.value })} className={inputCls} placeholder="مثلاً تهران، خیابان …" /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="لینک نقشه (گوگل‌مپ / نشان / بلد)"><input value={cafe.mapUrl || ""} onChange={(e) => setCafe({ mapUrl: e.target.value })} className={inputCls} dir="ltr" placeholder="https://…" /></Field>
+            <Field label="پیج اینستاگرام (آیدی یا لینک)"><input value={cafe.instagram || ""} onChange={(e) => setCafe({ instagram: e.target.value })} className={inputCls} dir="ltr" placeholder="@mycafe" /></Field>
+          </div>
         </div>
-      </Card>
+      </Panel>
 
-      <Card icon={<KeyRound className="size-4" />} title="رمز ورود کارکنان">
-        <Field label={hasPassword ? "رمز جدید (خالی = بدون تغییر)" : "تعیین رمز"}><input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={input} placeholder="••••••" /></Field>
-      </Card>
+      <Panel icon={<Hash className="size-5 text-primary" />} title="نمایش کد سفارش">
+        <Field label="کد سفارش چطور نمایش داده شود؟">
+          <select value={s.orderCode} onChange={(e) => setS({ ...s, orderCode: e.target.value === "id" ? "id" : "number" })} className={inputCls}>
+            <option value="number">فقط عدد ترتیبی (#۱، #۲ …) — پیگیری آسان‌تر</option>
+            <option value="id">کد کامل (ord_xxxx)</option>
+          </select>
+        </Field>
+      </Panel>
 
-      <div className="sticky bottom-3">
-        <Button size="lg" className="h-12 w-full rounded-2xl text-base shadow-lg" onClick={save} disabled={saving}>{saving ? <Loader2 className="animate-spin" /> : <><Save className="size-5" /> ذخیرهٔ تنظیمات</>}</Button>
+      <Panel icon={<CreditCard className="size-5 text-primary" />} title="پرداخت (لینک یا کارت‌به‌کارت)">
+        <p className="mb-3 text-xs text-muted-foreground">هنگام درخواست صورتحساب به مشتری نشان داده می‌شود؛ مشتری پرداخت می‌کند و فیش را آپلود می‌کند.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="لینک پرداخت آنلاین (اختیاری)"><input value={payment.link} onChange={(e) => setPayment({ link: e.target.value })} className={inputCls} dir="ltr" placeholder="https://zarinp.al/…" /></Field>
+          <Field label="شماره کارت (اختیاری)"><input value={payment.card} onChange={(e) => setPayment({ card: e.target.value })} className={inputCls} dir="ltr" placeholder="6037-xxxx-xxxx-xxxx" /></Field>
+          <Field label="به نام (صاحب کارت)"><input value={payment.holder} onChange={(e) => setPayment({ holder: e.target.value })} className={inputCls} placeholder="نام و نام خانوادگی" /></Field>
+          <Field label="توضیح پرداخت (اختیاری)"><input value={payment.note} onChange={(e) => setPayment({ note: e.target.value })} className={inputCls} placeholder="مثلاً پس از واریز، فیش را آپلود کنید" /></Field>
+        </div>
+      </Panel>
+
+      <Panel icon={<MessageSquareText className="size-5 text-primary" />} title="سامانهٔ پیامک (کد تأیید مشتری)">
+        <div className="mb-3 rounded-2xl bg-muted/60 p-3">
+          <Switch checked={sms.otpEnabled} onChange={(v) => setSms({ otpEnabled: v })} label="دریافت شمارهٔ مشتری با کد تأیید (قبل از دیدن منو)" />
+          <p className="mt-1.5 text-[11px] text-muted-foreground">شماره‌های تأییدشده در «مشتری‌ها» جمع می‌شوند و روی سفارش‌ها نمایش داده می‌شوند. اگر سامانه «هیچ‌کدام» باشد، کد در حالت آزمایشی روی صفحه نشان داده می‌شود.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="سامانه پیامک">
+            <select value={sms.provider} onChange={(e) => setSms({ provider: e.target.value === "kavenegar" ? "kavenegar" : "none" })} className={inputCls}>
+              <option value="none">هیچ‌کدام (حالت آزمایشی)</option>
+              <option value="kavenegar">کاوه‌نگار</option>
+            </select>
+          </Field>
+          <Field label="نام الگو / Template (مخصوص کاوه‌نگار)"><input value={sms.template} onChange={(e) => setSms({ template: e.target.value })} className={inputCls} dir="ltr" placeholder="verify" /></Field>
+          <Field label="کلید API" className="sm:col-span-2"><input value={sms.apiKey} onChange={(e) => setSms({ apiKey: e.target.value })} className={inputCls} dir="ltr" placeholder="API Key سامانه پیامک" /></Field>
+        </div>
+      </Panel>
+
+      <Panel icon={<Landmark className="size-5 text-primary" />} title="درگاه‌های پرداخت">
+        <p className="mb-3 text-xs text-muted-foreground">درگاه موردنظر را فعال کنید و اطلاعات آن را وارد کنید (اطلاعات فقط در پنل مدیر دیده می‌شود).</p>
+        <div className="space-y-3">
+          {s.gateways.map((g) => (
+            <div key={g.id} className={cn("rounded-2xl border p-3 transition", g.enabled ? "border-primary/40 bg-primary/5" : "border-border")}>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <strong className="text-sm">{g.name}</strong>
+                <Switch checked={g.enabled} onChange={(v) => setGateway(g.id, { enabled: v })} label="فعال" />
+              </div>
+              {g.enabled && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {Object.keys(g.config).map((k) => (
+                    <Field key={k} label={FIELD_LABELS[k] || k}>
+                      <input type={k === "password" ? "password" : "text"} value={g.config[k] || ""} onChange={(e) => setGateway(g.id, { config: { [k]: e.target.value } })} className={inputCls} dir="ltr" />
+                    </Field>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel icon={<KeyRound className="size-5 text-primary" />} title="رمز عبور مدیر">
+        <Field label="رمز عبور جدید (خالی بگذارید = بدون تغییر)">
+          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputCls} placeholder="••••••••" autoComplete="new-password" />
+        </Field>
+        <p className={cn("mt-2 text-xs", s.hasPassword ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400")}>
+          {s.hasPassword ? "✅ رمز عبور سفارشی تنظیم شده است" : "⚠️ رمز عبور روی مقدار نصب (پیش‌فرض) است — بهتر است تغییرش دهید"}
+        </p>
+      </Panel>
+
+      <div className="sticky bottom-3 z-10">
+        <Button size="lg" className="h-12 w-full rounded-2xl text-base shadow-lg" onClick={save} disabled={saving}>
+          {saving ? <><Loader2 className="animate-spin" /> در حال ذخیره…</> : <><Save className="size-5" /> ذخیره تنظیمات</>}
+        </Button>
       </div>
     </div>
   );
@@ -138,7 +216,7 @@ function HeroVideoCard({ video, onChange, flash }: { video: string; onChange: (v
   }
 
   return (
-    <Card icon={<Clapperboard className="size-4" />} title="ویدیوی صفحهٔ اول (هیرو)">
+    <Panel icon={<Clapperboard className="size-5 text-primary" />} title="ویدیوی صفحهٔ اول (هیرو)">
       <p className="text-xs text-muted-foreground">
         اگر ویدیو بگذارید، بالای صفحه به‌جای صحنهٔ سه‌بعدی پخش می‌شود (بی‌صدا و تکرارشونده). با حذفش، صحنهٔ سه‌بعدی برمی‌گردد.
         پیشنهاد: MP4 افقی، کوتاه (۱۰ تا ۲۰ ثانیه) و زیر ۲۰ مگابایت برای بازشدنِ سریع.
@@ -167,13 +245,6 @@ function HeroVideoCard({ video, onChange, flash }: { video: string; onChange: (v
           </Button>
         )}
       </div>
-    </Card>
+    </Panel>
   );
-}
-
-function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return <section className="space-y-3 rounded-2xl border border-border bg-card p-4"><h3 className="flex items-center gap-2 font-extrabold">{icon}{title}</h3>{children}</section>;
-}
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block"><span className="mb-1 block text-xs text-muted-foreground">{label}</span>{children}</label>;
 }

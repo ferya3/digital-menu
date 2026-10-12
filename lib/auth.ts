@@ -62,6 +62,25 @@ export function verifySessionToken(token: string | undefined): boolean {
   }
 }
 
+/** دادهٔ کوچکِ امضاشده (مثلاً شمارهٔ تأییدشدهٔ مشتری) برای کوکی */
+export function signData(data: Record<string, unknown>, ttlMs: number): string {
+  const payload = Buffer.from(JSON.stringify({ ...data, exp: Date.now() + ttlMs })).toString("base64url");
+  const sig = crypto.createHmac("sha256", secret()).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+export function readSigned<T>(token: string | undefined): T | null {
+  if (!token || !token.includes(".")) return null;
+  const [payload, sig] = token.split(".");
+  const expected = crypto.createHmac("sha256", secret()).update(payload).digest("base64url");
+  try {
+    if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as T & { exp: number };
+    return data.exp > Date.now() ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 /* helpers used inside Server Actions */
 export async function startSession() {
   (await cookies()).set(COOKIE, signSession(), {

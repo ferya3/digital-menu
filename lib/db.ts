@@ -46,6 +46,14 @@ function createDb(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_orders_tbl ON orders(tbl);
     CREATE INDEX IF NOT EXISTS idx_items_cat ON items(category_id);
   `);
+  // مهاجرت: ستون‌هایی که بعداً اضافه شده‌اند (روی دیتابیس‌های قدیمی)
+  for (const sql of ["ALTER TABLE orders ADD COLUMN note TEXT DEFAULT ''"]) {
+    try {
+      db.exec(sql);
+    } catch {
+      /* ستون از قبل هست */
+    }
+  }
   seed(db);
   return db;
 }

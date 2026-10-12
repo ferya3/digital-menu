@@ -18,7 +18,11 @@ export interface Order {
   paid: boolean;
   payStatus: PayStatus;
   receipt: string;
+  /** همین تصویرِ فیش قبلاً برای میز دیگری استفاده شده (احتمال اسکرین‌شات تکراری) */
+  receiptReused: boolean;
   rejectedReason: string;
+  note: string;
+  phone: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,6 +68,29 @@ export interface CafeInfo {
   currency: "toman" | "rial";
   /** ویدیوی پس‌زمینهٔ هیرو؛ خالی = صحنهٔ سه‌بعدی */
   heroVideo?: string;
+  address?: string;
+  mapUrl?: string;
+  instagram?: string;
+}
+
+/** نمایش کد سفارش: عدد ترتیبی (#۱۲) یا شناسهٔ کامل */
+export type OrderCodeMode = "number" | "id";
+
+/** سامانهٔ پیامک برای کد تأیید شمارهٔ مشتری */
+export interface SmsSettings {
+  provider: "none" | "kavenegar";
+  apiKey: string;
+  template: string;
+  /** اگر روشن باشد، مشتری قبل از دیدن منو شماره‌اش را با کد پیامکی تأیید می‌کند */
+  otpEnabled: boolean;
+}
+
+/** اطلاعات درگاه پرداخت (زرین‌پال، ملت، ملی) */
+export interface Gateway {
+  id: "zarinpal" | "mellat" | "melli";
+  name: string;
+  enabled: boolean;
+  config: Record<string, string>;
 }
 
 export interface PaymentInfo {

@@ -49,12 +49,12 @@ export async function saveReceiptWebp(
 }
 
 /** عکس محصول/دسته: تبدیل به WebP بهینه */
-export async function saveImageWebp(buf: Buffer, label: string): Promise<string> {
+export async function saveImageWebp(buf: Buffer, label: string, size = 1000): Promise<string> {
   fs.mkdirSync(UPLOADS, { recursive: true });
   const file = `${label}-${Date.now()}.webp`;
   const out = await sharp(buf)
     .rotate()
-    .resize(1000, 1000, { fit: "inside", withoutEnlargement: true })
+    .resize(size, size, { fit: "inside", withoutEnlargement: true })
     .webp({ quality: 82 })
     .toBuffer();
   fs.writeFileSync(path.join(UPLOADS, file), out);

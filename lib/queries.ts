@@ -49,13 +49,15 @@ export function getItem(itemId: string): ItemRow | undefined {
 interface OrderRow {
   id: string; number: number; tbl: string; items: string; total: number;
   status: OrderStatus; paid: number; pay_status: PayStatus; receipt: string;
-  rejected_reason: string; created_at: string; updated_at: string;
+  receipt_reused: number; rejected_reason: string; note: string; phone: string;
+  created_at: string; updated_at: string;
 }
 function rowToOrder(r: OrderRow): Order {
   return {
     id: r.id, number: r.number, table: r.tbl, items: JSON.parse(r.items || "[]") as unknown as OrderItem[],
     total: r.total, status: r.status, paid: !!r.paid, payStatus: r.pay_status,
-    receipt: r.receipt, rejectedReason: r.rejected_reason,
+    receipt: r.receipt, receiptReused: !!r.receipt_reused, rejectedReason: r.rejected_reason,
+    note: r.note || "", phone: r.phone || "",
     createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
@@ -64,6 +66,7 @@ export function createOrder(input: {
   table: string;
   items: { id: string; qty: number }[];
   phone?: string;
+  note?: string;
 }): Order {
   const d = db();
   // قیمت‌ها از روی دیتابیس محاسبه می‌شوند تا قابل دستکاری از سمت کاربر نباشد
@@ -81,9 +84,12 @@ export function createOrder(input: {
   const oid = id("ord");
   const ts = now();
   d.prepare(
-    `INSERT INTO orders (id, number, tbl, items, total, status, paid, pay_status, phone, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'new', 0, 'none', ?, ?, ?)`
-  ).run(oid, number, String(input.table), JSON.stringify(lines), total, input.phone || "", ts, ts);
+    `INSERT INTO orders (id, number, tbl, items, total, status, paid, pay_status, phone, note, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'new', 0, 'none', ?, ?, ?, ?)`
+  ).run(
+    oid, number, String(input.table), JSON.stringify(lines), total,
+    input.phone || "", (input.note || "").toString().trim().slice(0, 500), ts, ts
+  );
   if (input.phone) addCustomer(input.phone, input.table);
   return rowToOrder(d.prepare("SELECT * FROM orders WHERE id = ?").get(oid) as unknown as OrderRow);
 }
@@ -124,14 +130,14 @@ export function getBill(table: string): Bill {
 }
 
 /** رسید را به همهٔ سفارش‌های بازِ میز می‌چسباند و وضعیت پرداخت را «در انتظار» می‌کند */
-export function attachReceiptToTable(table: string, imagePath: string, hash: string): number {
+export function attachReceiptToTable(table: string, imagePath: string, hash: string, reused = false): number {
   const d = db();
   const open = openBillOrders(table);
   const ts = now();
   const upd = d.prepare(
-    "UPDATE orders SET receipt = ?, receipt_hash = ?, pay_status = 'pending', updated_at = ? WHERE id = ?"
+    "UPDATE orders SET receipt = ?, receipt_hash = ?, receipt_reused = ?, pay_status = 'pending', updated_at = ? WHERE id = ?"
   );
-  for (const o of open) upd.run(imagePath, hash, ts, o.id);
+  for (const o of open) upd.run(imagePath, hash, reused ? 1 : 0, ts, o.id);
   return open.length;
 }
 
@@ -156,7 +162,7 @@ export function setPayStatus(orderId: string, pay: PayStatus, reason = ""): Orde
     const o = getOrder(orderId);
     const file = o?.receipt || "";
     d.prepare(
-      "UPDATE orders SET pay_status='rejected', paid=0, receipt='', receipt_hash='', rejected_reason=?, updated_at=? WHERE id=?"
+      "UPDATE orders SET pay_status='rejected', paid=0, receipt='', receipt_hash='', receipt_reused=0, rejected_reason=?, updated_at=? WHERE id=?"
     ).run(reason.slice(0, 200), now(), orderId);
     // فیشِ ردشده را از سفارش پاک کن؛ اگر سفارش دیگری همان فایل را استفاده نمی‌کند، فایل را حذف کن
     if (file) {
@@ -167,6 +173,23 @@ export function setPayStatus(orderId: string, pay: PayStatus, reason = ""): Orde
     d.prepare("UPDATE orders SET pay_status=?, updated_at=? WHERE id=?").run(pay, now(), orderId);
   }
   return getOrder(orderId);
+}
+
+/** علامت «پرداخت شد» دستی (پرداخت نقدی/کارتخوان بدون فیش) */
+export function setPaid(orderId: string, paid: boolean): Order | null {
+  const d = db();
+  if (paid) d.prepare("UPDATE orders SET paid=1, pay_status='confirmed', updated_at=? WHERE id=?").run(now(), orderId);
+  else d.prepare("UPDATE orders SET paid=0, pay_status='none', updated_at=? WHERE id=?").run(now(), orderId);
+  return getOrder(orderId);
+}
+
+/** تأیید/ردِ فیشِ کل صورتحسابِ یک میز (همهٔ سفارش‌های «در انتظار» با هم) */
+export function setTablePayStatus(table: string, pay: "confirmed" | "rejected", reason = ""): number {
+  const rows = db()
+    .prepare("SELECT id FROM orders WHERE tbl = ? AND pay_status = 'pending'")
+    .all(String(table)) as unknown as { id: string }[];
+  for (const r of rows) setPayStatus(r.id, pay, reason);
+  return rows.length;
 }
 
 /* ---------- requests ---------- */

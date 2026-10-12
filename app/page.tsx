@@ -1,6 +1,6 @@
 import { Landing } from "@/components/landing";
 import { getMenu, getSetting } from "@/lib/queries";
-import type { CafeInfo, PaymentInfo } from "@/lib/types";
+import type { CafeInfo, PaymentInfo, SmsSettings } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -25,5 +25,7 @@ export default async function Home({
     link: "",
   });
 
-  return <Landing menu={menu} table={table} cafe={cafe} payment={payment} />;
+  const otp = !!getSetting<Partial<SmsSettings>>("sms", {}).otpEnabled;
+
+  return <Landing menu={menu} table={table} cafe={cafe} payment={payment} otp={otp} />;
 }

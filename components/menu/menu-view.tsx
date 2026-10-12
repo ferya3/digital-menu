@@ -14,6 +14,8 @@ import { useUI } from "@/store/ui";
 import { scrollToId } from "@/components/fx/smooth-scroll";
 import { CoverflowCarousel, GridCard, ListRow, Stepper, ViewToggle, type ViewMode } from "@/components/menu/menu-modes";
 import { PicksSheet } from "@/components/menu/picks-sheet";
+import { PhoneGate } from "@/components/menu/phone-gate";
+import { CatIcon } from "@/components/staff/kit";
 import { compressImage, imageForm } from "@/lib/client-image";
 import {
   placeOrderAction, billAction, ordersAction, uploadReceiptAction,
@@ -34,12 +36,14 @@ const STATUS_SHORT: Record<string, string> = {
 
 
 export function MenuView({
-  menu, table, cafe, payment,
+  menu, table, cafe, payment, otp = false,
 }: {
   menu: Menu;
   table: string;
   cafe: CafeInfo;
   payment: PaymentInfo;
+  /** تأیید شمارهٔ مشتری با کد پیامکی (از تنظیمات) */
+  otp?: boolean;
 }) {
   const money = useCallback((n: number) => formatMoney(n, cafe.currency), [cafe.currency]);
   const openMobileMenu = useUI((s) => s.setMenu);
@@ -58,6 +62,8 @@ export function MenuView({
   const [lightbox, setLightbox] = useState<MenuItem | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState<number | null>(null);
 
@@ -125,7 +131,13 @@ export function MenuView({
 
   async function share(item: MenuItem) {
     const url = `${window.location.origin}/`;
-    const text = `${item.name} — ${money(item.price)} | ${cafe.name}`;
+    const text = [
+      `${item.name} — ${money(item.price)}`,
+      `☕ ${cafe.name}`,
+      cafe.address && `📍 ${cafe.address}`,
+      cafe.mapUrl && `🗺️ ${cafe.mapUrl}`,
+      cafe.instagram && `📷 ${cafe.instagram}`,
+    ].filter(Boolean).join("\n");
     try {
       if (navigator.share) {
         await navigator.share({ title: item.name, text, url });
@@ -176,7 +188,7 @@ export function MenuView({
     setSubmitting(true);
     try {
       const items = Object.entries(cart).map(([id, qty]) => ({ id, qty }));
-      const ord = await placeOrderAction(table, items);
+      const ord = await placeOrderAction(table, items, { note: note.trim(), phone });
       setMyOrders((l) => {
         const next = [ord, ...l.filter((o) => o.id !== ord.id)];
         try {
@@ -185,6 +197,7 @@ export function MenuView({
         return next;
       });
       setCart({});
+      setNote("");
       setCartOpen(false);
       setPlaced(ord.number);
       flash(`سفارش شماره ${toFa(ord.number)} ثبت شد`);
@@ -309,7 +322,7 @@ export function MenuView({
                 activeCat === c.id ? "bg-primary text-primary-foreground shadow" : "bg-muted text-muted-foreground hover:text-foreground"
               )}
             >
-              <span>{c.emoji}</span>
+              <span className="grid size-5 place-items-center overflow-hidden rounded-md"><CatIcon icon={c.emoji} /></span>
               {c.name}
             </button>
           ))}
@@ -332,7 +345,7 @@ export function MenuView({
           return (
             <section key={c.id} id={`cat-${c.id}`} className="scroll-mt-36">
               <h3 className="mb-4 flex items-center gap-2 text-xl font-black">
-                <span>{c.emoji}</span>
+                <span className="grid size-7 place-items-center overflow-hidden rounded-lg"><CatIcon icon={c.emoji} /></span>
                 {c.name}
                 <span className="h-px flex-1 bg-gradient-to-l from-border to-transparent" />
               </h3>
@@ -351,6 +364,8 @@ export function MenuView({
           );
         })}
       </main>
+
+      {otp && <PhoneGate cafe={cafe} table={table} onVerified={setPhone} />}
 
       <PicksSheet
         open={picksOpen}
@@ -427,7 +442,15 @@ export function MenuView({
                 );
               })}
             </div>
-            <div className="mt-5 flex items-center justify-between border-t border-border pt-4"><span className="text-muted-foreground">مجموع</span><span className="text-xl font-black text-primary">{money(total)}</span></div>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={300}
+              rows={2}
+              placeholder="یادداشت برای آشپزخانه (اختیاری) — مثلاً شیر کم‌چرب، بدون شکر"
+              className="mt-4 w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            <div className="mt-3 flex items-center justify-between border-t border-border pt-4"><span className="text-muted-foreground">مجموع</span><span className="text-xl font-black text-primary">{money(total)}</span></div>
             <div className="mt-3 flex gap-2">
               <Button variant="outline" size="icon" onClick={() => setCart({})}><Trash2 /></Button>
               <Button size="lg" className="flex-1 rounded-xl" onClick={submitOrder} disabled={submitting}>{submitting ? <Loader2 className="animate-spin" /> : "ثبت سفارش"}</Button>

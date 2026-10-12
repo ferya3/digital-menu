@@ -1,345 +1,349 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Coffee, LogOut, Loader2, Check, X, Ban, ImageIcon,
-  ClipboardList, BellRing, Star, Users, UtensilsCrossed, Settings as SettingsIcon,
-  ReceiptText, Download, Phone, MessageSquareText,
+  Coffee, LogOut, Loader2, ClipboardList, BellRing, LayoutGrid, CreditCard, Users,
+  Settings as SettingsIcon, QrCode, ExternalLink, Menu as MenuIcon, X, Volume2, VolumeX, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, money, toFa } from "@/lib/utils";
+import { cn, formatMoney, toFa } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { Order, OrderStatus } from "@/lib/types";
+import type { Order, OrderCodeMode } from "@/lib/types";
 import {
-  loginAction, logoutAction, staffOrdersAction, staffSetStatusAction,
-  staffConfirmPayAction, staffRejectPayAction, staffRequestsAction, staffDoneRequestAction,
-  staffFeedbackAction, staffCustomersAction,
-  type AdminSettings,
+  loginAction, logoutAction, staffOrdersAction, staffRequestsAction,
+  staffFeedbackAction, staffCustomersAction, staffSettingsAction,
 } from "@/app/staff/actions";
 import type { StaffCustomer, StaffFeedback, StaffRequest } from "@/lib/queries";
+import { Ctx, inputCls, isImgSrc, type StaffCtx } from "@/components/staff/kit";
+import { OrdersSection } from "@/components/staff/sections/orders";
+import { RequestsSection } from "@/components/staff/sections/requests";
+import { CashierSection } from "@/components/staff/sections/cashier";
+import { CustomersSection } from "@/components/staff/sections/customers";
+import { QrSection } from "@/components/staff/sections/qr";
 import { MenuManager } from "@/components/staff/menu-manager";
 import { SettingsPanel } from "@/components/staff/settings-panel";
 
-type Tab = "orders" | "requests" | "feedback" | "customers" | "menu" | "settings";
+type Section = "orders" | "requests" | "products" | "cashier" | "customers" | "settings" | "qr";
 
-const STATUS_FA: Record<string, string> = {
-  new: "در انتظار تأیید آشپزخانه", preparing: "در حال آماده‌سازی ☕", ready: "آماده است! ✅",
-  served: "سرو شد", cancelled: "لغو شد",
-};
-const NEXT: Record<string, { to: OrderStatus; label: string }> = {
-  new: { to: "preparing", label: "تأیید و آماده‌سازی" },
-  preparing: { to: "ready", label: "آماده شد" },
-  ready: { to: "served", label: "سرو شد" },
-};
-const timeFa = (iso: string) => {
-  try {
-    const d = new Date(iso);
-    return toFa(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
-  } catch { return ""; }
-};
+// همان ترتیبِ منوی کناریِ پنل قبلی
+const NAV: { id: Section; label: string; title: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "orders", label: "سفارش‌ها", title: "سفارش‌ها", icon: ClipboardList },
+  { id: "requests", label: "درخواست‌ها", title: "درخواست گارسون و صورتحساب", icon: BellRing },
+  { id: "products", label: "محصولات", title: "مدیریت محصولات", icon: LayoutGrid },
+  { id: "cashier", label: "صندوق", title: "صندوق و تأیید پرداخت‌ها", icon: CreditCard },
+  { id: "customers", label: "مشتری‌ها", title: "بانک شمارهٔ مشتری‌ها", icon: Users },
+  { id: "settings", label: "تنظیمات", title: "تنظیمات", icon: SettingsIcon },
+  { id: "qr", label: "کدهای QR", title: "کدهای QR میزها", icon: QrCode },
+];
 
 export function StaffApp({ initialAuthed }: { initialAuthed: boolean }) {
   const [authed, setAuthed] = useState(initialAuthed);
+  if (!authed) return <Login onDone={() => setAuthed(true)} />;
+  return <Dashboard onLogout={() => setAuthed(false)} />;
+}
+
+/* ===================== ورود ===================== */
+function Login({ onDone }: { onDone: () => void }) {
   const [pass, setPass] = useState("");
-  const [loginErr, setLoginErr] = useState("");
-  const [loggingIn, setLoggingIn] = useState(false);
-  const [tab, setTab] = useState<Tab>("orders");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setErr("");
+    try { await loginAction(pass); onDone(); }
+    catch (e2) { setErr(e2 instanceof Error ? e2.message : "ورود ناموفق"); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="grid min-h-screen place-items-center px-4">
+      <form onSubmit={submit} className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 text-center shadow-xl">
+        <span className="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-primary text-primary-foreground"><Lock className="size-6" /></span>
+        <h1 className="text-xl font-extrabold">ورود مدیریت</h1>
+        <p className="mb-5 mt-1 text-sm text-muted-foreground">برای دسترسی به داشبورد، رمز عبور را وارد کنید</p>
+        <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} autoFocus autoComplete="current-password" className={cn(inputCls, "mb-3 py-2.5 text-center")} placeholder="رمز عبور" />
+        {err && <p className="mb-3 text-sm text-primary">{err}</p>}
+        <Button type="submit" size="lg" className="w-full rounded-xl" disabled={busy}>{busy ? <><Loader2 className="animate-spin" /> در حال ورود…</> : "ورود"}</Button>
+      </form>
+    </div>
+  );
+}
+
+/* ===================== داشبورد ===================== */
+function Dashboard({ onLogout }: { onLogout: () => void }) {
+  const [section, setSection] = useState<Section>("orders");
+  const [sideOpen, setSideOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [requests, setRequests] = useState<StaffRequest[]>([]);
   const [feedback, setFeedback] = useState<StaffFeedback[]>([]);
   const [customers, setCustomers] = useState<StaffCustomer[]>([]);
-  const [viewReceipt, setViewReceipt] = useState<string | null>(null);
-  const [rejectId, setRejectId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [toast, setToast] = useState("");
-  const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast(""), 2600); };
+  const [cafe, setCafe] = useState({ name: "داشبورد مدیر", logo: "☕" });
+  const [currency, setCurrency] = useState<"toman" | "rial">("toman");
+  const [codeMode, setCodeMode] = useState<OrderCodeMode>("number");
+  const [sound, setSound] = useState(true);
+  const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
+  const [image, setImage] = useState<string | null>(null);
+  const [asking, setAsking] = useState<{ title: string; hint?: string; resolve: (v: string | null) => void } | null>(null);
+  const [askText, setAskText] = useState("");
 
-  const refreshOrders = useCallback(() => { staffOrdersAction().then(setOrders).catch(() => {}); }, []);
-  const refreshRequests = useCallback(() => { staffRequestsAction().then(setRequests).catch(() => {}); }, []);
+  const flash = useCallback((text: string) => {
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t.slice(-2), { id, text }]);
+    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4500);
+  }, []);
+
+  /* ---- صدای اعلان (مثل پنل قبلی: بوقِ کوتاه) ---- */
+  const audio = useRef<AudioContext | null>(null);
+  const soundRef = useRef(sound);
+  useEffect(() => {
+    try { const s = localStorage.getItem("staff_sound"); if (s === "0") setSound(false); } catch {}
+    const unlock = () => {
+      try {
+        audio.current ??= new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        if (audio.current.state === "suspended") audio.current.resume();
+      } catch {}
+    };
+    document.addEventListener("click", unlock);
+    return () => document.removeEventListener("click", unlock);
+  }, []);
+  useEffect(() => {
+    soundRef.current = sound;
+    try { localStorage.setItem("staff_sound", sound ? "1" : "0"); } catch {}
+  }, [sound]);
+  const beep = useCallback(() => {
+    const ctx = audio.current;
+    if (!soundRef.current || !ctx) return;
+    try {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = "sine"; o.frequency.value = 880;
+      g.gain.setValueAtTime(0.18, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      o.start(); o.stop(ctx.currentTime + 0.5);
+    } catch {}
+  }, []);
+  const titleTimer = useRef<number | undefined>(undefined);
+  const flashTitle = useCallback((msg: string) => {
+    document.title = "🔴 " + msg;
+    window.clearTimeout(titleTimer.current);
+    titleTimer.current = window.setTimeout(() => (document.title = "داشبورد مدیر"), 6000);
+  }, []);
+
+  /* ---- دریافتِ زنده (هر ۴ ثانیه) + تشخیص رویدادهای جدید ---- */
+  const seen = useRef<{ ready: boolean; orders: Set<string>; requests: Set<string>; feedback: Set<string>; pending: Set<string> }>({
+    ready: false, orders: new Set(), requests: new Set(), feedback: new Set(), pending: new Set(),
+  });
+  const notify = useCallback((msg: string, short: string) => { beep(); flashTitle(short); flash(msg); }, [beep, flashTitle, flash]);
+
+  const poll = useCallback(async () => {
+    const [o, r, f] = await Promise.all([
+      staffOrdersAction().catch(() => null),
+      staffRequestsAction().catch(() => null),
+      staffFeedbackAction().catch(() => null),
+    ]);
+    const s = seen.current;
+    if (o) {
+      for (const x of o) {
+        if (!s.orders.has(x.id)) {
+          s.orders.add(x.id);
+          if (s.ready) notify(`🧾 سفارش جدید — میز ${toFa(x.table)}`, "سفارش جدید");
+        }
+        if (x.payStatus === "pending" && !s.pending.has(x.id)) {
+          // یک اعلان برای هر میز کافی است (فیش به همهٔ سفارش‌های باز می‌چسبد)
+          const already = [...s.pending].some((id) => o.find((y) => y.id === id && y.table === x.table && y.payStatus === "pending"));
+          s.pending.add(x.id);
+          if (s.ready && !already) notify(`💳 فیش پرداخت جدید — میز ${toFa(x.table)}`, "فیش پرداخت");
+        }
+        if (x.payStatus !== "pending") s.pending.delete(x.id);
+      }
+      setOrders(o);
+    }
+    if (r) {
+      for (const x of r) {
+        if (!s.requests.has(x.id)) {
+          s.requests.add(x.id);
+          if (s.ready) notify(`${x.type === "invoice" ? "💵 درخواست صورتحساب" : "🙋 درخواست گارسون"} — میز ${toFa(x.table)}`, "درخواست جدید");
+        }
+      }
+      setRequests(r);
+    }
+    if (f) {
+      for (const x of f) {
+        if (!s.feedback.has(x.id)) { s.feedback.add(x.id); if (s.ready) notify("⭐ نظر جدید ثبت شد", "نظر جدید"); }
+      }
+      setFeedback(f);
+    }
+    s.ready = true;
+  }, [notify]);
+
+  const loadMeta = useCallback(() => {
+    staffSettingsAction().then((st) => {
+      setCafe({ name: st.cafe.name || "کافه", logo: st.cafe.logo || "☕" });
+      setCurrency(st.cafe.currency === "rial" ? "rial" : "toman");
+      setCodeMode(st.orderCode === "id" ? "id" : "number");
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
-    if (!authed) return;
-    refreshOrders();
-    refreshRequests();
-    staffFeedbackAction().then(setFeedback).catch(() => {});
-    staffCustomersAction().then(setCustomers).catch(() => {});
-    const t = setInterval(() => { refreshOrders(); refreshRequests(); }, 5000);
-    return () => clearInterval(t);
-  }, [authed, refreshOrders, refreshRequests]);
+    poll();
+    loadMeta();
+    const t = window.setInterval(poll, 4000);
+    return () => window.clearInterval(t);
+  }, [poll, loadMeta]);
+  useEffect(() => {
+    if (section === "customers") staffCustomersAction().then(setCustomers).catch(() => {});
+  }, [section]);
 
-  async function doLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoggingIn(true); setLoginErr("");
-    try {
-      await loginAction(pass);
-      setAuthed(true); setPass("");
-    } catch (err) {
-      setLoginErr(err instanceof Error ? err.message : "ورود ناموفق");
-    } finally { setLoggingIn(false); }
-  }
+  /* ---- شمارنده‌های منو ---- */
+  const counts = useMemo(() => {
+    const pendingTables = new Set(orders.filter((o) => o.payStatus === "pending").map((o) => o.table));
+    return {
+      orders: orders.filter((o) => o.status !== "served" && o.status !== "cancelled").length,
+      requests: requests.filter((r) => r.status === "pending").length,
+      cashier: pendingTables.size,
+    } as Partial<Record<Section, number>>;
+  }, [orders, requests]);
 
-  const activeOrders = useMemo(() => orders.filter((o) => o.status !== "served" && o.status !== "cancelled").length, [orders]);
-  const pendingPay = useMemo(() => orders.filter((o) => o.payStatus === "pending").length, [orders]);
-  const pendingReq = useMemo(() => requests.filter((r) => r.status === "pending").length, [requests]);
-  const sortedOrders = useMemo(
-    () => [...orders].sort((a, b) => {
-      const act = (o: Order) => (o.status !== "served" && o.status !== "cancelled" ? 0 : 1);
-      return act(a) - act(b) || b.number - a.number;
-    }),
-    [orders]
-  );
-  const sortedReq = useMemo(
-    () => [...requests].sort((a, b) => (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1)),
-    [requests]
-  );
+  const ctx: StaffCtx = useMemo(() => ({
+    money: (n: number) => formatMoney(n, currency),
+    currency, codeMode, flash,
+    print: (q: string) => window.open("/print?" + q, "_blank"),
+    viewImage: setImage,
+    ask: (title: string, hint?: string) => new Promise<string | null>((resolve) => { setAskText(""); setAsking({ title, hint, resolve }); }),
+  }), [currency, codeMode, flash]);
 
-  async function setStatus(o: Order, status: OrderStatus) {
-    const up = await staffSetStatusAction(o.id, status).catch(() => null);
-    if (up) setOrders((l) => l.map((x) => (x.id === o.id ? up : x)));
-  }
-  async function confirmPay(o: Order) {
-    const up = await staffConfirmPayAction(o.id).catch(() => null);
-    if (up) { setOrders((l) => l.map((x) => (x.id === o.id ? up : x))); flash(`پرداخت میز ${toFa(o.table)} تأیید شد ✅`); }
-  }
-  async function doReject() {
-    if (!rejectId) return;
-    const up = await staffRejectPayAction(rejectId, rejectReason).catch(() => null);
-    if (up) setOrders((l) => l.map((x) => (x.id === rejectId ? up : x)));
-    setRejectId(null); setRejectReason(""); flash("فیش رد شد و از سفارش حذف شد");
-  }
-  async function doneRequest(r: StaffRequest) {
-    await staffDoneRequestAction(r.id).catch(() => {});
-    setRequests((l) => l.map((x) => (x.id === r.id ? { ...x, status: "done" } : x)));
-  }
-  function exportCsv() {
-    const rows = [["شماره موبایل", "میزها", "تعداد مراجعه", "اولین", "آخرین"]];
-    customers.forEach((c) => rows.push([c.phone, c.tables.join("|"), String(c.visits), c.firstSeen, c.lastSeen]));
-    const csv = "﻿" + rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const a = document.createElement("a"); a.href = url; a.download = "customers.csv"; a.click();
-    URL.revokeObjectURL(url);
-  }
+  const upsertOrder = useCallback((o: Order | null) => { if (o) setOrders((l) => l.map((x) => (x.id === o.id ? o : x))); }, []);
+  const go = (s: Section) => { setSection(s); setSideOpen(false); window.scrollTo({ top: 0 }); };
+  const current = NAV.find((n) => n.id === section)!;
 
-  /* ---------- login ---------- */
-  if (!authed) {
-    return (
-      <div className="grid min-h-screen place-items-center px-4">
-        <form onSubmit={doLogin} className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-xl">
-          <div className="mb-5 flex items-center gap-2.5">
-            <span className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground"><Coffee className="size-5" /></span>
-            <div><h1 className="text-lg font-extrabold">ورود کارکنان</h1><p className="text-[11px] text-muted-foreground">پنل مدیریت کافه</p></div>
-          </div>
-          <label className="mb-1 block text-sm text-muted-foreground">رمز عبور</label>
-          <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} autoFocus className="mb-3 w-full rounded-xl border border-input bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-ring" placeholder="رمز عبور مدیر" />
-          {loginErr && <p className="mb-3 text-sm text-primary">{loginErr}</p>}
-          <Button type="submit" size="lg" className="w-full rounded-xl" disabled={loggingIn}>{loggingIn ? <Loader2 className="animate-spin" /> : "ورود"}</Button>
-        </form>
-      </div>
-    );
-  }
-
-  /* ---------- dashboard ---------- */
-  return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <span className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground"><Coffee className="size-5" /></span>
-            <div className="leading-tight"><h1 className="text-lg font-extrabold">پنل کارکنان</h1><p className="text-[11px] text-muted-foreground">زنده</p></div>
-          </div>
-          <div className="flex items-center gap-1">
-            <ThemeToggle />
-            <Button variant="ghost" size="icon" aria-label="خروج" onClick={async () => { await logoutAction().catch(() => {}); setAuthed(false); }}><LogOut /></Button>
-          </div>
-        </div>
-        <div className="no-scrollbar mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3">
-          <TabBtn active={tab === "orders"} onClick={() => setTab("orders")} icon={<ClipboardList className="size-4" />} label="سفارش‌ها" badge={activeOrders} />
-          <TabBtn active={tab === "requests"} onClick={() => setTab("requests")} icon={<BellRing className="size-4" />} label="درخواست‌ها" badge={pendingReq} />
-          <TabBtn active={tab === "feedback"} onClick={() => setTab("feedback")} icon={<Star className="size-4" />} label="نظرسنجی" badge={feedback.length} />
-          <TabBtn active={tab === "customers"} onClick={() => setTab("customers")} icon={<Users className="size-4" />} label="مشتری‌ها" />
-          <TabBtn active={tab === "menu"} onClick={() => setTab("menu")} icon={<UtensilsCrossed className="size-4" />} label="مدیریت منو" />
-          <TabBtn active={tab === "settings"} onClick={() => setTab("settings")} icon={<SettingsIcon className="size-4" />} label="تنظیمات" />
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-5">
-        {tab === "orders" && (
-          <>
-            <div className="mb-4 flex flex-wrap gap-2 text-xs">
-              <Stat label="سفارش فعال" value={activeOrders} />
-              <Stat label="منتظر تأیید پرداخت" value={pendingPay} tone="amber" />
-            </div>
-            {sortedOrders.length === 0 ? <Empty text="هنوز سفارشی ثبت نشده." /> : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {sortedOrders.map((o) => (
-                  <OrderCard key={o.id} o={o}
-                    onNext={() => NEXT[o.status] && setStatus(o, NEXT[o.status].to)}
-                    onCancel={() => setStatus(o, "cancelled")}
-                    onConfirm={() => confirmPay(o)}
-                    onReject={() => setRejectId(o.id)}
-                    onReceipt={() => o.receipt && setViewReceipt(o.receipt)} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {tab === "requests" && (
-          sortedReq.length === 0 ? <Empty text="درخواستی وجود ندارد." /> : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {sortedReq.map((r) => <RequestCard key={r.id} r={r} onDone={() => doneRequest(r)} />)}
-            </div>
-          )
-        )}
-
-        {tab === "feedback" && <FeedbackPanel items={feedback} />}
-        {tab === "customers" && <CustomersPanel items={customers} onExport={exportCsv} />}
-        {tab === "menu" && <MenuManager flash={flash} />}
-        {tab === "settings" && <SettingsPanel flash={flash} />}
-      </main>
-
-      {viewReceipt && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={() => setViewReceipt(null)}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={viewReceipt} alt="رسید" className="max-h-[90vh] max-w-full rounded-xl" />
-        </div>
-      )}
-      {rejectId && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={() => setRejectId(null)}>
-          <div className="w-full max-w-sm rounded-3xl bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-1 text-lg font-extrabold">رد فیش پرداخت</h3>
-            <p className="mb-3 text-xs text-muted-foreground">با رد کردن، عکس فیش از سفارش هم حذف می‌شود.</p>
-            <input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="دلیل (اختیاری)" className="mb-3 w-full rounded-xl border border-input bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-ring" />
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setRejectId(null)}>انصراف</Button>
-              <Button className="flex-1 rounded-xl" onClick={doReject}>رد فیش</Button>
-            </div>
-          </div>
-        </div>
-      )}
-      {toast && <div className="fixed inset-x-0 top-4 z-[60] mx-auto w-fit max-w-[90%] rounded-full bg-foreground px-5 py-2 text-center text-sm font-semibold text-background shadow-lg">{toast}</div>}
-    </div>
-  );
-}
-
-/* ---------- pieces ---------- */
-function TabBtn({ active, onClick, icon, label, badge }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; badge?: number }) {
-  return (
-    <button onClick={onClick} className={cn("relative flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition", active ? "bg-primary text-primary-foreground shadow" : "bg-muted text-muted-foreground hover:text-foreground")}>
-      {icon}{label}
-      {!!badge && badge > 0 && <span className={cn("grid size-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold", active ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground")}>{toFa(badge)}</span>}
-    </button>
-  );
-}
-function Stat({ label, value, tone }: { label: string; value: number; tone?: "amber" }) {
-  return <span className={cn("rounded-full border px-3 py-1 font-semibold", tone === "amber" ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" : "border-border bg-muted text-muted-foreground")}>{label}: {toFa(value)}</span>;
-}
-function Empty({ text }: { text: string }) { return <p className="py-20 text-center text-muted-foreground">{text}</p>; }
-
-function statusTone(s: string) {
-  if (s === "ready") return "bg-green-600/15 text-green-600 dark:text-green-400";
-  if (s === "preparing") return "bg-amber-500/15 text-amber-600 dark:text-amber-400";
-  if (s === "cancelled") return "bg-primary/10 text-primary";
-  if (s === "served") return "bg-muted text-muted-foreground";
-  return "bg-muted text-foreground";
-}
-function OrderCard({ o, onNext, onCancel, onConfirm, onReject, onReceipt }: {
-  o: Order; onNext: () => void; onCancel: () => void; onConfirm: () => void; onReject: () => void; onReceipt: () => void;
-}) {
-  const dim = o.status === "served" || o.status === "cancelled";
-  const next = NEXT[o.status];
-  return (
-    <article className={cn("rounded-2xl border border-border bg-card p-4 shadow-sm", dim && "opacity-60")}>
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2"><span className="text-base font-extrabold">#{toFa(o.number)}</span><span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold">میز {toFa(o.table)}</span></div>
-        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", statusTone(o.status))}>{STATUS_FA[o.status]}</span>
-      </div>
-      <ul className="mb-2 space-y-0.5 text-sm">
-        {o.items.map((it, i) => (<li key={i} className="flex justify-between"><span className="text-foreground">{it.name} <span className="text-muted-foreground">× {toFa(it.qty)}</span></span><span className="text-muted-foreground">{money(it.price * it.qty)}</span></li>))}
-      </ul>
-      <div className="flex items-center justify-between border-t border-border pt-2"><span className="text-[11px] text-muted-foreground">{timeFa(o.createdAt)}</span><span className="text-base font-extrabold text-primary">{money(o.total)}</span></div>
-      {o.status !== "cancelled" && o.status !== "served" && (
-        <div className="mt-3 flex gap-2">
-          {next && <Button className="h-9 flex-1 rounded-xl text-sm" onClick={onNext}>{next.label}</Button>}
-          <Button variant="outline" size="icon" className="size-9 rounded-xl" onClick={onCancel} aria-label="لغو"><Ban className="size-4" /></Button>
-        </div>
-      )}
-      {o.payStatus === "pending" && (
-        <div className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-2.5">
-          <div className="mb-2 text-xs font-bold text-amber-600 dark:text-amber-400">فیش پرداخت رسید</div>
-          <div className="flex gap-2">
-            <button onClick={onReceipt} className="grid size-9 shrink-0 place-items-center rounded-xl border border-border bg-background" aria-label="دیدن فیش"><ImageIcon className="size-4" /></button>
-            <Button className="h-9 flex-1 rounded-xl bg-green-600 text-sm text-white hover:bg-green-600/90" onClick={onConfirm}><Check className="size-4" /> تأیید</Button>
-            <Button variant="outline" className="h-9 rounded-xl text-sm" onClick={onReject}><X className="size-4" /> رد</Button>
-          </div>
-        </div>
-      )}
-      {o.payStatus === "confirmed" && <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-green-600/10 px-3 py-2 text-sm font-semibold text-green-600 dark:text-green-400"><ReceiptText className="size-4" /> پرداخت تأیید شده</div>}
-      {o.payStatus === "rejected" && <div className="mt-3 rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">فیش رد شد{o.rejectedReason ? `: ${o.rejectedReason}` : ""}</div>}
-    </article>
-  );
-}
-function RequestCard({ r, onDone }: { r: StaffRequest; onDone: () => void }) {
-  const done = r.status === "done";
-  const invoice = r.type === "invoice";
-  return (
-    <article className={cn("rounded-2xl border border-border bg-card p-4 shadow-sm", done && "opacity-55")}>
-      <div className="mb-2 flex items-center justify-between">
-        <span className={cn("flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold", invoice ? "bg-primary/10 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400")}>
-          {invoice ? <ReceiptText className="size-3.5" /> : <BellRing className="size-3.5" />}{invoice ? "درخواست فاکتور" : "صدا زدن گارسون"}
+  const sidebar = (
+    <div className="flex h-full flex-col">
+      <div className="mb-5 flex items-center gap-2.5 px-2">
+        <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-2xl bg-primary text-xl text-primary-foreground">
+          {isImgSrc(cafe.logo) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={cafe.logo} alt="" className="size-full object-cover" />
+          ) : cafe.logo || <Coffee className="size-5" />}
         </span>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold">میز {toFa(r.table)}</span>
+        <div className="min-w-0 leading-tight">
+          <b className="block truncate">{cafe.name}</b>
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><span className="size-1.5 animate-pulse rounded-full bg-green-500" /> داشبورد مدیر · زنده</span>
+        </div>
       </div>
-      {invoice && r.amount > 0 && <p className="text-sm">مبلغ صورتحساب: <span className="font-extrabold text-primary">{money(r.amount)}</span> <span className="text-muted-foreground">({toFa(r.orderCount)} سفارش)</span></p>}
-      {r.note && <p className="mt-1 text-sm text-muted-foreground">یادداشت: {r.note}</p>}
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-[11px] text-muted-foreground">{timeFa(r.createdAt)}</span>
-        {done ? <span className="flex items-center gap-1 text-sm font-semibold text-green-600 dark:text-green-400"><Check className="size-4" /> انجام شد</span> : <Button className="h-9 rounded-xl text-sm" onClick={onDone}>انجام شد</Button>}
-      </div>
-    </article>
-  );
-}
-function FeedbackPanel({ items }: { items: StaffFeedback[] }) {
-  const avg = items.length ? items.reduce((s, f) => s + f.rating, 0) / items.length : 0;
-  if (items.length === 0) return <Empty text="هنوز نظری ثبت نشده." />;
-  return (
-    <div>
-      <div className="mb-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
-        <div className="text-3xl font-black text-amber-500">{toFa(avg.toFixed(1))}</div>
-        <div><Stars n={Math.round(avg)} /><div className="mt-1 text-xs text-muted-foreground">میانگین از {toFa(items.length)} نظر</div></div>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((f) => (
-          <div key={f.id} className="rounded-2xl border border-border bg-card p-3">
-            <div className="mb-1 flex items-center justify-between"><Stars n={f.rating} />{f.table && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold">میز {toFa(f.table)}</span>}</div>
-            {f.comment ? <p className="flex gap-1.5 text-sm"><MessageSquareText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />{f.comment}</p> : <p className="text-sm text-muted-foreground">بدون توضیح</p>}
-            <div className="mt-2 text-[11px] text-muted-foreground">{timeFa(f.createdAt)}</div>
-          </div>
-        ))}
-      </div>
+      <nav className="flex-1 space-y-1">
+        {NAV.map((n) => {
+          const c = counts[n.id] || 0;
+          return (
+            <button
+              key={n.id}
+              onClick={() => go(n.id)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-right text-sm font-semibold transition",
+                section === n.id ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <n.icon className="size-[18px] shrink-0" />
+              <span className="flex-1">{n.label}</span>
+              {c > 0 && (
+                <span className={cn("grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold", section === n.id ? "bg-white text-primary" : "bg-primary text-primary-foreground")}>{toFa(c)}</span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+      <a href="/?table=1" target="_blank" rel="noopener" className="mt-4 flex items-center justify-center gap-1.5 rounded-2xl border border-border px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">
+        <ExternalLink className="size-4" /> مشاهدهٔ منوی مشتری
+      </a>
     </div>
   );
-}
-function Stars({ n }: { n: number }) {
-  return <div className="flex gap-0.5">{[1, 2, 3, 4, 5].map((i) => <Star key={i} className={cn("size-4", i <= n ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40")} />)}</div>;
-}
-function CustomersPanel({ items, onExport }: { items: StaffCustomer[]; onExport: () => void }) {
+
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <span className="flex items-center gap-2 text-sm text-muted-foreground"><Users className="size-4" />{toFa(items.length)} مشتری</span>
-        {items.length > 0 && <Button variant="outline" className="rounded-xl" onClick={onExport}><Download className="size-4" /> خروجی CSV</Button>}
+    <Ctx.Provider value={ctx}>
+      <div className="min-h-screen lg:pr-64 print:pr-0">
+        {/* منوی کناری (دسکتاپ) */}
+        <aside className="fixed inset-y-0 right-0 z-30 hidden w-64 border-l border-border bg-card p-4 lg:block print:hidden">{sidebar}</aside>
+
+        {/* منوی کناری (موبایل) */}
+        <AnimatePresence>
+          {sideOpen && (
+            <motion.div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSideOpen(false)}>
+              <motion.aside
+                initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+                transition={{ type: "spring", stiffness: 360, damping: 34 }}
+                className="absolute inset-y-0 right-0 w-72 max-w-[84vw] bg-card p-4 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button onClick={() => setSideOpen(false)} aria-label="بستن" className="absolute left-3 top-3 grid size-9 place-items-center rounded-full bg-muted"><X className="size-5" /></button>
+                {sidebar}
+              </motion.aside>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-xl print:hidden">
+          <div className="flex items-center gap-2 px-4 py-3">
+            <Button variant="ghost" size="icon" className="lg:hidden" aria-label="منو" onClick={() => setSideOpen(true)}><MenuIcon /></Button>
+            <h1 className="flex-1 truncate text-lg font-extrabold">{current.title}</h1>
+            <button
+              onClick={() => setSound((s) => !s)}
+              className={cn("flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition", sound ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground")}
+              title="صدای اعلان"
+            >
+              {sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />} صدا
+            </button>
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" aria-label="خروج" title="خروج" onClick={async () => { await logoutAction().catch(() => {}); onLogout(); }}><LogOut /></Button>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-6xl px-4 py-5">
+          {section === "orders" && <OrdersSection orders={orders} feedback={feedback} onChange={upsertOrder} />}
+          {section === "requests" && <RequestsSection requests={requests} onChange={setRequests} />}
+          {section === "products" && <MenuManager onCurrency={setCurrency} />}
+          {section === "cashier" && <CashierSection orders={orders} onRefresh={poll} />}
+          {section === "customers" && <CustomersSection items={customers} />}
+          {section === "settings" && <SettingsPanel onSaved={loadMeta} />}
+          {section === "qr" && <QrSection />}
+        </main>
       </div>
-      {items.length === 0 ? <Empty text="هنوز شماره‌ای ثبت نشده." /> : (
-        <div className="grid gap-2">
-          {items.map((c) => (
-            <div key={c.phone} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted"><Phone className="size-4" /></span>
-              <div className="min-w-0 flex-1"><div className="font-bold" dir="ltr">{toFa(c.phone)}</div><div className="text-xs text-muted-foreground">{toFa(c.visits)} مراجعه{c.tables.length ? ` · میز ${c.tables.map((t) => toFa(t)).join("، ")}` : ""}</div></div>
-            </div>
-          ))}
+
+      {/* عکس فیش */}
+      {image && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/85 p-4" onClick={() => setImage(null)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image} alt="فیش پرداخت" className="max-h-[90vh] max-w-full rounded-xl" />
         </div>
       )}
-    </div>
+
+      {/* دیالوگ متن (دلیل رد و …) */}
+      {asking && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/60 p-4" onClick={() => { asking.resolve(null); setAsking(null); }}>
+          <form
+            className="w-full max-w-sm rounded-3xl bg-card p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => { e.preventDefault(); asking.resolve(askText); setAsking(null); }}
+          >
+            <h3 className="mb-1 text-lg font-extrabold">{asking.title}</h3>
+            {asking.hint && <p className="mb-3 text-xs text-muted-foreground">{asking.hint}</p>}
+            <input value={askText} onChange={(e) => setAskText(e.target.value)} autoFocus placeholder="اختیاری" className={cn(inputCls, "mb-3 py-2.5")} />
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={() => { asking.resolve(null); setAsking(null); }}>انصراف</Button>
+              <Button type="submit" className="flex-1 rounded-xl">تأیید</Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* اعلان‌ها */}
+      <div className="pointer-events-none fixed inset-x-0 top-3 z-[80] flex flex-col items-center gap-2 px-4 print:hidden">
+        <AnimatePresence>
+          {toasts.map((t) => (
+            <motion.div key={t.id} initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} className="rounded-full bg-foreground px-5 py-2 text-center text-sm font-semibold text-background shadow-lg">
+              {t.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </Ctx.Provider>
   );
 }

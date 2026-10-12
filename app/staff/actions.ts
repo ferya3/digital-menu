@@ -15,6 +15,8 @@ import {
   listCustomers,
   setOrderStatus,
   setPayStatus,
+  setPaid,
+  setTablePayStatus,
   getMenu,
   getSetting,
   setSetting,
@@ -29,7 +31,23 @@ import {
   type StaffCustomer,
 } from "@/lib/queries";
 import { saveImageWebp, readUpload } from "@/lib/images";
-import type { CafeInfo, Menu, Order, OrderStatus, PaymentInfo } from "@/lib/types";
+import { DEFAULT_SMS } from "@/lib/otp";
+import type { CafeInfo, Gateway, Menu, Order, OrderCodeMode, OrderStatus, PaymentInfo, SmsSettings } from "@/lib/types";
+
+const DEFAULT_CAFE: CafeInfo = { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" };
+const DEFAULT_PAYMENT: PaymentInfo = { card: "", holder: "", note: "", link: "" };
+const DEFAULT_GATEWAYS: Gateway[] = [
+  { id: "zarinpal", name: "زرین‌پال", enabled: false, config: { merchantId: "" } },
+  { id: "mellat", name: "بانک ملت (به‌پرداخت ملت)", enabled: false, config: { terminalId: "", username: "", password: "" } },
+  { id: "melli", name: "بانک ملی (سداد)", enabled: false, config: { merchantId: "", terminalId: "", key: "" } },
+];
+/** درگاه‌های ذخیره‌شده را با پیش‌فرض‌ها ادغام می‌کند تا هیچ‌کدام گم نشود */
+function mergeGateways(saved: Gateway[] | undefined): Gateway[] {
+  return DEFAULT_GATEWAYS.map((def) => {
+    const f = (saved || []).find((g) => g.id === def.id);
+    return f ? { ...def, enabled: !!f.enabled, config: { ...def.config, ...(f.config || {}) } } : structuredClone(def);
+  });
+}
 
 async function gate() {
   if (!(await isAuthed())) throw new Error("دسترسی غیرمجاز — ابتدا وارد شوید");
@@ -63,6 +81,16 @@ export async function staffRejectPayAction(id: string, reason: string): Promise<
   await gate();
   return setPayStatus(id, "rejected", reason);
 }
+/** «پرداخت شد» دستی روی یک سفارش */
+export async function staffSetPaidAction(id: string, paid: boolean): Promise<Order | null> {
+  await gate();
+  return setPaid(id, paid);
+}
+/** صندوق: تأیید یا ردِ فیشِ کل صورتحسابِ یک میز */
+export async function staffTablePayAction(table: string, pay: "confirmed" | "rejected", reason = ""): Promise<{ count: number }> {
+  await gate();
+  return { count: setTablePayStatus(table, pay, reason) };
+}
 
 /* ---------- requests / feedback / customers ---------- */
 export async function staffRequestsAction(): Promise<StaffRequest[]> {
@@ -87,13 +115,17 @@ export async function staffMenuAction(): Promise<Menu> {
   await gate();
   return getMenu();
 }
-export async function staffAddCategoryAction(input: { name: string; emoji?: string }) {
+/** افزودن/ویرایش دسته؛ آیکون می‌تواند ایموجی یا عکسِ آپلودی باشد */
+export async function staffSaveCategoryAction(input: { id?: string; name: string; emoji?: string }, iconForm?: FormData | null) {
   await gate();
-  return addCategory(input);
-}
-export async function staffUpdateCategoryAction(id: string, input: { name?: string; emoji?: string }) {
-  await gate();
-  return updateCategory(id, input);
+  if (!input.name?.trim()) throw new Error("نام دسته را وارد کنید");
+  const buf = await readUpload(iconForm);
+  const emoji = buf ? await saveImageWebp(buf, "cat", 240) : input.emoji?.trim() || "🍽️";
+  if (input.id) {
+    updateCategory(input.id, { name: input.name, emoji });
+    return { id: input.id };
+  }
+  return addCategory({ name: input.name, emoji });
 }
 export async function staffDeleteCategoryAction(id: string) {
   await gate();
@@ -110,8 +142,16 @@ export async function staffSaveItemAction(input: {
   image?: string; // "" یعنی حذفِ عکس
   tag?: string;
   available?: boolean;
+  /** ساختِ دستهٔ جدید همراهِ محصول */
+  newCategory?: { name: string; emoji?: string };
 }, imageForm?: FormData | null) {
   await gate();
+  if (!input.name?.trim()) throw new Error("نام محصول را وارد کنید");
+  if (input.newCategory) {
+    if (!input.newCategory.name?.trim()) throw new Error("نام دستهٔ جدید را وارد کنید");
+    input = { ...input, categoryId: addCategory(input.newCategory).id };
+  }
+  delete input.newCategory;
   const buf = await readUpload(imageForm);
   const image = buf ? await saveImageWebp(buf, "item") : input.image;
   const payload: Record<string, unknown> = { ...input };
@@ -123,6 +163,11 @@ export async function staffSaveItemAction(input: {
   }
   return addItem(payload as Parameters<typeof addItem>[0]);
 }
+/** ویرایش سریع قیمت از داخل لیست */
+export async function staffQuickPriceAction(id: string, price: number) {
+  await gate();
+  return updateItem(id, { price });
+}
 export async function staffDeleteItemAction(id: string) {
   await gate();
   return deleteItem(id);
@@ -132,34 +177,51 @@ export async function staffDeleteItemAction(id: string) {
 export interface AdminSettings {
   cafe: CafeInfo;
   payment: PaymentInfo;
+  orderCode: OrderCodeMode;
+  sms: SmsSettings;
+  gateways: Gateway[];
   hasPassword: boolean;
 }
 export async function staffSettingsAction(): Promise<AdminSettings> {
   await gate();
   return {
-    cafe: getSetting<CafeInfo>("cafe", { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" }),
-    payment: getSetting<PaymentInfo>("payment", { card: "", holder: "", note: "", link: "" }),
+    cafe: { address: "", mapUrl: "", instagram: "", ...getSetting<CafeInfo>("cafe", DEFAULT_CAFE) },
+    payment: { ...DEFAULT_PAYMENT, ...getSetting<PaymentInfo>("payment", DEFAULT_PAYMENT) },
+    orderCode: getSetting<OrderCodeMode>("orderCode", "number"),
+    sms: { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) },
+    gateways: mergeGateways(getSetting<Gateway[]>("gateways", [])),
     hasPassword: !!getSetting<string>("admin_pw", ""),
   };
 }
 export async function staffUpdateSettingsAction(input: {
   cafe?: Partial<CafeInfo>;
   payment?: Partial<PaymentInfo>;
+  orderCode?: OrderCodeMode;
+  sms?: Partial<SmsSettings>;
+  gateways?: Gateway[];
   newPassword?: string;
 }, logoForm?: FormData | null): Promise<{ ok: boolean }> {
   await gate();
   const logoBuf = await readUpload(logoForm);
   if (input.cafe || logoBuf) {
-    const cur = getSetting<CafeInfo>("cafe", { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" });
+    const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
     let logo = input.cafe?.logo ?? cur.logo;
-    if (logoBuf) logo = await saveImageWebp(logoBuf, "logo");
+    if (logoBuf) logo = await saveImageWebp(logoBuf, "logo", 512);
     // ویدیوی هیرو فقط از مسیر آپلود خودش عوض می‌شود
     setSetting("cafe", { ...cur, ...input.cafe, logo, heroVideo: cur.heroVideo });
   }
   if (input.payment) {
-    const cur = getSetting<PaymentInfo>("payment", { card: "", holder: "", note: "", link: "" });
-    setSetting("payment", { ...cur, ...input.payment });
+    setSetting("payment", { ...DEFAULT_PAYMENT, ...getSetting<PaymentInfo>("payment", DEFAULT_PAYMENT), ...input.payment });
   }
+  if (input.orderCode === "number" || input.orderCode === "id") setSetting("orderCode", input.orderCode);
+  if (input.sms) {
+    const cur = { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) };
+    const next = { ...cur, ...input.sms };
+    if (next.provider !== "kavenegar") next.provider = "none";
+    next.otpEnabled = !!next.otpEnabled;
+    setSetting("sms", next);
+  }
+  if (Array.isArray(input.gateways)) setSetting("gateways", mergeGateways(input.gateways));
   if (input.newPassword && input.newPassword.trim()) {
     setAdminPassword(input.newPassword.trim());
   }
