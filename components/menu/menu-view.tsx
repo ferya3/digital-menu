@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ShoppingBag, X, Coffee, Star, Trash2, BellRing,
+  ShoppingBag, X, Coffee, Star, Trash2, BellRing, Moon, Sun,
   ReceiptText, Upload, Loader2, ClipboardList, Check, CheckCircle2, Menu as MenuIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -316,7 +316,7 @@ export function MenuView({
   const logoIsImg = /^https?:|^data:|^\/uploads\//.test(cafe.logo);
 
   return (
-    <div className="min-h-screen pb-28">
+    <div className="min-h-screen pb-44 sm:pb-28">
       {/* header */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
@@ -340,20 +340,21 @@ export function MenuView({
             <Button variant="ghost" size="icon" className="sm:hidden" onClick={() => openMobileMenu(true)} aria-label="منو">
               <MenuIcon />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setReqOpen(true)} aria-label="درخواست">
+            {/* روی موبایل این دکمه‌ها در نوارِ پایین هستند */}
+            <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={() => setReqOpen(true)} aria-label="درخواست">
               <BellRing />
             </Button>
             {myOrders.length > 0 && (
-              <button onClick={() => setStatusOpen(true)} className="relative grid size-10 place-items-center rounded-full bg-muted hover:bg-muted/70" aria-label="وضعیت سفارش">
+              <button onClick={() => setStatusOpen(true)} className="relative hidden size-10 sm:grid place-items-center rounded-full bg-muted hover:bg-muted/70" aria-label="وضعیت سفارش">
                 <ClipboardList className="size-5" />
                 {activeOrders > 0 && (
                   <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-green-600 px-1 text-[11px] font-bold text-white">{toFa(activeOrders)}</span>
                 )}
               </button>
             )}
-            <Button variant="ghost" size="icon" onClick={openBill} aria-label="صورتحساب"><ReceiptText /></Button>
-            <ThemeToggle />
-            <button onClick={() => setCartOpen(true)} className="relative grid size-10 place-items-center rounded-full bg-muted hover:bg-muted/70" aria-label="سبد خرید">
+            <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={openBill} aria-label="صورتحساب"><ReceiptText /></Button>
+            <span className="hidden sm:contents"><ThemeToggle /></span>
+            <button onClick={() => setCartOpen(true)} className="relative hidden size-10 sm:grid place-items-center rounded-full bg-muted hover:bg-muted/70" aria-label="سبد خرید">
               <ShoppingBag className="size-5" />
               {count > 0 && (
                 <motion.span key={count} initial={{ scale: 0.4 }} animate={{ scale: 1 }} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">{toFa(count)}</motion.span>
@@ -466,7 +467,7 @@ export function MenuView({
       {/* cart bar */}
       <AnimatePresence>
         {count > 0 && !cartOpen && !billOpen && (
-          <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: "spring", stiffness: 380, damping: 32 }} className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/85 backdrop-blur-xl">
+          <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: "spring", stiffness: 380, damping: 32 }} className="fixed inset-x-0 bottom-0 z-40 hidden border-t border-border bg-background/85 backdrop-blur-xl sm:block">
             <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
               <div className="text-sm"><span className="font-bold">{toFa(count)}</span><span className="text-muted-foreground"> کالا · </span><span className="font-extrabold text-primary">{money(total)}</span></div>
               <Button onClick={() => setCartOpen(true)} size="lg" className="rounded-full">مشاهدهٔ سبد</Button>
@@ -475,10 +476,34 @@ export function MenuView({
         )}
       </AnimatePresence>
 
+      {/* موبایل: جمعِ سبد به‌صورتِ یک قرصِ کوچک بالای دکمهٔ سبد */}
+      <AnimatePresence>
+        {count > 0 && !cartOpen && !billOpen && (
+          <motion.button
+            initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}
+            onClick={() => setCartOpen(true)}
+            className="fixed bottom-[calc(98px+env(safe-area-inset-bottom))] left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-background/95 px-4 py-2 text-sm shadow-lg backdrop-blur sm:hidden"
+          >
+            <span className="font-bold">{toFa(count)}</span><span className="text-muted-foreground">کالا ·</span>
+            <span className="font-extrabold text-primary">{money(total)}</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* نوارِ پایینِ موبایل (با دکمهٔ گردِ سبد در وسط) */}
+      <MobileTabBar
+        count={count}
+        activeOrders={activeOrders}
+        onRequest={() => setReqOpen(true)}
+        onStatus={() => setStatusOpen(true)}
+        onCart={() => setCartOpen(true)}
+        onBill={openBill}
+      />
+
       {/* placed toast */}
       <AnimatePresence>
         {placed !== null && (
-          <motion.button initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setPlaced(null); setStatusOpen(true); }} className="fixed inset-x-0 bottom-20 z-40 mx-auto flex w-fit items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-xl">
+          <motion.button initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setPlaced(null); setStatusOpen(true); }} className="fixed inset-x-0 bottom-[calc(146px+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit sm:bottom-20 items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-xl">
             <CheckCircle2 className="size-5 text-green-500" /> سفارش #{toFa(placed)} ثبت شد — پیگیری وضعیت
           </motion.button>
         )}
@@ -650,6 +675,60 @@ export function MenuView({
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/* ---------- نوارِ پایینِ موبایل ---------- */
+function MobileTabBar({ count, activeOrders, onRequest, onStatus, onCart, onBill }: {
+  count: number; activeOrders: number; onRequest: () => void; onStatus: () => void; onCart: () => void; onBill: () => void;
+}) {
+  const [dark, setDark] = useState(false);
+  useEffect(() => setDark(document.documentElement.classList.contains("dark")), []);
+  const toggleTheme = () => {
+    const next = !dark;
+    document.documentElement.classList.toggle("dark", next);
+    try { localStorage.setItem("theme", next ? "dark" : "light"); } catch {}
+    setDark(next);
+  };
+  const Item = ({ icon, label, onClick, badge }: { icon: React.ReactNode; label: string; onClick: () => void; badge?: number }) => (
+    <button onClick={onClick} className="relative flex flex-1 flex-col items-center gap-1 pb-1 pt-2.5 text-[11px] font-semibold text-muted-foreground transition active:scale-95">
+      <span className="relative grid size-7 place-items-center [&_svg]:size-[22px]">
+        {icon}
+        {!!badge && badge > 0 && <span className="absolute -right-2 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-green-600 px-1 text-[10px] font-bold text-white">{toFa(badge)}</span>}
+      </span>
+      {label}
+    </button>
+  );
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 sm:hidden" aria-label="نوار پایین">
+      {/* بدنهٔ نوار با فرورفتگیِ گرد در وسط */}
+      <div className="flex h-[68px] drop-shadow-[0_-6px_14px_rgba(60,35,20,0.10)] dark:drop-shadow-[0_-6px_14px_rgba(0,0,0,0.45)]">
+        <div className="flex-1 rounded-tr-[22px] bg-card" />
+        <svg viewBox="0 0 110 68" className="h-[68px] w-[110px] shrink-0 fill-card" aria-hidden>
+          <path d="M0 0 H10 C22 0 24 6 27 14 C33 32 42 41 55 41 C68 41 77 32 83 14 C86 6 88 0 100 0 H110 V68 H0 Z" />
+        </svg>
+        <div className="flex-1 rounded-tl-[22px] bg-card" />
+      </div>
+      <div className="bg-card pb-[env(safe-area-inset-bottom)]" />
+      <div className="absolute inset-x-0 top-0 flex h-[68px] items-stretch">
+        <Item icon={<BellRing />} label="درخواست" onClick={onRequest} />
+        <Item icon={<ClipboardList />} label="وضعیت سفارش" onClick={onStatus} badge={activeOrders} />
+        <div className="w-[96px] shrink-0" />
+        <Item icon={<ReceiptText />} label="صورتحساب" onClick={onBill} />
+        <Item icon={dark ? <Sun /> : <Moon />} label={dark ? "حالت روز" : "حالت شب"} onClick={toggleTheme} />
+      </div>
+      {/* دکمهٔ گردِ سبد خرید */}
+      <button
+        onClick={onCart}
+        aria-label="سبد خرید"
+        className="absolute left-1/2 top-0 grid size-[62px] -translate-x-1/2 -translate-y-[38%] place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_10px_22px_-6px_hsl(var(--primary)/0.6)] ring-[5px] ring-background transition active:scale-95"
+      >
+        <ShoppingBag className="size-7" />
+        {count > 0 && (
+          <motion.span key={count} initial={{ scale: 0.4 }} animate={{ scale: 1 }} className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-white px-1 text-xs font-black text-primary shadow">{toFa(count)}</motion.span>
+        )}
+      </button>
+    </nav>
   );
 }
 
