@@ -733,7 +733,7 @@ function Ornament({ flip }: { flip?: boolean }) {
     </span>
   );
 }
-function CategoryTitle({ cat, count }: { cat: MenuCategory; count: number }) {
+function CategoryTitle({ cat }: { cat: MenuCategory; count?: number }) {
   const title = (
     <>
       <Ornament />
@@ -744,38 +744,28 @@ function CategoryTitle({ cat, count }: { cat: MenuCategory; count: number }) {
       <Ornament flip />
     </>
   );
-  if (!cat.banner) {
-    return (
-      <h3 className="mb-5 flex items-center justify-center gap-3 text-xl font-black sm:text-2xl">
-        <span className="contents text-primary [&>span:nth-child(2)]:text-foreground">{title}</span>
-      </h3>
-    );
-  }
+  const heading = (
+    <h3 className="mb-4 flex items-center justify-center gap-3 text-xl font-black sm:text-2xl">
+      <span className="contents text-primary [&>span:nth-child(2)]:text-foreground">{title}</span>
+    </h3>
+  );
+  if (!cat.banner) return heading;
   return (
-    // بنرِ تبلیغاتیِ همین دسته (از پنل ← محصولات ← دسته‌بندی‌ها) + عنوان روی آن
-    <div className="relative mb-5 overflow-hidden rounded-3xl shadow-md">
+    <>
+      {/* عنوان بالای بنر (بیرون از عکس)، وسط‌چین */}
+      {heading}
+      {/* بنرِ تبلیغاتیِ همین دسته (از پنل ← محصولات ← دسته‌بندی‌ها) — بدون نوشته روی عکس */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={thumb(cat.banner, 1080)}
         srcSet={`${thumb(cat.banner, 720)} 720w, ${thumb(cat.banner, 1080)} 1080w`}
         sizes="(min-width: 1024px) 1000px, 100vw"
-        alt=""
+        alt={cat.name}
         loading="lazy"
         decoding="async"
-        className="aspect-[12/5] w-full object-cover"
+        className="mb-5 aspect-[12/5] w-full rounded-3xl object-cover shadow-md"
       />
-      {/* سایهٔ نرم در بالای عکس برای خوانا شدنِ عنوان روی هر عکسی */}
-      <div aria-hidden className="absolute inset-x-0 top-0 h-[55%] bg-gradient-to-b from-black/60 via-black/25 to-transparent" />
-      {/* عنوان: بالای بنر، وسط‌چین از چپ و راست */}
-      <div className="absolute inset-x-0 top-0 flex flex-col items-center px-4 pt-3 text-white sm:pt-5">
-        <h3 className="flex max-w-full items-center justify-center gap-3 text-2xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,.55)] sm:text-4xl">
-          {title}
-        </h3>
-        <span className="mt-1.5 rounded-full border border-white/30 bg-white/15 px-3 py-0.5 text-[11px] font-semibold backdrop-blur-sm">
-          {toFa(count)} آیتم
-        </span>
-      </div>
-    </div>
+    </>
   );
 }
 
