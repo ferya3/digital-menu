@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, thumb, toFa, formatMoney } from "@/lib/utils";
-import type { Bill, CafeInfo, Menu, MenuItem, Order, PaymentInfo } from "@/lib/types";
+import type { Bill, CafeInfo, Menu, MenuCategory, MenuItem, Order, PaymentInfo } from "@/lib/types";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useUI } from "@/store/ui";
 import { scrollToId } from "@/components/fx/smooth-scroll";
@@ -419,24 +419,7 @@ export function MenuView({
           };
           return (
             <section key={c.id} id={`cat-${c.id}`}>
-              {c.banner && (
-                // بنرِ تبلیغاتیِ همین دسته (از پنل ← محصولات ← دسته‌بندی‌ها)
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={thumb(c.banner, 1080)}
-                  srcSet={`${thumb(c.banner, 720)} 720w, ${thumb(c.banner, 1080)} 1080w`}
-                  sizes="(min-width: 1024px) 1000px, 100vw"
-                  alt={c.name}
-                  loading="lazy"
-                  decoding="async"
-                  className="mb-4 aspect-[12/5] w-full rounded-3xl object-cover shadow-sm"
-                />
-              )}
-              <h3 className="mb-4 flex items-center gap-2 text-xl font-black">
-                <span className="grid size-7 place-items-center overflow-hidden rounded-lg"><CatIcon icon={c.emoji} /></span>
-                {c.name}
-                <span className="h-px flex-1 bg-gradient-to-l from-border to-transparent" />
-              </h3>
+              <CategoryTitle cat={c} count={items.length} />
               {view === "carousel" && <CoverflowCarousel items={items} {...actions} />}
               {view === "grid" && (
                 <div className="grid grid-cols-1 gap-4 min-[560px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -736,6 +719,62 @@ export function MenuView({
           <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-x-0 top-4 z-[60] mx-auto w-fit max-w-[90%] rounded-full bg-foreground px-5 py-2 text-center text-sm font-semibold text-background shadow-lg">{toast}</motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/* ---------- عنوانِ دسته: روی بنر (اگر باشد) و وسط‌چین با تزئینِ دو طرف ---------- */
+function Ornament({ flip }: { flip?: boolean }) {
+  return (
+    <span aria-hidden className={cn("flex shrink-0 items-center gap-1.5", flip && "flex-row-reverse")}>
+      <span className="size-1 rounded-full bg-current opacity-60" />
+      <span className="size-2 rotate-45 rounded-[2px] border-[1.5px] border-current" />
+      <span className={cn("h-[2px] w-8 rounded-full from-current to-transparent sm:w-16", flip ? "bg-gradient-to-l" : "bg-gradient-to-r")} />
+    </span>
+  );
+}
+function CategoryTitle({ cat, count }: { cat: MenuCategory; count: number }) {
+  const title = (
+    <>
+      <Ornament />
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-xl text-xl"><CatIcon icon={cat.emoji} /></span>
+        <span className="truncate">{cat.name}</span>
+      </span>
+      <Ornament flip />
+    </>
+  );
+  if (!cat.banner) {
+    return (
+      <h3 className="mb-5 flex items-center justify-center gap-3 text-xl font-black sm:text-2xl">
+        <span className="contents text-primary [&>span:nth-child(2)]:text-foreground">{title}</span>
+      </h3>
+    );
+  }
+  return (
+    // بنرِ تبلیغاتیِ همین دسته (از پنل ← محصولات ← دسته‌بندی‌ها) + عنوان روی آن
+    <div className="relative mb-5 overflow-hidden rounded-3xl shadow-md">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={thumb(cat.banner, 1080)}
+        srcSet={`${thumb(cat.banner, 720)} 720w, ${thumb(cat.banner, 1080)} 1080w`}
+        sizes="(min-width: 1024px) 1000px, 100vw"
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className="aspect-[12/5] w-full object-cover"
+      />
+      {/* سایهٔ نرم برای خوانا شدنِ متن روی هر عکسی */}
+      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,.45),rgba(0,0,0,.15)_70%)]" />
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/45 to-transparent" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-white">
+        <h3 className="flex max-w-full items-center justify-center gap-3 text-2xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,.55)] sm:text-4xl">
+          {title}
+        </h3>
+        <span className="mt-2 rounded-full border border-white/30 bg-white/15 px-3 py-0.5 text-[11px] font-semibold backdrop-blur-sm">
+          {toFa(count)} آیتم
+        </span>
+      </div>
     </div>
   );
 }
