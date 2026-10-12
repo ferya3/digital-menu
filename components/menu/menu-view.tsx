@@ -66,20 +66,15 @@ export function MenuView({
   const openMobileMenu = useUI((s) => s.setMenu);
   // بدون شمارهٔ میز = فقط مشاهدهٔ منو (سفارش فقط با اسکنِ QR روی میز)
   const viewOnly = !table;
-  // هدر با اسکرول به پایین پنهان و با اسکرول به بالا دوباره دیده می‌شود
+  // هدر با اسکرول به پایین پنهان می‌شود و فقط وقتی به بالای صفحه برگردیم دوباره دیده می‌شود
+  // (نه با هر حرکتِ کوچکِ رو به بالا — روی گوشی با برگشتِ انگشت زود ظاهر می‌شد)
+  const HDR_TOP = 120;
   const [hideHdr, setHideHdr] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    let last = window.scrollY;
-    const on = () => {
-      const y = window.scrollY;
-      const d = y - last;
-      if (y < 120) setHideHdr(false);
-      else if (d > 6) setHideHdr(true);
-      else if (d < -6) setHideHdr(false);
-      last = y;
-    };
+    const on = () => setHideHdr(window.scrollY > HDR_TOP);
+    on();
     window.addEventListener("scroll", on, { passive: true });
     return () => window.removeEventListener("scroll", on);
   }, []);
@@ -179,10 +174,11 @@ export function MenuView({
 
   const goToCategory = (id: string) => {
     setActiveCat(id);
-    // رو به پایین هدر پنهان می‌شود (فقط نوارِ دسته‌ها می‌ماند)؛ رو به بالا هدر برمی‌گردد
-    const down = (document.getElementById(`cat-${id}`)?.getBoundingClientRect().top ?? 0) > 0;
+    // اگر مقصد پایین‌تر از بالای صفحه باشد هدر پنهان است (فقط نوارِ دسته‌ها می‌ماند)
+    const el = document.getElementById(`cat-${id}`);
     const bar = barRef.current?.offsetHeight ?? 60;
-    scrollToId(`cat-${id}`, -(bar + 12 + (down ? 0 : 92)));
+    const target = window.scrollY + (el?.getBoundingClientRect().top ?? 0) - (bar + 12);
+    scrollToId(`cat-${id}`, -(bar + 12 + (target > HDR_TOP ? 0 : 92)));
   };
 
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
