@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Minus, ShoppingBag, X, Coffee, Star, Trash2, BellRing,
+  ShoppingBag, X, Coffee, Star, Trash2, BellRing,
   ReceiptText, Upload, Loader2, ClipboardList, Check, CheckCircle2, Menu as MenuIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { cn, toFa, formatMoney } from "@/lib/utils";
 import type { Bill, CafeInfo, Menu, MenuItem, Order, PaymentInfo } from "@/lib/types";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useUI } from "@/store/ui";
+import { scrollToId } from "@/components/fx/smooth-scroll";
+import { CoverflowCarousel, GridCard, ListRow, Stepper, ViewToggle, type ViewMode } from "@/components/menu/menu-modes";
 import { compressImage, imageForm } from "@/lib/client-image";
 import {
   placeOrderAction, billAction, ordersAction, uploadReceiptAction,
@@ -41,7 +43,9 @@ export function MenuView({
   const money = useCallback((n: number) => formatMoney(n, cafe.currency), [cafe.currency]);
   const openMobileMenu = useUI((s) => s.setMenu);
 
-  const [cat, setCat] = useState("all");
+  const [view, setView] = useState<ViewMode>("grid");
+  const [activeCat, setActiveCat] = useState(menu.categories[0]?.id ?? "");
+  const [lightbox, setLightbox] = useState<MenuItem | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -67,11 +71,62 @@ export function MenuView({
     window.setTimeout(() => setToast(""), 2600);
   };
 
-  const tabs = useMemo(() => [{ id: "all", name: "همه", emoji: "✨" }, ...menu.categories], [menu.categories]);
-  const dishes = useMemo(
-    () => (cat === "all" ? menu.items : menu.items.filter((d) => d.category === cat)),
-    [cat, menu.items]
+  // منو به‌صورت بخش‌های دسته‌بندی (مثل نسخهٔ قبل)؛ محصولات ناموجود به مشتری نشان داده نمی‌شوند
+  const sections = useMemo(
+    () =>
+      menu.categories
+        .map((c) => ({ cat: c, items: menu.items.filter((i) => i.category === c.id && i.available) }))
+        .filter((sec) => sec.items.length > 0),
+    [menu]
   );
+
+  // حالت نمایش انتخاب‌شده یادش می‌ماند
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("cafe_view") as ViewMode | null;
+      if (v === "carousel" || v === "grid" || v === "list") setView(v);
+    } catch {}
+  }, []);
+  const changeView = (v: ViewMode) => {
+    setView(v);
+    try { localStorage.setItem("cafe_view", v); } catch {}
+  };
+
+  // دسته‌ای که الان روی صفحه است، در نوار دسته‌ها پررنگ می‌شود
+  useEffect(() => {
+    const els = sections.map((sec) => document.getElementById(`cat-${sec.cat.id}`)).filter(Boolean) as HTMLElement[];
+    if (!els.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (vis[0]) setActiveCat(vis[0].target.id.slice(4));
+      },
+      { rootMargin: "-140px 0px -55% 0px" }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [sections, view]);
+
+  const goToCategory = (id: string) => {
+    setActiveCat(id);
+    scrollToId(`cat-${id}`, -130);
+    document.getElementById(`chip-${id}`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  };
+
+  async function share(item: MenuItem) {
+    const url = `${window.location.origin}/`;
+    const text = `${item.name} — ${money(item.price)} | ${cafe.name}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: item.name, text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      flash("لینک کپی شد");
+    } catch {
+      /* کاربر لغو کرد */
+    }
+  }
 
   const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
   const dec = (id: string) =>
@@ -225,36 +280,86 @@ export function MenuView({
         </div>
       </header>
 
-      {/* section title */}
-      <div className="mx-auto max-w-5xl px-4 pb-1 pt-6 text-center">
+      {/* عنوان + انتخاب حالت نمایش */}
+      <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 pb-1 pt-6">
         <h2 className="text-2xl font-black sm:text-3xl">منوی کامل</h2>
+        <ViewToggle value={view} onChange={changeView} />
       </div>
 
-      {/* category pills */}
-      <div className="sticky top-[61px] z-30 bg-background/70 py-3 backdrop-blur-xl">
+      {/* نوار دسته‌ها: با کلیک به همان بخش می‌رود */}
+      <div className="sticky top-[61px] z-30 bg-background/75 py-3 backdrop-blur-xl">
         <div className="no-scrollbar mx-auto flex max-w-5xl gap-2 overflow-x-auto px-4">
-          {tabs.map((t) => (
-            <button key={t.id} onClick={() => setCat(t.id)} className={cn("flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition", cat === t.id ? "bg-primary text-primary-foreground shadow" : "bg-muted text-muted-foreground hover:text-foreground")}>
-              <span>{t.emoji}</span>{t.name}
+          {sections.map(({ cat: c }) => (
+            <button
+              key={c.id}
+              id={`chip-${c.id}`}
+              onClick={() => goToCategory(c.id)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition",
+                activeCat === c.id ? "bg-primary text-primary-foreground shadow" : "bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span>{c.emoji}</span>
+              {c.name}
             </button>
           ))}
         </div>
       </div>
 
-      {/* grid */}
-      <main className="mx-auto max-w-5xl px-4 pt-5">
-        {dishes.length === 0 ? (
-          <p className="py-20 text-center text-muted-foreground">محصولی در این دسته نیست.</p>
-        ) : (
-          <AnimatePresence mode="popLayout">
-            <motion.div layout className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {dishes.map((d, i) => (
-                <DishCard key={d.id} d={d} qty={cart[d.id] || 0} onAdd={() => add(d.id)} onDec={() => dec(d.id)} index={i} money={money} cafeName={cafe.name} />
-              ))}
-            </motion.div>
-          </AnimatePresence>
-        )}
+      {/* بخش‌های منو */}
+      <main className="mx-auto max-w-5xl space-y-10 px-4 pt-5">
+        {sections.length === 0 && <p className="py-20 text-center text-muted-foreground">منو هنوز خالی است.</p>}
+        {sections.map(({ cat: c, items }) => {
+          const actions = {
+            money,
+            cafeName: cafe.name,
+            qtyOf: (id: string) => cart[id] || 0,
+            onAdd: add,
+            onDec: dec,
+            onImage: (it: MenuItem) => setLightbox(it),
+            onShare: share,
+          };
+          return (
+            <section key={c.id} id={`cat-${c.id}`} className="scroll-mt-36">
+              <h3 className="mb-4 flex items-center gap-2 text-xl font-black">
+                <span>{c.emoji}</span>
+                {c.name}
+                <span className="h-px flex-1 bg-gradient-to-l from-border to-transparent" />
+              </h3>
+              {view === "carousel" && <CoverflowCarousel items={items} {...actions} />}
+              {view === "grid" && (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  {items.map((it, i) => <GridCard key={it.id} item={it} index={i} {...actions} />)}
+                </div>
+              )}
+              {view === "list" && (
+                <div className="space-y-2.5">
+                  {items.map((it) => <ListRow key={it.id} item={it} {...actions} />)}
+                </div>
+              )}
+            </section>
+          );
+        })}
       </main>
+
+      {/* بزرگ‌نمایی عکس */}
+      <AnimatePresence>
+        {lightbox?.image && (
+          <motion.div
+            className="fixed inset-0 z-[65] grid place-items-center bg-black/85 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightbox(null)}
+          >
+            <motion.figure initial={{ scale: 0.92 }} animate={{ scale: 1 }} className="max-w-3xl text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={lightbox.image} alt={lightbox.name} className="max-h-[78vh] rounded-2xl object-contain" />
+              <figcaption className="mt-3 font-bold text-white">{lightbox.name} · {money(lightbox.price)}</figcaption>
+            </motion.figure>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* cart bar */}
       <AnimatePresence>
@@ -408,50 +513,6 @@ function Drawer({ open, onClose, title, children }: { open: boolean; onClose: ()
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-function DishCard({ d, qty, onAdd, onDec, index, money, cafeName }: {
-  d: MenuItem; qty: number; onAdd: () => void; onDec: () => void; index: number;
-  money: (n: number) => string; cafeName: string;
-}) {
-  return (
-    <motion.article layout initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: Math.min(index * 0.04, 0.3), ease: [0.22, 1, 0.36, 1] }} whileHover={{ y: -4 }} className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-      <div className="relative grid aspect-[4/3] place-items-center overflow-hidden bg-gradient-to-br from-muted to-card">
-        {d.image ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={d.image} alt={d.name} className="absolute inset-0 size-full object-cover" />
-        ) : (
-          <motion.span className="text-6xl" whileHover={{ scale: 1.12, rotate: -6 }} transition={{ type: "spring", stiffness: 300, damping: 15 }}>{d.emoji}</motion.span>
-        )}
-        <span className="pointer-events-none absolute inset-0 grid place-items-center text-center text-sm font-black text-white/10">{cafeName}</span>
-        {d.tag && <span className="absolute right-2 top-2 rounded-full bg-primary/90 px-2 py-0.5 text-[11px] font-bold text-primary-foreground">{d.tag}</span>}
-      </div>
-      <div className="p-3">
-        <h3 className="font-bold leading-tight">{d.name}</h3>
-        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{d.desc}</p>
-        <div className="mt-3 flex items-center justify-between">
-          <div className="leading-tight">
-            <div className="text-sm font-extrabold text-primary">{money(d.price)}</div>
-            {d.oldPrice && <div className="text-[11px] text-muted-foreground line-through">{money(d.oldPrice)}</div>}
-          </div>
-          <Stepper qty={qty} onAdd={onAdd} onDec={onDec} />
-        </div>
-      </div>
-    </motion.article>
-  );
-}
-
-function Stepper({ qty, onAdd, onDec }: { qty: number; onAdd: () => void; onDec: () => void }) {
-  if (qty === 0) {
-    return <Button size="icon" className="size-9 rounded-full" onClick={onAdd} aria-label="افزودن"><Plus /></Button>;
-  }
-  return (
-    <div className="flex items-center gap-2 rounded-full bg-muted p-1">
-      <button onClick={onAdd} className="grid size-7 place-items-center rounded-full bg-primary text-primary-foreground"><Plus className="size-4" /></button>
-      <span className="min-w-5 text-center text-sm font-bold">{toFa(qty)}</span>
-      <button onClick={onDec} className="grid size-7 place-items-center rounded-full bg-card"><Minus className="size-4" /></button>
-    </div>
   );
 }
 

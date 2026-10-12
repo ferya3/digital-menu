@@ -34,10 +34,10 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
 }
 
 /** اسکرول نرم به یک المنت (با Lenis اگر فعال باشد) */
-export function scrollToId(id: string) {
+export function scrollToId(id: string, offset = -60) {
   const el = document.getElementById(id);
   if (!el) return;
   const lenis = (window as unknown as { __lenis?: Lenis }).__lenis;
-  if (lenis) lenis.scrollTo(el, { offset: -60 });
-  else el.scrollIntoView({ behavior: "smooth" });
+  if (lenis) lenis.scrollTo(el, { offset });
+  else window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY + offset, behavior: "smooth" });
 }
