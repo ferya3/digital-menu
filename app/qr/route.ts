@@ -5,7 +5,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const table = req.nextUrl.searchParams.get("table") || "1";
-  const origin = req.nextUrl.origin;
+  // پشتِ Nginx: آدرسِ واقعی (دامنه + https) از هدرهای پراکسی
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || req.nextUrl.host;
+  const proto = (req.headers.get("x-forwarded-proto") || req.nextUrl.protocol.replace(":", "")).split(",")[0].trim();
+  const origin = `${proto}://${host}`;
   const url = `${origin}/?table=${encodeURIComponent(table)}`;
   try {
     const png = await QRCode.toBuffer(url, { width: 320, margin: 1 });

@@ -109,13 +109,12 @@ fi
 
 # ---------- SSL ----------
 PROTO="http"
-if [ -n "$DOMAIN" ] && [ -n "$EMAIL" ]; then
-  say "دریافت گواهی SSL برای $DOMAIN"
-  apt-get install -y certbot python3-certbot-nginx
-  if certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect; then
+if [ -n "$DOMAIN" ]; then
+  # دامنه + HTTPS با set-domain.sh (QRهای IP هم به دامنه هدایت می‌شوند)
+  if DOMAIN="$DOMAIN" EMAIL="${EMAIL:-}" APP_PORT="$APP_PORT" bash ./set-domain.sh; then
     PROTO="https"
   else
-    echo "⚠️  SSL نگرفت. رکورد A دامنه باید به IP همین سرور باشد و پورت‌های ۸۰ و ۴۴۳ باز باشند."
+    echo "⚠️  SSL نگرفت؛ سایت روی HTTP کار می‌کند. بعد از تنظیمِ DNS:  sudo DOMAIN=$DOMAIN bash set-domain.sh"
   fi
 fi
 

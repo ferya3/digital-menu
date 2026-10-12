@@ -85,6 +85,9 @@ sudo apt-get update && sudo apt-get install -y git && sudo rm -rf /opt/cafe-next
 (بعد از ری‌بوت هم خودکار بالا می‌آید)، Nginx را جلویش می‌گذارد، در صورت دادنِ دامنه SSL می‌گیرد،
 و سرویسِ نسخهٔ قبلی (`cafe` در systemd) را غیرفعال می‌کند.
 
+- **اتصال دامنه + HTTPS** (بعد از تنظیمِ رکورد A دامنه و www روی IP سرور):
+  `cd /opt/cafe-next && sudo DOMAIN=artavilstar.com bash set-domain.sh`
+  گواهی رایگان Let's Encrypt (تمدیدِ خودکار)، HTTP/2، و هدایتِ IP/http/www به `https://دامنه` با حفظِ `?table=` (QRهای قدیمی خراب نمی‌شوند).
 - به‌روزرسانی (با بک‌آپِ خودکار از دیتابیس و عکس‌ها در `/root/cafe-backups`):  `cd /opt/cafe-next && sudo bash update.sh`
 - وضعیت و لاگ:  `pm2 status` · `pm2 logs cafe`
 - داده‌ها: دیتابیس در `data/cafe.db` و عکس‌ها در `data/uploads` (وارد گیت نمی‌شوند؛ برای بک‌آپ همین پوشهٔ `data/` کافی است).
