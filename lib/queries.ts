@@ -153,7 +153,30 @@ export function receiptReused(hash: string, excludeTable: string): boolean {
 }
 
 /* staff: change status / payment */
+/** «اول پرداخت، بعد آشپزخانه» (پیش‌فرض روشن) */
+export function payFirstEnabled(): boolean {
+  return getSetting<boolean>("payFirst", true) !== false;
+}
+/** سفارشِ پرداخت‌نشده بعد از این مدت خودکار لغو می‌شود (مثلاً سفارشِ مزاحم از بیرونِ کافه) */
+const UNPAID_EXPIRE_MS = 60 * 60 * 1000;
+function expireUnpaid() {
+  if (!payFirstEnabled()) return;
+  const cutoff = new Date(Date.now() - UNPAID_EXPIRE_MS).toISOString();
+  const rows = db()
+    .prepare("SELECT id, tbl FROM orders WHERE status='new' AND paid=0 AND pay_status IN ('none','rejected') AND created_at < ?")
+    .all(cutoff) as unknown as { id: string; tbl: string }[];
+  if (!rows.length) return;
+  const upd = db().prepare("UPDATE orders SET status='cancelled', updated_at=? WHERE id=?");
+  for (const r of rows) upd.run(now(), r.id);
+  for (const t of new Set(rows.map((r) => r.tbl))) publish({ type: "order", table: t });
+}
+
 export function setOrderStatus(orderId: string, status: OrderStatus): Order | null {
+  if (status !== "cancelled" && status !== "new" && payFirstEnabled()) {
+    const cur = getOrder(orderId);
+    // فقط شروعِ آماده‌سازی قفل است؛ سفارشی که از قبل در آشپزخانه بوده ادامه می‌دهد
+    if (cur && !cur.paid && cur.status === "new") throw new Error("این سفارش هنوز پرداخت نشده — اول پرداخت را در صندوق تأیید کنید");
+  }
   db().prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?").run(status, now(), orderId);
   return changed(getOrder(orderId));
 }
@@ -278,6 +301,7 @@ export interface StaffCustomer {
 }
 
 export function listOrders(limit = 200): Order[] {
+  expireUnpaid();
   const rows = db().prepare("SELECT * FROM orders ORDER BY number DESC LIMIT ?").all(limit) as unknown as OrderRow[];
   return rows.map(rowToOrder);
 }

@@ -44,7 +44,7 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
     try {
       await staffUpdateSettingsAction({
         cafe: { ...cafe, name: cafe.name.trim() || "کافه", logo: cafe.logo || "☕" },
-        payment, orderCode: s!.orderCode, sms, gateways: s!.gateways,
+        payment, orderCode: s!.orderCode, sms, gateways: s!.gateways, payFirst: s!.payFirst,
         ...(newPassword.trim() ? { newPassword: newPassword.trim() } : {}),
       }, logoBlob ? imageForm(logoBlob) : null);
       setLogoBlob(null);
@@ -112,6 +112,12 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
       </Panel>
 
       <Panel icon={<CreditCard className="size-5 text-primary" />} title="پرداخت (لینک یا کارت‌به‌کارت)">
+        <div className="mb-3 rounded-2xl bg-muted/60 p-3">
+          <Switch checked={s.payFirst} onChange={(v) => setS({ ...s, payFirst: v })} label="اول پرداخت، بعد ارسال به آشپزخانه" />
+          <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">
+            سفارش تا تأیید پرداخت (فیش یا پرداخت در صندوق) برای سرآشپز ارسال نمی‌شود و به مشتری هم همین اعلام می‌شود — جلوی سفارشِ مزاحم از بیرونِ کافه (با عکسِ QR) را می‌گیرد. سفارشِ پرداخت‌نشده بعد از ۱ ساعت خودکار لغو می‌شود.
+          </p>
+        </div>
         <p className="mb-3 text-xs text-muted-foreground">هنگام درخواست صورتحساب به مشتری نشان داده می‌شود؛ مشتری پرداخت می‌کند و فیش را آپلود می‌کند.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="لینک پرداخت آنلاین (اختیاری)"><input value={payment.link} onChange={(e) => setPayment({ link: e.target.value })} className={inputCls} dir="ltr" placeholder="https://zarinp.al/…" /></Field>

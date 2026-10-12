@@ -26,6 +26,7 @@ export default async function Home({
   });
 
   const otp = !!getSetting<Partial<SmsSettings>>("sms", {}).otpEnabled;
+  const payFirst = getSetting<boolean>("payFirst", true) !== false;
 
-  return <Landing menu={menu} table={table} cafe={cafe} payment={payment} otp={otp} />;
+  return <Landing menu={menu} table={table} cafe={cafe} payment={payment} otp={otp} payFirst={payFirst} />;
 }

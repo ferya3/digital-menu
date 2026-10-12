@@ -81,6 +81,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [cafe, setCafe] = useState({ name: "داشبورد مدیر", logo: "☕" });
   const [currency, setCurrency] = useState<"toman" | "rial">("toman");
   const [codeMode, setCodeMode] = useState<OrderCodeMode>("number");
+  const [payFirst, setPayFirst] = useState(true);
+  const payFirstRef = useRef(payFirst);
+  payFirstRef.current = payFirst;
   const [sound, setSound] = useState(true);
   const [live, setLive] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
@@ -132,8 +135,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   /* ---- دریافتِ زنده (هر ۴ ثانیه) + تشخیص رویدادهای جدید ---- */
-  const seen = useRef<{ ready: boolean; orders: Set<string>; requests: Set<string>; feedback: Set<string>; pending: Set<string> }>({
-    ready: false, orders: new Set(), requests: new Set(), feedback: new Set(), pending: new Set(),
+  const seen = useRef<{ ready: boolean; orders: Set<string>; requests: Set<string>; feedback: Set<string>; pending: Set<string>; paid: Set<string> }>({
+    ready: false, orders: new Set(), requests: new Set(), feedback: new Set(), pending: new Set(), paid: new Set(),
   });
   const notify = useCallback((msg: string, short: string) => { beep(); flashTitle(short); flash(msg); }, [beep, flashTitle, flash]);
 
@@ -152,7 +155,15 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       for (const x of o) {
         if (!s.orders.has(x.id)) {
           s.orders.add(x.id);
-          if (s.ready) notify(`🧾 سفارش جدید — میز ${toFa(x.table)}`, "سفارش جدید");
+          if (s.ready) {
+            if (payFirstRef.current && !x.paid) notify(`🧾 سفارش جدید (در انتظار پرداخت) — میز ${toFa(x.table)}`, "سفارش جدید");
+            else notify(`🧾 سفارش جدید — میز ${toFa(x.table)}`, "سفارش جدید");
+          }
+        }
+        // اول پرداخت: لحظهٔ تأیید پرداخت = سفارش برای آشپزخانه
+        if (x.paid && !s.paid.has(x.id)) {
+          s.paid.add(x.id);
+          if (s.ready && payFirstRef.current && x.status === "new") notify(`👨‍🍳 پرداخت شد — سفارش میز ${toFa(x.table)} برای آشپزخانه`, "سفارش پرداخت‌شده");
         }
         if (x.payStatus === "pending" && !s.pending.has(x.id)) {
           // یک اعلان برای هر میز کافی است (فیش به همهٔ سفارش‌های باز می‌چسبد)
@@ -187,6 +198,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       setCafe({ name: st.cafe.name || "کافه", logo: st.cafe.logo || "☕" });
       setCurrency(st.cafe.currency === "rial" ? "rial" : "toman");
       setCodeMode(st.orderCode === "id" ? "id" : "number");
+      setPayFirst(st.payFirst);
     }).catch(() => {});
   }, []);
 
@@ -213,12 +225,16 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   /* ---- شمارنده‌های منو ---- */
   const counts = useMemo(() => {
     const pendingTables = new Set(orders.filter((o) => o.payStatus === "pending").map((o) => o.table));
+    const active = (o: Order) => o.status !== "served" && o.status !== "cancelled";
+    // اول پرداخت: میزهایی که سفارشِ پرداخت‌نشده دارند هم کارِ صندوق‌اند
+    const waits = (o: Order) => payFirst && o.status === "new" && !o.paid;
+    if (payFirst) orders.filter(waits).forEach((o) => pendingTables.add(o.table));
     return {
-      orders: orders.filter((o) => o.status !== "served" && o.status !== "cancelled").length,
+      orders: orders.filter((o) => active(o) && !waits(o)).length,
       requests: requests.filter((r) => r.status === "pending").length,
       cashier: pendingTables.size,
     } as Partial<Record<Section, number>>;
-  }, [orders, requests]);
+  }, [orders, requests, payFirst]);
 
   const ctx: StaffCtx = useMemo(() => ({
     money: (n: number) => formatMoney(n, currency),
@@ -313,7 +329,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         </header>
 
         <main className="mx-auto max-w-6xl px-4 py-5">
-          {section === "orders" && <OrdersSection orders={orders} feedback={feedback} onChange={upsertOrder} />}
+          {section === "orders" && <OrdersSection orders={orders} feedback={feedback} onChange={upsertOrder} payFirst={payFirst} onCashier={() => go("cashier")} />}
           {section === "requests" && <RequestsSection requests={requests} onChange={setRequests} />}
           {section === "products" && <MenuManager onCurrency={setCurrency} />}
           {section === "cashier" && <CashierSection orders={orders} onRefresh={poll} />}

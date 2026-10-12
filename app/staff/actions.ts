@@ -180,6 +180,8 @@ export interface AdminSettings {
   orderCode: OrderCodeMode;
   sms: SmsSettings;
   gateways: Gateway[];
+  /** سفارش فقط بعد از تأیید پرداخت به آشپزخانه می‌رود */
+  payFirst: boolean;
   hasPassword: boolean;
 }
 export async function staffSettingsAction(): Promise<AdminSettings> {
@@ -190,6 +192,7 @@ export async function staffSettingsAction(): Promise<AdminSettings> {
     orderCode: getSetting<OrderCodeMode>("orderCode", "number"),
     sms: { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) },
     gateways: mergeGateways(getSetting<Gateway[]>("gateways", [])),
+    payFirst: getSetting<boolean>("payFirst", true) !== false,
     hasPassword: !!getSetting<string>("admin_pw", ""),
   };
 }
@@ -199,6 +202,7 @@ export async function staffUpdateSettingsAction(input: {
   orderCode?: OrderCodeMode;
   sms?: Partial<SmsSettings>;
   gateways?: Gateway[];
+  payFirst?: boolean;
   newPassword?: string;
 }, logoForm?: FormData | null): Promise<{ ok: boolean }> {
   await gate();
@@ -222,6 +226,7 @@ export async function staffUpdateSettingsAction(input: {
     setSetting("sms", next);
   }
   if (Array.isArray(input.gateways)) setSetting("gateways", mergeGateways(input.gateways));
+  if (typeof input.payFirst === "boolean") setSetting("payFirst", input.payFirst);
   if (input.newPassword && input.newPassword.trim()) {
     setAdminPassword(input.newPassword.trim());
   }
