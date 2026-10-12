@@ -10,7 +10,8 @@ export default async function Home({
   searchParams: Promise<{ table?: string }>;
 }) {
   const sp = await searchParams;
-  const table = (sp.table || "1").toString();
+  // بدون شماره میز (مثلاً بازکردنِ آدرسِ خالیِ سایت) = صفحهٔ «QR میز را اسکن کنید»؛ دیگر پیش‌فرضِ میز ۱ نداریم
+  const table = String(sp.table || "").trim().slice(0, 20);
   const menu = getMenu();
   const cafe = getSetting<CafeInfo>("cafe", {
     name: "کافه آرتاویل",

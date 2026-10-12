@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Home, Sparkles, UtensilsCrossed, Coffee } from "lucide-react";
+import { X, Home, Sparkles, UtensilsCrossed, Coffee, LogOut } from "lucide-react";
 import { useUI } from "@/store/ui";
 import { scrollToId } from "@/components/fx/smooth-scroll";
 
@@ -11,7 +11,18 @@ const LINKS = [
   { id: "menu", label: "منو", icon: UtensilsCrossed },
 ];
 
-export function MobileMenu({ cafeName }: { cafeName: string }) {
+/** خروج از میز: حافظهٔ این نشست پاک و صفحهٔ «QR را اسکن کنید» باز می‌شود */
+function leaveTable(table: string) {
+  if (!confirm(`از میز ${table.replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[+d])} خارج می‌شوید؟`)) return;
+  try {
+    sessionStorage.removeItem(`cafe_visit_t${table}`);
+    sessionStorage.removeItem("cafe_splash_seen");
+    sessionStorage.removeItem("cafe_browse");
+  } catch {}
+  window.location.href = "/";
+}
+
+export function MobileMenu({ cafeName, table = "" }: { cafeName: string; table?: string }) {
   const { menuOpen, setMenu, setPicks, setSplash } = useUI();
   const go = (id: string) => {
     setMenu(false);
@@ -47,7 +58,7 @@ export function MobileMenu({ cafeName }: { cafeName: string }) {
               </button>
             </div>
             <nav className="space-y-1">
-              {LINKS.map((l) => (
+              {LINKS.filter((l) => table || l.id !== "splash").map((l) => (
                 <button
                   key={l.id}
                   onClick={() => go(l.id)}
@@ -58,6 +69,15 @@ export function MobileMenu({ cafeName }: { cafeName: string }) {
                 </button>
               ))}
             </nav>
+            {table && (
+              <button
+                onClick={() => { setMenu(false); window.setTimeout(() => leaveTable(table), 80); }}
+                className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-primary/20 px-3 py-3 text-right font-semibold text-primary transition hover:bg-primary/5"
+              >
+                <LogOut className="size-5" />
+                خروج از میز {table.replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[+d])}
+              </button>
+            )}
             <p className="mt-6 text-xs text-muted-foreground">با ❤️ توسط {cafeName}</p>
           </motion.aside>
         </motion.div>

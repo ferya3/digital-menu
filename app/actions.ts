@@ -14,11 +14,19 @@ import { saveReceiptWebp, readUpload } from "@/lib/images";
 import { isVerifiedPhone, normalizePhone, requestOtp, verifyOtp } from "@/lib/otp";
 import type { Bill, Order } from "@/lib/types";
 
+/** بدون شمارهٔ میز (اسکن نشده) سفارش/درخواست پذیرفته نمی‌شود */
+function needTable(table: string): string {
+  const t = String(table || "").trim();
+  if (!t) throw new Error("برای سفارش، QR روی میز را اسکن کنید");
+  return t.slice(0, 20);
+}
+
 export async function placeOrderAction(
   table: string,
   items: { id: string; qty: number }[],
   extra?: { note?: string; phone?: string }
 ): Promise<Order> {
+  table = needTable(table);
   // شماره فقط اگر قبلاً با کد پیامکی تأیید شده باشد ثبت می‌شود
   const phone = extra?.phone && (await isVerifiedPhone(extra.phone)) ? normalizePhone(extra.phone) : "";
   return createOrder({ table, items, note: extra?.note, phone });
@@ -55,6 +63,7 @@ export async function requestAction(
   note = ""
 ): Promise<{ ok: boolean }> {
   // (نوع pos فقط از مسیرِ posRequestAction ساخته می‌شود)
+  table = needTable(table);
   createRequest({ table, type, note: String(note || "").trim().slice(0, 200) });
   return { ok: true };
 }
@@ -79,6 +88,5 @@ export async function otpVerifyAction(phone: string, code: string, table: string
 
 /** «کارت‌خوان سر میز»: صندوق فاکتور را چاپ می‌کند و سالن‌دار با کارت‌خوان می‌آید */
 export async function posRequestAction(table: string): Promise<{ ok: boolean }> {
-  if (!String(table || "").trim()) throw new Error("شماره میز نامعتبر است");
-  return requestPos(String(table));
+  return requestPos(needTable(table));
 }

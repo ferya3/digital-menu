@@ -64,6 +64,23 @@ export function MenuView({
 }) {
   const money = useCallback((n: number) => formatMoney(n, cafe.currency), [cafe.currency]);
   const openMobileMenu = useUI((s) => s.setMenu);
+  // بدون شمارهٔ میز = فقط مشاهدهٔ منو (سفارش فقط با اسکنِ QR روی میز)
+  const viewOnly = !table;
+  // هدر با اسکرول به پایین پنهان و با اسکرول به بالا دوباره دیده می‌شود
+  const [hideHdr, setHideHdr] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const on = () => {
+      const y = window.scrollY;
+      const d = y - last;
+      if (y < 120) setHideHdr(false);
+      else if (d > 6) setHideHdr(true);
+      else if (d < -6) setHideHdr(false);
+      last = y;
+    };
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
   const picksOpen = useUI((s) => s.picksOpen);
   const setPicks = useUI((s) => s.setPicks);
   const closePicks = useCallback(() => setPicks(false), [setPicks]);
@@ -150,7 +167,9 @@ export function MenuView({
 
   const goToCategory = (id: string) => {
     setActiveCat(id);
-    scrollToId(`cat-${id}`, -164); // زیرِ هدر (۹۲px) + نوارِ دسته‌ها
+    // رو به پایین هدر پنهان می‌شود (فقط نوارِ دسته‌ها می‌ماند)؛ رو به بالا هدر برمی‌گردد
+    const down = (document.getElementById(`cat-${id}`)?.getBoundingClientRect().top ?? 0) > 0;
+    scrollToId(`cat-${id}`, down ? -72 : -164);
     document.getElementById(`chip-${id}`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   };
 
@@ -171,7 +190,10 @@ export function MenuView({
   }
 
 
-  const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
+  const add = (id: string) => {
+    if (viewOnly) return flash("برای سفارش، QR روی میزتان را اسکن کنید 📷", 3500);
+    setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
+  };
   const dec = (id: string) =>
     setCart((c) => {
       const q = (c[id] || 0) - 1;
@@ -226,6 +248,7 @@ export function MenuView({
     const prune = window.setInterval(() => setMyOrders((l) => pruneOrders(l, false)), 60_000);
     let timer: number | undefined;
     const soon = () => { window.clearTimeout(timer); timer = window.setTimeout(refresh, 80); };
+    if (!table) return;
     const es = new EventSource(`/live?table=${encodeURIComponent(table)}`);
     es.onmessage = soon;
     const t = window.setInterval(refresh, 30000);
@@ -333,7 +356,7 @@ export function MenuView({
   return (
     <div className="min-h-screen pb-44 sm:pb-28">
       {/* header */}
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+      <header className={cn("sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl transition-transform duration-300", hideHdr && "-translate-y-full")}>
         {/* منو سمت راست، لوگو و نام کافه وسط، دکمه‌های دسکتاپ سمت چپ */}
         <div className="mx-auto grid h-[92px] max-w-5xl grid-cols-[1fr_auto_1fr] items-center px-3">
           <div className="flex justify-start">
@@ -351,9 +374,9 @@ export function MenuView({
               </span>
             )}
             <h1 className="mt-1 max-w-[56vw] truncate text-base font-extrabold tracking-tight sm:max-w-none">{cafe.name}</h1>
-            <p className="text-[10px] text-muted-foreground">{cafe.tagline || "منوی دیجیتال"} · میز {toFa(table)}</p>
+            <p className="text-[10px] text-muted-foreground">{cafe.tagline || "منوی دیجیتال"} · {viewOnly ? "فقط مشاهده" : `میز ${toFa(table)}`}</p>
           </div>
-          <div className="flex items-center justify-end gap-1">
+          <div className={cn("flex items-center justify-end gap-1", viewOnly && "invisible")}>
             {/* روی موبایل این دکمه‌ها در نوارِ پایین هستند */}
             <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={() => setReqOpen(true)} aria-label="درخواست">
               <BellRing />
@@ -385,7 +408,7 @@ export function MenuView({
       </div>
 
       {/* نوار دسته‌ها: با کلیک به همان بخش می‌رود */}
-      <div className="sticky top-[92px] z-30 bg-background/75 py-3 backdrop-blur-xl">
+      <div className={cn("sticky top-[92px] z-30 bg-background/75 py-3 backdrop-blur-xl transition-transform duration-300", hideHdr && "-translate-y-[92px]")}>
         <div className="no-scrollbar mx-auto flex max-w-5xl gap-2 overflow-x-auto px-4">
           {sections.map(({ cat: c }) => (
             <button
@@ -438,7 +461,7 @@ export function MenuView({
 
       <ShareSheet target={shareTarget} onClose={() => setShareTarget(null)} />
 
-      {otp && <PhoneGate cafe={cafe} table={table} onVerified={setPhone} />}
+      {otp && !viewOnly && <PhoneGate cafe={cafe} table={table} onVerified={setPhone} />}
 
       <PicksSheet
         open={picksOpen}
@@ -501,14 +524,14 @@ export function MenuView({
       </AnimatePresence>
 
       {/* نوارِ پایینِ موبایل (با دکمهٔ گردِ سبد در وسط) */}
-      <MobileTabBar
+      {!viewOnly && <MobileTabBar
         count={count}
         activeOrders={activeOrders}
         onRequest={() => setReqOpen(true)}
         onStatus={() => setStatusOpen(true)}
         onCart={() => setCartOpen(true)}
         onBill={openBill}
-      />
+      />}
 
       {/* placed toast */}
       <AnimatePresence>
