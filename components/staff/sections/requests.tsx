@@ -55,7 +55,11 @@ export function RequestsSection({ requests, onChange }: { requests: StaffRequest
                       </span>
                     ) : <span>درخواست گارسون</span>}
                   </div>
-                  {r.note && <p className="mt-2 flex gap-1.5 text-sm text-muted-foreground"><StickyNote className="size-4 shrink-0" />{r.note}</p>}
+                  {r.note && (
+                    <p className="mt-2 flex gap-1.5 rounded-xl bg-amber-500/10 px-3 py-2 text-[15px] font-bold text-foreground">
+                      <StickyNote className="mt-0.5 size-4 shrink-0 text-amber-600" />{r.note}
+                    </p>
+                  )}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(invoice || pos) && <Button size="sm" variant={pos && !isDone ? "default" : "outline"} className="h-8 rounded-xl" onClick={() => print("table=" + encodeURIComponent(r.table))}><Printer className="size-3.5" /> {pos ? "چاپ فاکتور" : "چاپ صورتحساب"}</Button>}
                     {pos && !isDone && <Button size="sm" className="h-8 rounded-xl bg-green-600 text-white hover:bg-green-600/90" onClick={() => settle(r)}><CreditCard className="size-3.5" /> پرداخت شد (کارت‌خوان)</Button>}

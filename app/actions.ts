@@ -51,10 +51,11 @@ export async function uploadReceiptAction(
 
 export async function requestAction(
   table: string,
-  type: "waiter" | "invoice"
+  type: "waiter" | "invoice",
+  note = ""
 ): Promise<{ ok: boolean }> {
   // (نوع pos فقط از مسیرِ posRequestAction ساخته می‌شود)
-  createRequest({ table, type });
+  createRequest({ table, type, note: String(note || "").trim().slice(0, 200) });
   return { ok: true };
 }
 

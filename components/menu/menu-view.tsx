@@ -23,6 +23,17 @@ import {
   requestAction, feedbackAction,
 } from "@/app/actions";
 
+/** گزینه‌های سریعِ درخواست از گارسون (مثل نسخهٔ قبلی) */
+const QUICK_REQUESTS = [
+  { icon: "🍴", label: "قاشق و چنگال", text: "قاشق و چنگال" },
+  { icon: "🪑", label: "صندلی اضافه", text: "صندلی اضافه" },
+  { icon: "🧻", label: "دستمال", text: "دستمال کاغذی" },
+  { icon: "💧", label: "آب", text: "یک لیوان آب" },
+  { icon: "🍬", label: "شکر", text: "شکر" },
+  { icon: "🧽", label: "تمیز کردن میز", text: "تمیز کردن میز" },
+  { icon: "📋", label: "منوی کاغذی", text: "منوی کاغذی" },
+];
+
 // پنل منتخب‌ها (با GSAP) جدا و بعد از بارگذاری صفحه لود می‌شود
 const PicksSheet = dynamic(() => import("@/components/menu/picks-sheet").then((m) => m.PicksSheet), { ssr: false });
 
@@ -85,6 +96,7 @@ export function MenuView({
   const posOK = payment.allowPos !== false;
   const [reqOpen, setReqOpen] = useState(false);
   const [reqSending, setReqSending] = useState<"waiter" | "invoice" | null>(null);
+  const [reqNote, setReqNote] = useState("");
   const [fbOpen, setFbOpen] = useState(false);
   const [fbRating, setFbRating] = useState(5);
   const [fbComment, setFbComment] = useState("");
@@ -293,9 +305,12 @@ export function MenuView({
   async function sendRequest(type: "waiter" | "invoice") {
     setReqSending(type);
     try {
-      await requestAction(table, type);
+      await requestAction(table, type, type === "waiter" ? reqNote : "");
       setReqOpen(false);
-      flash(type === "waiter" ? "گارسون خبر شد ✅" : "درخواست فاکتور ثبت شد ✅");
+      if (type === "waiter") setReqNote("");
+      flash(type === "waiter" ? "گارسون به‌زودی می‌آید 🙋" : "درخواست فاکتور ارسال شد 🧾");
+    } catch {
+      flash("ارسال نشد؛ دوباره تلاش کنید");
     } finally {
       setReqSending(null);
     }
@@ -552,14 +567,49 @@ export function MenuView({
         )}
       </Drawer>
 
-      <Drawer open={reqOpen} onClose={() => setReqOpen(false)} title="درخواست">
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => sendRequest("waiter")} disabled={reqSending !== null} className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-muted/40 p-5 font-bold transition hover:bg-muted disabled:opacity-60">
-            {reqSending === "waiter" ? <Loader2 className="size-7 animate-spin" /> : <BellRing className="size-7 text-accent" />} صدا زدن گارسون
-          </button>
-          <button onClick={() => sendRequest("invoice")} disabled={reqSending !== null} className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-muted/40 p-5 font-bold transition hover:bg-muted disabled:opacity-60">
-            {reqSending === "invoice" ? <Loader2 className="size-7 animate-spin" /> : <ReceiptText className="size-7 text-primary" />} درخواست فاکتور
-          </button>
+      <Drawer open={reqOpen} onClose={() => setReqOpen(false)} title="درخواست‌ها">
+        <p className="mb-3 text-sm text-muted-foreground">درخواستتان را بنویسید یا از گزینه‌های سریع استفاده کنید:</p>
+        <div className="mb-3 flex flex-wrap gap-2">
+          {QUICK_REQUESTS.map((q) => {
+            const on = reqNote.split("، ").includes(q.text);
+            return (
+              <button
+                key={q.text}
+                onClick={() =>
+                  setReqNote((cur) => {
+                    const parts = cur.split("، ").map((x) => x.trim()).filter(Boolean);
+                    return (on ? parts.filter((x) => x !== q.text) : [...parts, q.text]).join("، ");
+                  })
+                }
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition active:scale-95",
+                  on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted/50 hover:bg-muted"
+                )}
+              >
+                <span>{q.icon}</span>
+                {q.label}
+              </button>
+            );
+          })}
+        </div>
+        <textarea
+          value={reqNote}
+          onChange={(e) => setReqNote(e.target.value)}
+          maxLength={200}
+          rows={2}
+          placeholder="مثلاً: یک قاشق اضافه لطفاً…"
+          className="mb-3 w-full resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+        />
+        <Button size="lg" className="h-12 w-full rounded-xl text-base" onClick={() => sendRequest("waiter")} disabled={reqSending !== null}>
+          {reqSending === "waiter" ? <Loader2 className="animate-spin" /> : <><BellRing className="size-5" /> صدا زدن گارسون</>}
+        </Button>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <Button variant="outline" className="h-11 rounded-xl" onClick={() => sendRequest("invoice")} disabled={reqSending !== null}>
+            {reqSending === "invoice" ? <Loader2 className="animate-spin" /> : <><ReceiptText className="size-4" /> درخواست فاکتور</>}
+          </Button>
+          <Button variant="outline" className="h-11 rounded-xl" onClick={() => { setReqOpen(false); openBill(); }}>
+            💳 صورتحساب و پرداخت
+          </Button>
         </div>
       </Drawer>
 

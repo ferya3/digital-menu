@@ -179,7 +179,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       for (const x of r) {
         if (!s.requests.has(x.id)) {
           s.requests.add(x.id);
-          if (s.ready) notify(`${x.type === "pos" ? "🧾 درخواست کارت‌خوان سر میز (چاپ فاکتور)" : x.type === "invoice" ? "💵 درخواست صورتحساب" : "🙋 درخواست گارسون"} — میز ${toFa(x.table)}`, x.type === "pos" ? "کارت‌خوان" : "درخواست جدید");
+          if (s.ready) notify(`${x.type === "pos" ? "🧾 درخواست کارت‌خوان سر میز (چاپ فاکتور)" : x.type === "invoice" ? "💵 درخواست صورتحساب" : "🙋 درخواست گارسون"} — میز ${toFa(x.table)}${x.note ? `: ${x.note}` : ""}`, x.type === "pos" ? "کارت‌خوان" : "درخواست جدید");
         }
       }
       setRequests(r);
