@@ -166,22 +166,28 @@ export function MenuView({
   }, 0);
   const activeOrders = myOrders.filter((o) => o.status !== "served" && o.status !== "cancelled").length;
 
-  /* rehydrate + poll live status */
+  /* وضعیت سفارش‌ها: کانال زنده برای همین میز + پشتیبانِ کند */
+  const billOpenRef = useRef(false);
+  billOpenRef.current = billOpen;
   useEffect(() => {
-    let ids: string[] = [];
-    try {
-      ids = JSON.parse(localStorage.getItem(ordersKey) || "[]");
-    } catch {}
-    if (ids.length) ordersAction(ids).then(setMyOrders).catch(() => {});
-    const t = setInterval(() => {
+    const refresh = () => {
       try {
         const cur: string[] = JSON.parse(localStorage.getItem(ordersKey) || "[]");
         if (cur.length) ordersAction(cur).then(setMyOrders).catch(() => {});
       } catch {}
-    }, 5000);
-    return () => clearInterval(t);
+      if (billOpenRef.current) billAction(table).then(setBill).catch(() => {});
+    };
+    refresh();
+    let timer: number | undefined;
+    const soon = () => { window.clearTimeout(timer); timer = window.setTimeout(refresh, 80); };
+    const es = new EventSource(`/live?table=${encodeURIComponent(table)}`);
+    es.onmessage = soon;
+    const t = window.setInterval(refresh, 30000);
+    const onVis = () => document.visibilityState === "visible" && soon();
+    document.addEventListener("visibilitychange", onVis);
+    return () => { es.close(); window.clearInterval(t); window.clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [table]);
 
   async function submitOrder() {
     if (count === 0) return;

@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { deleteUpload } from "@/lib/images";
+import { publish } from "@/lib/live";
 import type {
   Bill,
   Menu,
@@ -91,6 +92,7 @@ export function createOrder(input: {
     input.phone || "", (input.note || "").toString().trim().slice(0, 500), ts, ts
   );
   if (input.phone) addCustomer(input.phone, input.table);
+  publish({ type: "order", table: String(input.table) });
   return rowToOrder(d.prepare("SELECT * FROM orders WHERE id = ?").get(oid) as unknown as OrderRow);
 }
 
@@ -138,6 +140,7 @@ export function attachReceiptToTable(table: string, imagePath: string, hash: str
     "UPDATE orders SET receipt = ?, receipt_hash = ?, receipt_reused = ?, pay_status = 'pending', updated_at = ? WHERE id = ?"
   );
   for (const o of open) upd.run(imagePath, hash, reused ? 1 : 0, ts, o.id);
+  publish({ type: "receipt", table: String(table) });
   return open.length;
 }
 
@@ -152,7 +155,12 @@ export function receiptReused(hash: string, excludeTable: string): boolean {
 /* staff: change status / payment */
 export function setOrderStatus(orderId: string, status: OrderStatus): Order | null {
   db().prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?").run(status, now(), orderId);
-  return getOrder(orderId);
+  return changed(getOrder(orderId));
+}
+/** اعلامِ تغییرِ سفارش به پنل و به میزِ همان سفارش */
+function changed(o: Order | null): Order | null {
+  if (o) publish({ type: "order", table: o.table });
+  return o;
 }
 export function setPayStatus(orderId: string, pay: PayStatus, reason = ""): Order | null {
   const d = db();
@@ -172,7 +180,7 @@ export function setPayStatus(orderId: string, pay: PayStatus, reason = ""): Orde
   } else {
     d.prepare("UPDATE orders SET pay_status=?, updated_at=? WHERE id=?").run(pay, now(), orderId);
   }
-  return getOrder(orderId);
+  return changed(getOrder(orderId));
 }
 
 /** علامت «پرداخت شد» دستی (پرداخت نقدی/کارتخوان بدون فیش) */
@@ -180,7 +188,7 @@ export function setPaid(orderId: string, paid: boolean): Order | null {
   const d = db();
   if (paid) d.prepare("UPDATE orders SET paid=1, pay_status='confirmed', updated_at=? WHERE id=?").run(now(), orderId);
   else d.prepare("UPDATE orders SET paid=0, pay_status='none', updated_at=? WHERE id=?").run(now(), orderId);
-  return getOrder(orderId);
+  return changed(getOrder(orderId));
 }
 
 /** تأیید/ردِ فیشِ کل صورتحسابِ یک میز (همهٔ سفارش‌های «در انتظار» با هم) */
@@ -205,6 +213,7 @@ export function createRequest(input: { table: string; type: "waiter" | "invoice"
   d.prepare(
     "INSERT INTO requests (id, tbl, type, note, status, amount, order_count, created_at) VALUES (?,?,?,?,'pending',?,?,?)"
   ).run(rid, String(input.table), input.type, (input.note || "").slice(0, 200), amount, orderCount, now());
+  publish({ type: "request", table: String(input.table) });
   return { id: rid };
 }
 
@@ -215,6 +224,7 @@ export function createFeedback(input: { table?: string; orderId?: string; rating
   db().prepare(
     "INSERT INTO feedback (id, tbl, order_id, rating, comment, created_at) VALUES (?,?,?,?,?,?)"
   ).run(id("fb"), input.table || "", input.orderId || "", r, (input.comment || "").slice(0, 1000), now());
+  publish({ type: "feedback", table: input.table || "" });
   return { ok: true };
 }
 
@@ -284,6 +294,7 @@ export function listRequests(): StaffRequest[] {
 }
 export function markRequestDone(id: string) {
   db().prepare("UPDATE requests SET status='done' WHERE id=?").run(id);
+  publish({ type: "request" });
   return { ok: true };
 }
 

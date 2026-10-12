@@ -11,8 +11,7 @@ import { cn, formatMoney, toFa } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { Order, OrderCodeMode } from "@/lib/types";
 import {
-  loginAction, logoutAction, staffOrdersAction, staffRequestsAction,
-  staffFeedbackAction, staffCustomersAction, staffSettingsAction,
+  loginAction, logoutAction, staffCustomersAction, staffSettingsAction,
 } from "@/app/staff/actions";
 import type { StaffCustomer, StaffFeedback, StaffRequest } from "@/lib/queries";
 import { Ctx, inputCls, isImgSrc, type StaffCtx } from "@/components/staff/kit";
@@ -71,6 +70,8 @@ function Login({ onDone }: { onDone: () => void }) {
 
 /* ===================== داشبورد ===================== */
 function Dashboard({ onLogout }: { onLogout: () => void }) {
+  const logoutRef = useRef(onLogout);
+  logoutRef.current = onLogout;
   const [section, setSection] = useState<Section>("orders");
   const [sideOpen, setSideOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -81,6 +82,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [currency, setCurrency] = useState<"toman" | "rial">("toman");
   const [codeMode, setCodeMode] = useState<OrderCodeMode>("number");
   const [sound, setSound] = useState(true);
+  const [live, setLive] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const [image, setImage] = useState<string | null>(null);
   const [asking, setAsking] = useState<{ title: string; hint?: string; resolve: (v: string | null) => void } | null>(null);
@@ -136,11 +138,15 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const notify = useCallback((msg: string, short: string) => { beep(); flashTitle(short); flash(msg); }, [beep, flashTitle, flash]);
 
   const poll = useCallback(async () => {
-    const [o, r, f] = await Promise.all([
-      staffOrdersAction().catch(() => null),
-      staffRequestsAction().catch(() => null),
-      staffFeedbackAction().catch(() => null),
-    ]);
+    // یک درخواستِ معمولی (نه Server Action) تا پشتِ صفِ اکشن‌ها نماند
+    let snap: { orders: Order[]; requests: StaffRequest[]; feedback: StaffFeedback[] } | null = null;
+    try {
+      const res = await fetch("/staff/snapshot", { cache: "no-store" });
+      if (res.status === 401) { logoutRef.current(); return; }
+      if (res.ok) snap = await res.json();
+    } catch {}
+    if (!snap) return;
+    const { orders: o, requests: r, feedback: f } = snap;
     const s = seen.current;
     if (o) {
       for (const x of o) {
@@ -185,10 +191,20 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   useEffect(() => {
-    poll();
     loadMeta();
-    const t = window.setInterval(poll, 4000);
-    return () => window.clearInterval(t);
+    poll();
+    // کانال زنده: سرور به‌محض هر تغییر خبر می‌دهد → همان لحظه داده تازه می‌شود
+    let timer: number | undefined;
+    const refresh = () => { window.clearTimeout(timer); timer = window.setTimeout(poll, 60); };
+    const es = new EventSource("/staff/live");
+    es.onmessage = refresh;
+    es.onopen = () => { setLive(true); refresh(); }; // بعد از وصل‌شدنِ دوباره، چیزی جا نماند
+    es.onerror = () => setLive(es.readyState === EventSource.OPEN);
+    // پشتیبان: اگر اتصال زنده قطع بود، هر ۱۵ ثانیه
+    const t = window.setInterval(poll, 15000);
+    const onVis = () => document.visibilityState === "visible" && refresh();
+    document.addEventListener("visibilitychange", onVis);
+    return () => { es.close(); window.clearInterval(t); window.clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); };
   }, [poll, loadMeta]);
   useEffect(() => {
     if (section === "customers") staffCustomersAction().then(setCustomers).catch(() => {});
@@ -227,7 +243,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         </span>
         <div className="min-w-0 leading-tight">
           <b className="block truncate">{cafe.name}</b>
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><span className="size-1.5 animate-pulse rounded-full bg-green-500" /> داشبورد مدیر · زنده</span>
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><span className={cn("size-1.5 rounded-full", live ? "animate-pulse bg-green-500" : "bg-amber-500")} /> داشبورد مدیر · {live ? "زنده" : "در حال اتصال…"}</span>
         </div>
       </div>
       <nav className="flex-1 space-y-1">
