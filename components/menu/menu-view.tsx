@@ -69,6 +69,7 @@ export function MenuView({
   // هدر با اسکرول به پایین پنهان و با اسکرول به بالا دوباره دیده می‌شود
   const [hideHdr, setHideHdr] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let last = window.scrollY;
     const on = () => {
@@ -166,13 +167,22 @@ export function MenuView({
     return () => io.disconnect();
   }, [sections, view]);
 
+  // نوارِ دسته‌ها همیشه دکمهٔ دستهٔ فعال را وسطِ دید نگه می‌دارد (با اسکرول یا کلیک)
+  useEffect(() => {
+    const box = chipsRef.current;
+    const chip = document.getElementById(`chip-${activeCat}`);
+    if (!box || !chip) return;
+    const b = box.getBoundingClientRect(), c = chip.getBoundingClientRect();
+    const delta = c.left + c.width / 2 - (b.left + b.width / 2);
+    if (Math.abs(delta) > 4) box.scrollBy({ left: delta, behavior: "smooth" });
+  }, [activeCat]);
+
   const goToCategory = (id: string) => {
     setActiveCat(id);
     // رو به پایین هدر پنهان می‌شود (فقط نوارِ دسته‌ها می‌ماند)؛ رو به بالا هدر برمی‌گردد
     const down = (document.getElementById(`cat-${id}`)?.getBoundingClientRect().top ?? 0) > 0;
     const bar = barRef.current?.offsetHeight ?? 60;
     scrollToId(`cat-${id}`, -(bar + 12 + (down ? 0 : 92)));
-    document.getElementById(`chip-${id}`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   };
 
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
@@ -405,11 +415,11 @@ export function MenuView({
 
       {/* نوارِ چسبان: حالت نمایش منو + دسته‌ها (با پنهان‌شدنِ هدر، همین نوار بالا می‌ماند) */}
       <div ref={barRef} className={cn("sticky top-[92px] z-30 border-b border-border/40 bg-background/80 pb-2.5 pt-2 backdrop-blur-xl transition-transform duration-300", hideHdr && "-translate-y-[92px]")}>
-        <div className="mx-auto mb-2 flex max-w-5xl items-center justify-center gap-2 px-4">
-          <span className="hidden text-xs font-bold text-muted-foreground min-[380px]:inline">حالت نمایش منو</span>
+        <div className="mx-auto mb-2 flex max-w-5xl flex-col items-center gap-1 px-4">
+          <span className="text-[11px] font-bold text-muted-foreground">حالت نمایش منو</span>
           <ViewToggle value={view} onChange={changeView} compact />
         </div>
-        <div className="no-scrollbar mx-auto flex max-w-5xl gap-2 overflow-x-auto px-4">
+        <div ref={chipsRef} className="no-scrollbar mx-auto flex max-w-5xl gap-2 overflow-x-auto scroll-smooth px-4">
           {sections.map(({ cat: c }) => (
             <button
               key={c.id}
