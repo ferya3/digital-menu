@@ -183,12 +183,22 @@ export function MenuView({
   const payFirstRef = useRef(payFirst);
   payFirstRef.current = payFirst;
   useEffect(() => {
+    // هر بار اسکنِ دوبارهٔ QR (تبِ تازه) = حضورِ جدید: سفارش‌های تمام‌شدهٔ قبلی نمایش داده نمی‌شوند
+    const visitKey = `cafe_visit_t${table}`;
+    let freshVisit = false;
+    try {
+      freshVisit = !sessionStorage.getItem(visitKey);
+      sessionStorage.setItem(visitKey, String(Date.now()));
+    } catch {}
     const refresh = () => {
       try {
         const cur: string[] = JSON.parse(localStorage.getItem(ordersKey) || "[]");
-        if (cur.length)
-          ordersAction(cur)
-            .then((next) => {
+        if (!cur.length) return setMyOrders([]);
+        ordersAction(cur)
+            .then((all) => {
+              const next = pruneOrders(all, freshVisit);
+              freshVisit = false;
+              try { localStorage.setItem(ordersKey, JSON.stringify(next.map((o) => o.id))); } catch {}
               // پرداخت تأیید شد → سفارش رفت برای سرآشپز
               const was = new Map(myOrdersRef.current.map((o) => [o.id, o]));
               const justPaid = next.find((o) => o.paid && was.get(o.id) && !was.get(o.id)!.paid && o.status !== "cancelled");
@@ -200,6 +210,8 @@ export function MenuView({
       if (billOpenRef.current) billAction(table).then(setBill).catch(() => {});
     };
     refresh();
+    // سفارشِ تمام‌شده بعد از مدتی خودش از لیست می‌رود
+    const prune = window.setInterval(() => setMyOrders((l) => pruneOrders(l, false)), 60_000);
     let timer: number | undefined;
     const soon = () => { window.clearTimeout(timer); timer = window.setTimeout(refresh, 80); };
     const es = new EventSource(`/live?table=${encodeURIComponent(table)}`);
@@ -207,7 +219,7 @@ export function MenuView({
     const t = window.setInterval(refresh, 30000);
     const onVis = () => document.visibilityState === "visible" && soon();
     document.addEventListener("visibilitychange", onVis);
-    return () => { es.close(); window.clearInterval(t); window.clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); };
+    return () => { es.close(); window.clearInterval(t); window.clearInterval(prune); window.clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table]);
 
@@ -639,6 +651,22 @@ export function MenuView({
       </AnimatePresence>
     </div>
   );
+}
+
+/* ---------- «سفارش‌های من»: فقط همین حضور ---------- */
+const DONE_VISIBLE_MS = 20 * 60 * 1000; // سفارشِ تمام‌شده تا ۲۰ دقیقه دیده می‌شود
+const MAX_AGE_MS = 6 * 3600 * 1000; // هیچ سفارشی بیشتر از ۶ ساعت در لیست نمی‌ماند
+const isFinished = (o: Order) => o.status === "cancelled" || (o.status === "served" && o.paid);
+function pruneOrders(list: Order[], freshVisit: boolean): Order[] {
+  const now = Date.now();
+  return list.filter((o) => {
+    if (now - +new Date(o.createdAt) > MAX_AGE_MS) return false;
+    // اسکنِ تازه: سفارشِ پرداخت‌شدهٔ قدیمی (حتی اگر «سرو شد» زده نشده) هم مالِ حضورِ قبلی است
+    if (freshVisit && o.paid && now - +new Date(o.createdAt) > 90 * 60 * 1000) return false;
+    if (!isFinished(o)) return true;
+    if (freshVisit) return false;
+    return now - +new Date(o.updatedAt || o.createdAt) < DONE_VISIBLE_MS;
+  });
 }
 
 /* ---------- pieces ---------- */
