@@ -253,38 +253,60 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
    ===================================================================== */
 export function GridCard({ item, index, ...a }: { item: MenuItem; index: number } & ItemActions) {
   const qty = a.qtyOf(item.id);
+  const onSale = !!item.oldPrice && item.oldPrice > item.price;
   return (
     <motion.article
       // ورودِ کارت با CSS (بدون انتظار برای جاوااسکریپت)؛ هاور با framer
       style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
       whileHover={{ y: -4 }}
-      className="rise group overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+      className="rise group flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-sm transition-shadow hover:shadow-xl"
     >
+      {/* عکسِ بزرگ و بلند (۴:۵) تا کلِ محصول دیده شود — مثل نسخهٔ قبلی */}
       <button
-        className={cn("relative grid aspect-[4/3] w-full place-items-center overflow-hidden bg-gradient-to-br from-muted to-card", item.image && "cursor-zoom-in")}
+        className={cn("relative grid aspect-[4/5] w-full place-items-center overflow-hidden bg-gradient-to-br from-[#efeae3] to-[#e2d8cc] dark:from-[#2a221c] dark:to-[#1d1814]", item.image && "cursor-zoom-in")}
         onClick={() => item.image && a.onImage(item)}
         aria-label={item.image ? `بزرگ‌نمایی عکس ${item.name}` : item.name}
       >
         {item.image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb(item.image, 480)} alt={item.name} loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
+          <img
+            src={thumb(item.image, 720)}
+            srcSet={item.image.startsWith("/uploads/") ? `${thumb(item.image, 480)} 480w, ${thumb(item.image, 720)} 720w, ${thumb(item.image, 1080)} 1080w` : undefined}
+            sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 560px) 50vw, 100vw"
+            alt={item.name}
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105"
+          />
         ) : (
-          <span className="text-6xl transition group-hover:scale-110">{item.emoji}</span>
+          <span className="text-7xl opacity-60 transition group-hover:scale-110">{item.emoji || "🍽️"}</span>
         )}
-        {item.image && <span className="pointer-events-none absolute inset-0 grid place-items-center text-sm font-black text-white/15">{a.cafeName}</span>}
-        {item.tag && <span className="absolute right-2 top-2 rounded-full bg-primary/90 px-2 py-0.5 text-[11px] font-bold text-primary-foreground">{item.tag}</span>}
-        {item.oldPrice && item.oldPrice > item.price && <span className="absolute left-2 top-2 rounded-full bg-red-700 px-2 py-0.5 text-[11px] font-bold text-white">تخفیف</span>}
+        {item.image && (
+          <span className="pointer-events-none absolute inset-0 grid -rotate-[20deg] place-items-center px-[10%] text-xl font-bold text-white/25 [text-shadow:0_1px_4px_rgba(0,0,0,.4)]">{a.cafeName}</span>
+        )}
+        {item.tag && <span className="absolute left-3 top-3 z-10 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-stone-800 shadow">{item.tag}</span>}
+        {onSale && (
+          // نوارِ موربِ «تخفیف» در گوشه
+          <span className="pointer-events-none absolute right-0 top-0 z-10 size-[92px] overflow-hidden">
+            <span className="absolute -right-9 top-[18px] w-[140px] rotate-45 bg-primary py-1 text-center text-[11px] font-extrabold text-white shadow">تخفیف</span>
+          </span>
+        )}
       </button>
-      <div className="p-3">
-        <div className="flex items-start justify-between gap-2">
-          <h4 className="font-bold leading-tight">{item.name}</h4>
-          <button onClick={() => a.onShare(item)} className="shrink-0 text-muted-foreground hover:text-primary" aria-label="اشتراک‌گذاری">
+      <div className="flex flex-1 flex-col p-4">
+        <h4 className="mb-1.5 text-lg font-bold leading-snug">{item.name}</h4>
+        {item.desc && <p className="mb-3 flex-1 text-[13px] leading-7 text-muted-foreground">{item.desc}</p>}
+        <div className="mb-2.5 flex justify-end">
+          <button
+            onClick={() => a.onShare(item)}
+            className="grid size-8 place-items-center rounded-[9px] border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+            aria-label="اشتراک‌گذاری"
+            title="اشتراک‌گذاری"
+          >
             <Share2 className="size-4" />
           </button>
         </div>
-        {item.desc && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{item.desc}</p>}
-        <div className="mt-3 flex items-center justify-between">
-          <Price item={item} money={a.money} className="text-sm font-extrabold text-primary" />
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-3">
+          <Price item={item} money={a.money} className="text-[17px] font-extrabold text-primary" />
           <Stepper qty={qty} onAdd={() => a.onAdd(item.id)} onDec={() => a.onDec(item.id)} />
         </div>
       </div>

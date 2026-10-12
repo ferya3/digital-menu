@@ -357,7 +357,7 @@ export function MenuView({
               </h3>
               {view === "carousel" && <CoverflowCarousel items={items} {...actions} />}
               {view === "grid" && (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 min-[560px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   {items.map((it, i) => <GridCard key={it.id} item={it} index={i} {...actions} />)}
                 </div>
               )}
