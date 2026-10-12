@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useUI } from "@/store/ui";
 import { scrollToId } from "@/components/fx/smooth-scroll";
 import { CoverflowCarousel, GridCard, ListRow, Stepper, ViewToggle, type ViewMode } from "@/components/menu/menu-modes";
+import { PicksSheet } from "@/components/menu/picks-sheet";
 import { compressImage, imageForm } from "@/lib/client-image";
 import {
   placeOrderAction, billAction, ordersAction, uploadReceiptAction,
@@ -42,6 +43,15 @@ export function MenuView({
 }) {
   const money = useCallback((n: number) => formatMoney(n, cafe.currency), [cafe.currency]);
   const openMobileMenu = useUI((s) => s.setMenu);
+  const picksOpen = useUI((s) => s.picksOpen);
+  const setPicks = useUI((s) => s.setPicks);
+  const closePicks = useCallback(() => setPicks(false), [setPicks]);
+  // منتخب‌ها: آیتم‌های برچسب‌دار (اگر حداقل ۳ تا باشند) وگرنه چند آیتمِ اول
+  const featured = useMemo(() => {
+    const avail = menu.items.filter((i) => i.available);
+    const tagged = avail.filter((i) => i.tag);
+    return (tagged.length >= 3 ? tagged : avail).slice(0, 6);
+  }, [menu.items]);
 
   const [view, setView] = useState<ViewMode>("grid");
   const [activeCat, setActiveCat] = useState(menu.categories[0]?.id ?? "");
@@ -341,6 +351,21 @@ export function MenuView({
           );
         })}
       </main>
+
+      <PicksSheet
+        open={picksOpen}
+        onClose={closePicks}
+        items={featured}
+        money={money}
+        qtyOf={(id) => cart[id] || 0}
+        onAdd={add}
+        onDec={dec}
+        onImage={(it) => setLightbox(it)}
+        count={count}
+        total={total}
+        onCart={() => { setPicks(false); setCartOpen(true); }}
+        onMenu={() => { setPicks(false); window.setTimeout(() => scrollToId("menu"), 80); }}
+      />
 
       {/* بزرگ‌نمایی عکس */}
       <AnimatePresence>

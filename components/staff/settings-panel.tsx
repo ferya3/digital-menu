@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, ImageIcon, X, Save, Store, CreditCard, KeyRound } from "lucide-react";
+import { Loader2, ImageIcon, X, Save, Store, CreditCard, KeyRound, Clapperboard, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { compressImage, imageForm } from "@/lib/client-image";
@@ -74,6 +74,12 @@ export function SettingsPanel({ flash }: { flash: (m: string) => void }) {
         </Field>
       </Card>
 
+      <HeroVideoCard
+        video={cafe.heroVideo || ""}
+        onChange={(v) => setCafe((c) => (c ? { ...c, heroVideo: v } : c))}
+        flash={flash}
+      />
+
       <Card icon={<CreditCard className="size-4" />} title="اطلاعات پرداخت (کارت‌به‌کارت)">
         <p className="text-xs text-muted-foreground">هنگام درخواست صورتحساب به مشتری نشان داده می‌شود.</p>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -92,6 +98,76 @@ export function SettingsPanel({ flash }: { flash: (m: string) => void }) {
         <Button size="lg" className="h-12 w-full rounded-2xl text-base shadow-lg" onClick={save} disabled={saving}>{saving ? <Loader2 className="animate-spin" /> : <><Save className="size-5" /> ذخیرهٔ تنظیمات</>}</Button>
       </div>
     </div>
+  );
+}
+
+/** ویدیوی هیرو: مستقیم (بدون Server Action) با نوار پیشرفت آپلود می‌شود */
+function HeroVideoCard({ video, onChange, flash }: { video: string; onChange: (v: string) => void; flash: (m: string) => void }) {
+  const [progress, setProgress] = useState<number | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const ref = useRef<HTMLInputElement | null>(null);
+
+  function upload(f: File) {
+    if (!/^video\/(mp4|webm|quicktime)$/.test(f.type)) return flash("فقط ویدیوی MP4 یا WebM");
+    if (f.size > 100 * 1024 * 1024) return flash("حجم ویدیو بیش از ۱۰۰ مگابایت است");
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/staff/hero-video");
+    xhr.setRequestHeader("Content-Type", f.type);
+    xhr.upload.onprogress = (e) => e.lengthComputable && setProgress(Math.round((e.loaded / e.total) * 100));
+    xhr.onload = () => {
+      setProgress(null);
+      let r: { ok?: boolean; heroVideo?: string; error?: string } = {};
+      try { r = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status === 413 && !r.error) r.error = "حجم فایل برای سرور زیاد است";
+      if (r.ok && r.heroVideo) { onChange(r.heroVideo); flash("ویدیوی هیرو آپلود شد ✅"); }
+      else flash(r.error || "خطا در آپلود ویدیو");
+    };
+    xhr.onerror = () => { setProgress(null); flash("اتصال قطع شد"); };
+    setProgress(0);
+    xhr.send(f);
+  }
+
+  async function remove() {
+    setRemoving(true);
+    try {
+      const r = await fetch("/staff/hero-video", { method: "DELETE" });
+      if (!r.ok) throw new Error();
+      onChange("");
+      flash("ویدیو حذف شد؛ هیروی سه‌بعدی نمایش داده می‌شود");
+    } catch { flash("خطا در حذف ویدیو"); } finally { setRemoving(false); }
+  }
+
+  return (
+    <Card icon={<Clapperboard className="size-4" />} title="ویدیوی صفحهٔ اول (هیرو)">
+      <p className="text-xs text-muted-foreground">
+        اگر ویدیو بگذارید، بالای صفحه به‌جای صحنهٔ سه‌بعدی پخش می‌شود (بی‌صدا و تکرارشونده). با حذفش، صحنهٔ سه‌بعدی برمی‌گردد.
+        پیشنهاد: MP4 افقی، کوتاه (۱۰ تا ۲۰ ثانیه) و زیر ۲۰ مگابایت برای بازشدنِ سریع.
+      </p>
+      {video ? (
+        <video src={video} muted loop autoPlay playsInline className="aspect-video w-full rounded-xl bg-black object-cover" />
+      ) : (
+        <div className="grid aspect-video w-full place-items-center rounded-xl border border-dashed border-border bg-muted/40 text-sm text-muted-foreground">
+          فعلاً صحنهٔ سه‌بعدی نمایش داده می‌شود
+        </div>
+      )}
+      {progress !== null && (
+        <div className="space-y-1">
+          <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width]" style={{ width: progress + "%" }} /></div>
+          <div className="text-center text-xs text-muted-foreground">در حال آپلود… {progress.toLocaleString("fa-IR")}٪</div>
+        </div>
+      )}
+      <input ref={ref} type="file" accept="video/mp4,video/webm,video/quicktime" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload(f); }} />
+      <div className="flex gap-2">
+        <Button variant="outline" className="flex-1 rounded-xl" disabled={progress !== null} onClick={() => ref.current?.click()}>
+          {progress !== null ? <Loader2 className="animate-spin" /> : <Upload className="size-4" />} {video ? "تعویض ویدیو" : "آپلود ویدیو"}
+        </Button>
+        {video && (
+          <Button variant="outline" className="rounded-xl text-primary" disabled={removing || progress !== null} onClick={remove}>
+            {removing ? <Loader2 className="animate-spin" /> : <Trash2 className="size-4" />} حذف
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }
 

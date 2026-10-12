@@ -43,7 +43,7 @@ function Scene() {
 
   const { viewport } = useThree();
   const wide = viewport.width > 7;
-  const base: [number, number, number] = wide ? [-viewport.width * 0.24, 0, 0] : [0, viewport.height * 0.26, -1.5];
+  const base: [number, number, number] = wide ? [-viewport.width * 0.24, 0, 0] : [0, viewport.height * 0.09, -1.5];
   const scale = wide ? 1 : 0.62;
 
   return (

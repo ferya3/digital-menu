@@ -82,6 +82,9 @@ interface ItemActions {
   onShare: (item: MenuItem) => void;
 }
 
+const ARROW =
+  "absolute top-1/2 z-40 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-black/5 bg-white/80 text-stone-800 shadow-lg shadow-black/10 backdrop-blur transition hover:bg-primary hover:text-white dark:border-white/15 dark:bg-white/10 dark:text-white dark:shadow-black/30";
+
 /* =====================================================================
    حالت ۱: کاروسل سه‌بعدی (کارت وسط بزرگ، کناری‌ها کج و محو)
    ===================================================================== */
@@ -114,27 +117,34 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
 
   function pose(i: number) {
     const off = (i - idx + total) % total;
-    if (off === 0) return { x: 0, s: 1, ry: 0, op: 1, z: 30, f: "brightness(1)" };
-    if (off === 1) return { x: d1, s: 0.82, ry: -26, op: 0.62, z: 20, f: "brightness(0.72)" };
-    if (off === total - 1) return { x: -d1, s: 0.82, ry: 26, op: 0.62, z: 20, f: "brightness(0.72)" };
-    if (off === 2) return { x: d2, s: 0.66, ry: -40, op: 0.34, z: 10, f: "brightness(0.5) blur(1px)" };
-    if (off === total - 2) return { x: -d2, s: 0.66, ry: 40, op: 0.34, z: 10, f: "brightness(0.5) blur(1px)" };
-    return { x: 0, s: 0.4, ry: 0, op: 0, z: 0, f: "brightness(0.3)" };
+    if (off === 0) return { x: 0, s: 1, ry: 0, op: 1, z: 30, f: "none" };
+    if (off === 1) return { x: d1, s: 0.82, ry: -26, op: 0.8, z: 20, f: "saturate(.85) brightness(.9)" };
+    if (off === total - 1) return { x: -d1, s: 0.82, ry: 26, op: 0.8, z: 20, f: "saturate(.85) brightness(.9)" };
+    if (off === 2) return { x: d2, s: 0.66, ry: -40, op: 0.45, z: 10, f: "saturate(.7) brightness(.85) blur(1.5px)" };
+    if (off === total - 2) return { x: -d2, s: 0.66, ry: 40, op: 0.45, z: 10, f: "saturate(.7) brightness(.85) blur(1.5px)" };
+    return { x: 0, s: 0.4, ry: 0, op: 0, z: 0, f: "none" };
   }
 
   return (
     <div
-      className="relative isolate overflow-hidden rounded-[26px] pb-4 pt-6 shadow-[inset_0_0_0_1px_rgba(255,255,255,.05)]"
-      style={{ background: "radial-gradient(120% 82% at 50% -12%, #271b15 0%, rgba(18,13,11,0) 58%), linear-gradient(180deg,#110c0a,#070505 80%)" }}
+      className="cf-stage relative isolate overflow-hidden rounded-[28px] pb-5 pt-6"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
       {/* پس‌زمینهٔ محوِ عکسِ کارت وسط */}
       {current?.image && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={current.image} alt="" aria-hidden className="pointer-events-none absolute inset-[-12%] -z-10 size-[124%] scale-110 object-cover opacity-40 blur-[40px] brightness-[.35] saturate-150 transition-all duration-700" />
+        <img
+          key={current.id}
+          src={current.image}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-[-12%] -z-10 size-[124%] scale-110 object-cover transition-opacity duration-700"
+          style={{ opacity: "var(--cf-ambient-opacity)", filter: "var(--cf-ambient-filter)" }}
+        />
       )}
-      <div className="pointer-events-none absolute inset-0 -z-10" style={{ background: "radial-gradient(circle at 50% 42%, rgba(12,10,9,.1), rgba(7,5,4,.92) 72%)" }} />
+      <div aria-hidden className="cf-dots pointer-events-none absolute inset-0 -z-10" />
+      <div aria-hidden className="cf-vignette pointer-events-none absolute inset-0 -z-10" />
 
       <div
         dir="ltr"
@@ -147,8 +157,9 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
           setHover(false);
         }}
       >
-        {/* هالهٔ نور پشت کارت وسط */}
-        <div className="pointer-events-none absolute size-[340px] rounded-full blur-2xl" style={{ background: "radial-gradient(circle, rgba(225,29,42,.24), rgba(225,29,42,0) 70%)" }} />
+        {/* هالهٔ نورِ کاراملی پشت کارت وسط + سایهٔ «زمین» زیرش */}
+        <div className="pointer-events-none absolute size-[360px] rounded-full blur-2xl" style={{ background: "radial-gradient(circle, rgba(214,150,88,.42), rgba(225,29,42,.1) 45%, transparent 70%)" }} />
+        <div className="cf-floor pointer-events-none absolute bottom-1 h-10 w-[min(420px,90%)] sm:bottom-2" />
         {/* اندازه‌گیری عرض کارت */}
         <div ref={probe} aria-hidden className="pointer-events-none invisible absolute h-0 w-[min(290px,72vw)]" />
 
@@ -161,7 +172,7 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
               key={it.id}
               onClick={() => (on ? it.image && a.onImage(it) : go(i))}
               className={cn(
-                "absolute h-[410px] w-[min(290px,72vw)] overflow-hidden rounded-[22px] bg-[#16110f] will-change-transform sm:h-[468px]",
+                "absolute h-[410px] w-[min(290px,72vw)] overflow-hidden rounded-[24px] bg-[#3b2618] will-change-transform sm:h-[468px]",
                 on ? "cursor-zoom-in" : "cursor-pointer"
               )}
               style={{
@@ -170,21 +181,19 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
                 zIndex: p.z,
                 filter: p.f,
                 transition: "transform 820ms cubic-bezier(.22,1,.36,1), opacity 820ms ease, filter 820ms ease",
-                boxShadow: on
-                  ? "0 34px 72px rgba(0,0,0,.72), 0 0 0 1px rgba(255,255,255,.14), 0 0 48px rgba(225,29,42,.34)"
-                  : "0 18px 42px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.1)",
+                boxShadow: on ? "var(--cf-shadow-on)" : "var(--cf-shadow)",
               }}
             >
               {it.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={it.image} alt={it.name} className={cn("absolute inset-0 size-full object-cover transition-transform duration-[7s]", on ? "scale-110" : "scale-[1.02]")} />
               ) : (
-                <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#2a251e] to-[#1c1813] text-7xl drop-shadow-xl">{it.emoji || "🍽️"}</div>
+                <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_32%,#f3d9b8,#d39a68_45%,#7b4a2b)] pb-24 text-8xl drop-shadow-xl">{it.emoji || "🍽️"}</div>
               )}
               {it.image && (
                 <span className="pointer-events-none absolute inset-0 grid -rotate-[20deg] place-items-center text-xl font-bold text-white/15">{a.cafeName}</span>
               )}
-              <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0) 22%), linear-gradient(180deg, rgba(0,0,0,.3) 0%, rgba(0,0,0,.04) 30%, rgba(0,0,0,.66) 63%, rgba(6,4,4,.97) 100%)" }} />
+              <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0) 22%), linear-gradient(180deg, rgba(0,0,0,.3) 0%, rgba(0,0,0,.04) 30%, rgba(43,24,13,.6) 62%, rgba(30,17,10,.95) 100%)" }} />
               {it.oldPrice && it.oldPrice > it.price && (
                 <span className="absolute left-3 top-3 z-10 rounded-full bg-gradient-to-br from-primary to-red-800 px-3 py-1 text-[11px] font-extrabold text-white shadow">تخفیف</span>
               )}
@@ -211,10 +220,10 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
 
         {total > 1 && (
           <>
-            <button onClick={() => go(idx - 1)} aria-label="قبلی" className="absolute left-3 top-1/2 z-40 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur transition hover:bg-primary">
+            <button onClick={() => go(idx - 1)} aria-label="قبلی" className={ARROW + " left-3"}>
               <ChevronLeft className="size-5" />
             </button>
-            <button onClick={() => go(idx + 1)} aria-label="بعدی" className="absolute right-3 top-1/2 z-40 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur transition hover:bg-primary">
+            <button onClick={() => go(idx + 1)} aria-label="بعدی" className={ARROW + " right-3"}>
               <ChevronRight className="size-5" />
             </button>
           </>
@@ -228,7 +237,7 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
               key={i}
               onClick={() => go(i)}
               aria-label={`اسلاید ${i + 1}`}
-              className={cn("h-[7px] rounded-full transition-all", i === idx ? "w-7 bg-primary shadow-[0_0_12px_rgba(225,29,42,.7)]" : "w-[7px] bg-white/30")}
+              className={cn("h-[7px] rounded-full transition-all", i === idx ? "w-7 bg-primary shadow-[0_0_12px_rgba(225,29,42,.55)]" : "w-[7px] bg-[var(--cf-dot)] hover:bg-primary/50")}
             />
           ))}
         </div>

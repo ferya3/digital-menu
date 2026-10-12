@@ -24,6 +24,14 @@ say "نصب وابستگی‌ها و build"
 npm ci --no-audit --no-fund
 NODE_OPTIONS="--max-old-space-size=1536" npm run build
 
+# آپلودِ ویدیوی هیرو تا ۱۰۰ مگابایت؛ سقفِ قدیمیِ Nginx (۱۲m) را بالا می‌برد
+NGX=/etc/nginx/sites-available/cafe
+if [ -f "$NGX" ] && grep -q "client_max_body_size 12m;" "$NGX"; then
+  say "افزایش سقف آپلود Nginx"
+  sed -i 's/client_max_body_size 12m;/client_max_body_size 120m;/' "$NGX"
+  nginx -t && systemctl reload nginx
+fi
+
 say "ری‌لود بدون قطعی"
 pm2 reload cafe --update-env || APP_PORT="${APP_PORT:-3000}" pm2 start ecosystem.config.cjs
 pm2 save

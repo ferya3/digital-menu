@@ -153,7 +153,8 @@ export async function staffUpdateSettingsAction(input: {
     const cur = getSetting<CafeInfo>("cafe", { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" });
     let logo = input.cafe?.logo ?? cur.logo;
     if (logoBuf) logo = await saveImageWebp(logoBuf, "logo");
-    setSetting("cafe", { ...cur, ...input.cafe, logo });
+    // ویدیوی هیرو فقط از مسیر آپلود خودش عوض می‌شود
+    setSetting("cafe", { ...cur, ...input.cafe, logo, heroVideo: cur.heroVideo });
   }
   if (input.payment) {
     const cur = getSetting<PaymentInfo>("payment", { card: "", holder: "", note: "", link: "" });

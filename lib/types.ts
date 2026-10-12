@@ -62,6 +62,8 @@ export interface CafeInfo {
   logo: string;
   tagline: string;
   currency: "toman" | "rial";
+  /** ویدیوی پس‌زمینهٔ هیرو؛ خالی = صحنهٔ سه‌بعدی */
+  heroVideo?: string;
 }
 
 export interface PaymentInfo {

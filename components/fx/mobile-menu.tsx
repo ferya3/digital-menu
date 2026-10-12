@@ -7,15 +7,15 @@ import { scrollToId } from "@/components/fx/smooth-scroll";
 
 const LINKS = [
   { id: "top", label: "خانه", icon: Home },
-  { id: "signature", label: "امضای ما", icon: Sparkles },
+  { id: "picks", label: "منتخب باریستا", icon: Sparkles },
   { id: "menu", label: "منو", icon: UtensilsCrossed },
 ];
 
 export function MobileMenu({ cafeName }: { cafeName: string }) {
-  const { menuOpen, setMenu } = useUI();
+  const { menuOpen, setMenu, setPicks } = useUI();
   const go = (id: string) => {
     setMenu(false);
-    window.setTimeout(() => scrollToId(id), 60);
+    window.setTimeout(() => (id === "picks" ? setPicks(true) : scrollToId(id)), 60);
   };
   return (
     <AnimatePresence>

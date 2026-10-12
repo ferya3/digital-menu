@@ -81,7 +81,7 @@ server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name $SERVER_NAME;
-    client_max_body_size 12m;
+    client_max_body_size 120m;
 
     location / {
         proxy_pass http://127.0.0.1:$APP_PORT;
