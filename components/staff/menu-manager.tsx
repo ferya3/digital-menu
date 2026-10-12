@@ -7,7 +7,7 @@ import { cn, toFa } from "@/lib/utils";
 import { compressImage, imageForm } from "@/lib/client-image";
 import type { Menu, MenuCategory, MenuItem } from "@/lib/types";
 import {
-  staffMenuAction, staffSaveCategoryAction, staffDeleteCategoryAction, staffSaveItemAction,
+  staffMenuAction, staffSaveCategoryAction, staffDeleteCategoryAction, staffSaveItemAction, staffCategoryBannerAction,
   staffDeleteItemAction, staffQuickPriceAction, staffUpdateSettingsAction,
 } from "@/app/staff/actions";
 import { CatIcon, Empty, Field, Panel, Switch, inputCls, isImgSrc, useStaff } from "@/components/staff/kit";
@@ -252,6 +252,51 @@ function ProductForm({ item, categories, unit, toDisplay, fromInput, onCancel, o
   );
 }
 
+/* ---------- بنرِ تبلیغاتیِ تمام‌عرضِ هر دسته ---------- */
+function CategoryBanner({ cat, reload }: { cat: MenuCategory; reload: () => void }) {
+  const { flash } = useStaff();
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLInputElement | null>(null);
+  async function upload(f: File) {
+    setBusy(true);
+    try {
+      const b = await compressImage(f, 1800, 0.86);
+      await staffCategoryBannerAction(cat.id, imageForm(b));
+      flash(`✅ بنر «${cat.name}» ذخیره شد`);
+      reload();
+    } catch (e) { flash("❌ " + (e instanceof Error ? e.message : "خطا")); } finally { setBusy(false); }
+  }
+  async function remove() {
+    if (!confirm(`حذف بنر «${cat.name}»؟`)) return;
+    setBusy(true);
+    try { await staffCategoryBannerAction(cat.id, null); flash("بنر حذف شد"); reload(); }
+    catch { flash("خطا"); } finally { setBusy(false); }
+  }
+  return (
+    <div className="mt-2">
+      <input ref={ref} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload(f); }} />
+      {cat.banner ? (
+        <div className="relative overflow-hidden rounded-xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={cat.banner + "?w=720"} alt="" className="aspect-[12/5] w-full object-cover" />
+          <div className="absolute bottom-2 left-2 flex gap-1.5">
+            <Button size="sm" variant="outline" className="h-8 rounded-xl bg-white/90 text-stone-900" disabled={busy} onClick={() => ref.current?.click()}>{busy ? <Loader2 className="animate-spin" /> : <><ImageIcon className="size-3.5" /> تعویض بنر</>}</Button>
+            <Button size="sm" variant="outline" className="h-8 rounded-xl bg-white/90 text-primary" disabled={busy} onClick={remove}><Trash2 className="size-3.5" /> حذف</Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => ref.current?.click()}
+          disabled={busy}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <ImageIcon className="size-4" />} افزودن بنر تبلیغاتی (تمام‌عرض، بالای این دسته — پیشنهاد ۱۲۰۰×۵۰۰)
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ---------- دسته‌بندی‌ها ---------- */
 function Categories({ menu, reload }: { menu: Menu; reload: () => void }) {
   const { flash } = useStaff();
@@ -292,11 +337,14 @@ function Categories({ menu, reload }: { menu: Menu; reload: () => void }) {
       {menu.categories.length === 0 ? <Empty text="دسته‌ای وجود ندارد" /> : (
         <div className="space-y-2">
           {menu.categories.map((c) => (
-            <div key={c.id} className={cn("flex items-center gap-3 rounded-2xl border border-border bg-background p-2", editing?.id === c.id && "ring-2 ring-primary/40")}>
-              <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-xl"><CatIcon icon={c.emoji} /></span>
-              <span className="min-w-0 flex-1 truncate font-bold">{c.name} <span className="text-xs font-normal text-muted-foreground">({toFa(count(c.id))} محصول)</span></span>
-              <Button size="sm" variant="outline" className="h-8 rounded-xl" onClick={() => startEdit(c)}>ویرایش</Button>
-              <Button size="sm" variant="ghost" className="h-8 rounded-xl text-primary" onClick={() => remove(c)}>حذف</Button>
+            <div key={c.id} className={cn("rounded-2xl border border-border bg-background p-2", editing?.id === c.id && "ring-2 ring-primary/40")}>
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-xl"><CatIcon icon={c.emoji} /></span>
+                <span className="min-w-0 flex-1 truncate font-bold">{c.name} <span className="text-xs font-normal text-muted-foreground">({toFa(count(c.id))} محصول)</span></span>
+                <Button size="sm" variant="outline" className="h-8 rounded-xl" onClick={() => startEdit(c)}>ویرایش</Button>
+                <Button size="sm" variant="ghost" className="h-8 rounded-xl text-primary" onClick={() => remove(c)}>حذف</Button>
+              </div>
+              <CategoryBanner cat={c} reload={reload} />
             </div>
           ))}
         </div>

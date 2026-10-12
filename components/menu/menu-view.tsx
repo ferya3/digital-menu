@@ -142,7 +142,7 @@ export function MenuView({
         const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (vis[0]) setActiveCat(vis[0].target.id.slice(4));
       },
-      { rootMargin: "-140px 0px -55% 0px" }
+      { rootMargin: "-170px 0px -55% 0px" }
     );
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
@@ -150,7 +150,7 @@ export function MenuView({
 
   const goToCategory = (id: string) => {
     setActiveCat(id);
-    scrollToId(`cat-${id}`, -130);
+    scrollToId(`cat-${id}`, -164); // زیرِ هدر (۹۲px) + نوارِ دسته‌ها
     document.getElementById(`chip-${id}`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   };
 
@@ -334,27 +334,26 @@ export function MenuView({
     <div className="min-h-screen pb-44 sm:pb-28">
       {/* header */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2.5">
+        {/* منو سمت راست، لوگو و نام کافه وسط، دکمه‌های دسکتاپ سمت چپ */}
+        <div className="mx-auto grid h-[92px] max-w-5xl grid-cols-[1fr_auto_1fr] items-center px-3">
+          <div className="flex justify-start">
+            <Button variant="ghost" size="icon" className="size-11 rounded-2xl" onClick={() => openMobileMenu(true)} aria-label="منو">
+              <MenuIcon className="size-6" />
+            </Button>
+          </div>
+          <div className="flex flex-col items-center text-center leading-tight">
             {logoIsImg ? (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={thumb(cafe.logo, 160)} alt="" className="size-10 rounded-2xl object-cover" />
+              <img src={thumb(cafe.logo, 160)} alt="" className="size-11 rounded-2xl object-cover shadow-md" />
             ) : (
-              <span className="grid size-10 place-items-center rounded-2xl bg-primary text-xl text-primary-foreground shadow-lg shadow-primary/25">
+              <span className="grid size-11 place-items-center rounded-2xl bg-primary text-2xl text-primary-foreground shadow-lg shadow-primary/25">
                 {cafe.logo || <Coffee className="size-5" />}
               </span>
             )}
-            <div className="leading-tight">
-              <h1 className="text-lg font-extrabold tracking-tight">{cafe.name}</h1>
-              <p className="text-[11px] text-muted-foreground">
-                {cafe.tagline || "منوی دیجیتال"} · میز {toFa(table)}
-              </p>
-            </div>
+            <h1 className="mt-1 max-w-[56vw] truncate text-base font-extrabold tracking-tight sm:max-w-none">{cafe.name}</h1>
+            <p className="text-[10px] text-muted-foreground">{cafe.tagline || "منوی دیجیتال"} · میز {toFa(table)}</p>
           </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="sm:hidden" onClick={() => openMobileMenu(true)} aria-label="منو">
-              <MenuIcon />
-            </Button>
+          <div className="flex items-center justify-end gap-1">
             {/* روی موبایل این دکمه‌ها در نوارِ پایین هستند */}
             <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={() => setReqOpen(true)} aria-label="درخواست">
               <BellRing />
@@ -381,12 +380,12 @@ export function MenuView({
 
       {/* عنوان + انتخاب حالت نمایش */}
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 pb-1 pt-6">
-        <h2 className="text-2xl font-black sm:text-3xl">منوی کامل</h2>
+        <h2 className="text-xl font-black sm:text-2xl">حالت نمایش منو</h2>
         <ViewToggle value={view} onChange={changeView} />
       </div>
 
       {/* نوار دسته‌ها: با کلیک به همان بخش می‌رود */}
-      <div className="sticky top-[61px] z-30 bg-background/75 py-3 backdrop-blur-xl">
+      <div className="sticky top-[92px] z-30 bg-background/75 py-3 backdrop-blur-xl">
         <div className="no-scrollbar mx-auto flex max-w-5xl gap-2 overflow-x-auto px-4">
           {sections.map(({ cat: c }) => (
             <button
@@ -419,7 +418,20 @@ export function MenuView({
             onShare: share,
           };
           return (
-            <section key={c.id} id={`cat-${c.id}`} className="scroll-mt-36">
+            <section key={c.id} id={`cat-${c.id}`}>
+              {c.banner && (
+                // بنرِ تبلیغاتیِ همین دسته (از پنل ← محصولات ← دسته‌بندی‌ها)
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={thumb(c.banner, 1080)}
+                  srcSet={`${thumb(c.banner, 720)} 720w, ${thumb(c.banner, 1080)} 1080w`}
+                  sizes="(min-width: 1024px) 1000px, 100vw"
+                  alt={c.name}
+                  loading="lazy"
+                  decoding="async"
+                  className="mb-4 aspect-[12/5] w-full rounded-3xl object-cover shadow-sm"
+                />
+              )}
               <h3 className="mb-4 flex items-center gap-2 text-xl font-black">
                 <span className="grid size-7 place-items-center overflow-hidden rounded-lg"><CatIcon icon={c.emoji} /></span>
                 {c.name}

@@ -21,12 +21,12 @@ interface ItemRow {
   id: string; category_id: string; name: string; description: string;
   price: number; old_price: number; emoji: string; image: string; tag: string; available: number;
 }
-interface CatRow { id: string; name: string; emoji: string }
+interface CatRow { id: string; name: string; emoji: string; banner: string }
 
 export function getMenu(): Menu {
   const d = db();
-  const categories = (d.prepare("SELECT id, name, emoji FROM categories ORDER BY sort").all() as unknown as CatRow[]).map(
-    (c) => ({ id: c.id, name: c.name, emoji: c.emoji })
+  const categories = (d.prepare("SELECT id, name, emoji, banner FROM categories ORDER BY sort").all() as unknown as CatRow[]).map(
+    (c) => ({ id: c.id, name: c.name, emoji: c.emoji, ...(c.banner ? { banner: c.banner } : {}) })
   );
   const items = (d.prepare("SELECT * FROM items ORDER BY sort").all() as unknown as ItemRow[]).map((r) => ({
     id: r.id,
@@ -375,8 +375,13 @@ export function addCategory(input: { name: string; emoji?: string }) {
   );
   return { id: cid };
 }
-export function updateCategory(cid: string, input: { name?: string; emoji?: string }) {
+export function updateCategory(cid: string, input: { name?: string; emoji?: string; banner?: string }) {
   const d = db();
+  if (input.banner != null) {
+    const old = (d.prepare("SELECT banner FROM categories WHERE id=?").get(cid) as unknown as { banner: string } | undefined)?.banner;
+    if (old && old !== input.banner) deleteUpload(old);
+    d.prepare("UPDATE categories SET banner=? WHERE id=?").run(input.banner, cid);
+  }
   if (input.name != null) d.prepare("UPDATE categories SET name=? WHERE id=?").run(String(input.name).trim(), cid);
   if (input.emoji != null) d.prepare("UPDATE categories SET emoji=? WHERE id=?").run(String(input.emoji).trim(), cid);
   return { ok: true };

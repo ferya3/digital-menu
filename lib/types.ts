@@ -42,6 +42,8 @@ export interface MenuCategory {
   id: string;
   name: string;
   emoji: string;
+  /** عکسِ تبلیغاتیِ تمام‌عرض بالای همین دسته (اختیاری) */
+  banner?: string;
 }
 
 export interface MenuItem {

@@ -123,6 +123,17 @@ export async function staffMenuAction(): Promise<Menu> {
 }
 /** افزودن/ویرایش دسته؛ آیکون می‌تواند ایموجی یا عکسِ آپلودی باشد */
 export async function staffSaveCategoryAction(input: { id?: string; name: string; emoji?: string }, iconForm?: FormData | null) {
+  return saveCategory(input, iconForm);
+}
+/** بنرِ تبلیغاتیِ تمام‌عرضِ یک دسته: آپلود (FormData) یا حذف (null) */
+export async function staffCategoryBannerAction(id: string, bannerForm: FormData | null) {
+  await gate();
+  const buf = await readUpload(bannerForm);
+  const banner = buf ? await saveImageWebp(buf, "banner", 1800) : "";
+  updateCategory(id, { banner });
+  return { banner };
+}
+async function saveCategory(input: { id?: string; name: string; emoji?: string }, iconForm?: FormData | null) {
   await gate();
   if (!input.name?.trim()) throw new Error("نام دسته را وارد کنید");
   const buf = await readUpload(iconForm);
