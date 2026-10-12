@@ -15,6 +15,7 @@ import { scrollToId } from "@/components/fx/smooth-scroll";
 import { CoverflowCarousel, GridCard, ListRow, Stepper, ViewToggle, type ViewMode } from "@/components/menu/menu-modes";
 import dynamic from "next/dynamic";
 import { PhoneGate } from "@/components/menu/phone-gate";
+import { ShareSheet, nativeShare, type ShareTarget } from "@/components/menu/share-sheet";
 import { CatIcon } from "@/components/staff/kit";
 import { compressImage, imageForm } from "@/lib/client-image";
 import {
@@ -132,8 +133,10 @@ export function MenuView({
     document.getElementById(`chip-${id}`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   };
 
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   async function share(item: MenuItem) {
-    const url = `${window.location.origin}/`;
+    // لینکِ صفحهٔ خودِ محصول: در واتساپ/تلگرام پیش‌نمایشِ عکس و قیمت نشان می‌دهد
+    const url = `${window.location.origin}/p/${encodeURIComponent(item.id)}`;
     const text = [
       `${item.name} — ${money(item.price)}`,
       `☕ ${cafe.name}`,
@@ -141,17 +144,11 @@ export function MenuView({
       cafe.mapUrl && `🗺️ ${cafe.mapUrl}`,
       cafe.instagram && `📷 ${cafe.instagram}`,
     ].filter(Boolean).join("\n");
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: item.name, text, url });
-        return;
-      }
-      await navigator.clipboard.writeText(`${text}\n${url}`);
-      flash("لینک کپی شد");
-    } catch {
-      /* کاربر لغو کرد */
-    }
+    const target: ShareTarget = { title: item.name, text, url, image: item.image ? thumb(item.image, 1080) : undefined };
+    if (await nativeShare(target)) return;
+    setShareTarget(target);
   }
+
 
   const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
   const dec = (id: string) =>
@@ -373,6 +370,8 @@ export function MenuView({
           );
         })}
       </main>
+
+      <ShareSheet target={shareTarget} onClose={() => setShareTarget(null)} />
 
       {otp && <PhoneGate cafe={cafe} table={table} onVerified={setPhone} />}
 

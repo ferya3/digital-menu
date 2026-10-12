@@ -25,10 +25,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ file: st
   let ctype = type;
 
   // نسخهٔ کوچکِ عکس برای منو: ?w=480 (یک‌بار ساخته و روی دیسک نگه داشته می‌شود)
-  const w = Number(new URL(req.url).searchParams.get("w"));
+  const sp = new URL(req.url).searchParams;
+  const w = Number(sp.get("w"));
   if (w && type.startsWith("image/")) {
-    const t = await thumbnail(full, w).catch(() => null);
-    if (t) { full = t; ctype = "image/webp"; }
+    const jpg = sp.get("f") === "jpg";
+    const t = await thumbnail(full, w, jpg ? "jpg" : "webp").catch(() => null);
+    if (t) { full = t; ctype = jpg ? "image/jpeg" : "image/webp"; }
   }
 
   let size: number;

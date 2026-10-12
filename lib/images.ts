@@ -80,16 +80,18 @@ const THUMBS = path.join(UPLOADS, ".thumbs");
 const pending = new Map<string, Promise<string>>();
 
 /** نسخهٔ کوچکِ WebP از یک عکسِ آپلودی؛ مسیرِ فایلِ کش‌شده را برمی‌گرداند */
-export async function thumbnail(src: string, width: number): Promise<string | null> {
+export async function thumbnail(src: string, width: number, format: "webp" | "jpg" = "webp"): Promise<string | null> {
   const w = THUMB_WIDTHS.find((x) => x >= width) ?? THUMB_WIDTHS[THUMB_WIDTHS.length - 1];
-  const out = path.join(THUMBS, `${path.basename(src, path.extname(src))}-${w}.webp`);
+  const out = path.join(THUMBS, `${path.basename(src, path.extname(src))}-${w}.${format}`);
   if (fs.existsSync(out)) return out;
   if (!fs.existsSync(src)) return null;
   let job = pending.get(out);
   if (!job) {
     job = (async () => {
       fs.mkdirSync(THUMBS, { recursive: true });
-      const buf = await sharp(src).resize(w, w, { fit: "inside", withoutEnlargement: true }).webp({ quality: 74 }).toBuffer();
+      const img = sharp(src).resize(w, w, { fit: "inside", withoutEnlargement: true });
+      // jpg برای پیش‌نمایشِ لینک در واتساپ (WebP را همه‌جا نشان نمی‌دهد)
+      const buf = await (format === "jpg" ? img.flatten({ background: "#ffffff" }).jpeg({ quality: 80 }) : img.webp({ quality: 74 })).toBuffer();
       fs.writeFileSync(out, buf);
       return out;
     })().finally(() => pending.delete(out));
