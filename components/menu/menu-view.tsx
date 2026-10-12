@@ -68,6 +68,7 @@ export function MenuView({
   const viewOnly = !table;
   // هدر با اسکرول به پایین پنهان و با اسکرول به بالا دوباره دیده می‌شود
   const [hideHdr, setHideHdr] = useState(false);
+  const barRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let last = window.scrollY;
     const on = () => {
@@ -159,7 +160,7 @@ export function MenuView({
         const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (vis[0]) setActiveCat(vis[0].target.id.slice(4));
       },
-      { rootMargin: "-170px 0px -55% 0px" }
+      { rootMargin: "-215px 0px -55% 0px" }
     );
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
@@ -169,7 +170,8 @@ export function MenuView({
     setActiveCat(id);
     // رو به پایین هدر پنهان می‌شود (فقط نوارِ دسته‌ها می‌ماند)؛ رو به بالا هدر برمی‌گردد
     const down = (document.getElementById(`cat-${id}`)?.getBoundingClientRect().top ?? 0) > 0;
-    scrollToId(`cat-${id}`, down ? -72 : -164);
+    const bar = barRef.current?.offsetHeight ?? 60;
+    scrollToId(`cat-${id}`, -(bar + 12 + (down ? 0 : 92)));
     document.getElementById(`chip-${id}`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   };
 
@@ -401,14 +403,12 @@ export function MenuView({
         </div>
       </header>
 
-      {/* عنوان + انتخاب حالت نمایش */}
-      <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 pb-1 pt-6">
-        <h2 className="text-xl font-black sm:text-2xl">حالت نمایش منو</h2>
-        <ViewToggle value={view} onChange={changeView} />
-      </div>
-
-      {/* نوار دسته‌ها: با کلیک به همان بخش می‌رود */}
-      <div className={cn("sticky top-[92px] z-30 bg-background/75 py-3 backdrop-blur-xl transition-transform duration-300", hideHdr && "-translate-y-[92px]")}>
+      {/* نوارِ چسبان: حالت نمایش منو + دسته‌ها (با پنهان‌شدنِ هدر، همین نوار بالا می‌ماند) */}
+      <div ref={barRef} className={cn("sticky top-[92px] z-30 border-b border-border/40 bg-background/80 pb-2.5 pt-2 backdrop-blur-xl transition-transform duration-300", hideHdr && "-translate-y-[92px]")}>
+        <div className="mx-auto mb-2 flex max-w-5xl items-center justify-center gap-2 px-4">
+          <span className="hidden text-xs font-bold text-muted-foreground min-[380px]:inline">حالت نمایش منو</span>
+          <ViewToggle value={view} onChange={changeView} compact />
+        </div>
         <div className="no-scrollbar mx-auto flex max-w-5xl gap-2 overflow-x-auto px-4">
           {sections.map(({ cat: c }) => (
             <button

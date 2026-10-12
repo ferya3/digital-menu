@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Home, Sparkles, UtensilsCrossed, Coffee, LogOut } from "lucide-react";
+import { X, Home, Sparkles, UtensilsCrossed, Coffee, LogOut, QrCode } from "lucide-react";
 import { useUI } from "@/store/ui";
 import { scrollToId } from "@/components/fx/smooth-scroll";
 
@@ -69,6 +69,15 @@ export function MobileMenu({ cafeName, table = "" }: { cafeName: string; table?:
                 </button>
               ))}
             </nav>
+            {!table && (
+              <button
+                onClick={() => { try { sessionStorage.removeItem("cafe_browse"); } catch {} window.location.href = "/"; }}
+                className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-primary px-3 py-3 text-right font-semibold text-primary-foreground transition hover:bg-primary/90"
+              >
+                <QrCode className="size-5" />
+                اسکن QR میز برای سفارش
+              </button>
+            )}
             {table && (
               <button
                 onClick={() => { setMenu(false); window.setTimeout(() => leaveTable(table), 80); }}

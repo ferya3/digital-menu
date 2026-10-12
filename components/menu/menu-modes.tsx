@@ -13,7 +13,7 @@ import type { MenuItem } from "@/lib/types";
 export type ViewMode = "carousel" | "grid" | "list";
 
 /* ---------- انتخاب حالت نمایش ---------- */
-export function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+export function ViewToggle({ value, onChange, compact }: { value: ViewMode; onChange: (v: ViewMode) => void; compact?: boolean }) {
   const opts: { id: ViewMode; label: string; icon: React.ReactNode }[] = [
     { id: "carousel", label: "کاروسل", icon: <GalleryHorizontalEnd className="size-4" /> },
     { id: "grid", label: "شبکه‌ای", icon: <LayoutGrid className="size-4" /> },
@@ -28,7 +28,8 @@ export function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v:
           aria-checked={value === o.id}
           onClick={() => onChange(o.id)}
           className={cn(
-            "flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold transition",
+            "flex items-center gap-1.5 rounded-full font-semibold transition",
+            compact ? "px-3 py-1 text-[13px]" : "px-3.5 py-1.5 text-sm",
             value === o.id ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
           )}
         >
