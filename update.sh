@@ -1,24 +1,30 @@
 #!/usr/bin/env bash
-# به‌روزرسانیِ امن: دادهٔ زمان‌اجرا (منو/تنظیمات/سفارش‌ها/عکس‌ها) حفظ می‌شود.
+# به‌روزرسانیِ امن: اول از دیتابیس و آپلودها بک‌آپ می‌گیرد، بعد کد را می‌گیرد، build و ری‌لود می‌کند.
+# دادهٔ data/ (دیتابیس + عکس‌ها) وارد گیت نیست، پس با به‌روزرسانی دست نمی‌خورد.
 #   اجرا:  sudo bash update.sh
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVICE="${SERVICE:-cafe}"; BK="/tmp/cafe-data-backup-$$"
 say(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 git config --global --add safe.directory "$PWD" 2>/dev/null || true
 
-say "پشتیبان‌گیری از data/ و عکس‌ها"
-mkdir -p "$BK"; cp -r data "$BK/" 2>/dev/null || true; cp -r public/images "$BK/images" 2>/dev/null || true
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+BK_DIR=/root/cafe-backups
+mkdir -p "$BK_DIR"
+if [ -d data ]; then
+  say "بک‌آپ از data/"
+  tar -czf "$BK_DIR/data-$(date +%Y%m%d-%H%M%S).tar.gz" data
+  ls -1t "$BK_DIR"/data-*.tar.gz | tail -n +11 | xargs -r rm -f   # فقط ۱۰ بک‌آپ آخر
+fi
 
-say "دریافت آخرین کد"
-git fetch origin; git reset --hard origin/main
+say "دریافت آخرین کد ($BRANCH)"
+git fetch origin "$BRANCH"
+git reset --hard "origin/$BRANCH"
 
-say "بازگرداندن داده"
-cp -rn "$BK/data/." data/ 2>/dev/null || true
-mkdir -p public/images; cp -rn "$BK/images/." public/images/ 2>/dev/null || true
+say "نصب وابستگی‌ها و build"
+npm ci --no-audit --no-fund
+NODE_OPTIONS="--max-old-space-size=1536" npm run build
 
-say "نصب وابستگی‌ها و ری‌استارت"
-npm install --omit=dev --no-audit --no-fund
-systemctl restart "$SERVICE" 2>/dev/null || true
-rm -rf "$BK"
-say "به‌روزرسانی کامل شد ✅"
+say "ری‌لود بدون قطعی"
+pm2 reload cafe --update-env || APP_PORT="${APP_PORT:-3000}" pm2 start ecosystem.config.cjs
+pm2 save
+say "به‌روزرسانی کامل شد ✅  (بک‌آپ‌ها در $BK_DIR)"

@@ -1,11 +1,10 @@
 node_modules/
-npm-debug.log*
-.env
-.DS_Store
+.next/
+out/
 *.log
-data/runtime.json
-data/settings.json
-data/customers.json
-# عکس‌های آپلودشده‌ی محصولات (داده‌ی محلی)
-public/images/*
-!public/images/.gitkeep
+.env*
+.DS_Store
+next-env.d.ts
+*.tsbuildinfo
+# دادهٔ زمان‌اجرا: دیتابیس و آپلودها (روی سرور می‌مانند، وارد گیت نمی‌شوند)
+data/

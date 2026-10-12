@@ -1,93 +1,131 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  نصب «منوی دیجیتال کافه» روی سرور اوبونتو (سرویسِ دائمی + Nginx + SSL)
-#  از داخلِ پوشهٔ همین ریپو اجرا شود.
+#  نصب «منوی دیجیتال کافه» (Next.js) روی اوبونتو ۲۴ — اجرای دائمی با pm2
+#  از داخلِ پوشهٔ همین ریپو و با root اجرا شود.
 #
-#  متغیرها (اختیاری):
-#    DOMAIN           دامنه برای Nginx + SSL   (مثلاً artavilstar.com)
-#    EMAIL            ایمیل برای Let's Encrypt
-#    PORT             پورت داخلی Node          (پیش‌فرض 3000)
-#    ADMIN_PASSWORD   رمز ورود مدیر            (پیش‌فرض cafe1234 — حتماً عوض کن)
-#    SERVICE          نام سرویس systemd        (پیش‌فرض cafe)
+#  متغیرها (همه اختیاری):
+#    DOMAIN          دامنه (بدون آن، سایت روی IP سرور باز می‌شود)
+#    EMAIL           ایمیل برای گواهی SSL رایگان (فقط همراه با DOMAIN)
+#    ADMIN_PASSWORD  رمز اولیهٔ پنل کارکنان (پیش‌فرض cafe1234 — از پنل قابل تغییر)
+#    APP_PORT        پورت داخلی برنامه (پیش‌فرض 3000)
 #
-#  نمونه:
-#    sudo DOMAIN=artavilstar.com EMAIL=you@example.com ADMIN_PASSWORD='Str0ng!' bash install.sh
+#  نمونه با IP:      sudo ADMIN_PASSWORD='Str0ng!' bash install.sh
+#  نمونه با دامنه:  sudo DOMAIN=example.com EMAIL=you@mail.com ADMIN_PASSWORD='Str0ng!' bash install.sh
 # ============================================================================
 set -euo pipefail
-PORT="${PORT:-3000}"; SERVICE="${SERVICE:-cafe}"; ADMIN_PASSWORD="${ADMIN_PASSWORD:-cafe1234}"
-DOMAIN="${DOMAIN:-}"; EMAIL="${EMAIL:-}"
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; RUN_USER="${SUDO_USER:-root}"
+
+DOMAIN="${DOMAIN:-}"
+EMAIL="${EMAIL:-}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-cafe1234}"
+APP_PORT="${APP_PORT:-3000}"
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 say(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
-[ "$(id -u)" -eq 0 ] || { echo "با sudo/root اجرا کن."; exit 1; }
+[ "$(id -u)" -eq 0 ] || { echo "این اسکریپت را با sudo یا root اجرا کن."; exit 1; }
+export DEBIAN_FRONTEND=noninteractive
 
-# 1) Node.js 20
-NEED=1
-if command -v node >/dev/null 2>&1; then M="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null||echo 0)"; [ "${M:-0}" -ge 18 ] && NEED=0; fi
-if [ "$NEED" -eq 1 ]; then say "نصب Node.js 20"; curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; apt-get install -y nodejs; fi
-say "Node $(node -v)"
+say "نصب پیش‌نیازها"
+apt-get update -y
+apt-get install -y curl git nginx ca-certificates
 
-# 2) وابستگی‌ها
-say "نصب وابستگی‌ها"; cd "$APP_DIR"; npm install --omit=dev --no-audit --no-fund
-chown -R "$RUN_USER":"$RUN_USER" "$APP_DIR" 2>/dev/null || true
+# ---------- Node.js 22 (برای node:sqlite) ----------
+NODE_MAJOR=0
+command -v node >/dev/null 2>&1 && NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
+if [ "$NODE_MAJOR" -lt 22 ]; then
+  say "نصب Node.js 22"
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  apt-get install -y nodejs
+fi
+say "Node $(node -v) · npm $(npm -v)"
 
-# 3) سرویس systemd
-say "ساخت سرویس systemd: $SERVICE"
-cat >/etc/systemd/system/"$SERVICE".service <<UNIT
-[Unit]
-Description=Cafe Digital Menu
-After=network.target
+# ---------- swap برای سرورهای کم‌حافظه (build نکست حافظه می‌خواهد) ----------
+MEM_MB="$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)"
+if [ "$MEM_MB" -lt 2000 ] && ! swapon --show | grep -q .; then
+  say "ساخت ۲ گیگ swap (رم سرور ${MEM_MB}MB است)"
+  fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+  chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
 
-[Service]
-Type=simple
-WorkingDirectory=$APP_DIR
-ExecStart=$(command -v node) server/index.js
-Environment=NODE_ENV=production
-Environment=PORT=$PORT
-Environment=NO_OPEN=1
-Environment=ADMIN_PASSWORD=$ADMIN_PASSWORD
-Restart=always
-RestartSec=3
-User=$RUN_USER
+# ---------- کنار گذاشتنِ نسخهٔ قبلی (سرویس systemd «cafe» در صورت وجود) ----------
+if systemctl list-unit-files 2>/dev/null | grep -q '^cafe\.service'; then
+  say "غیرفعال‌کردن سرویس قدیمی cafe (نسخهٔ قبلی)"
+  systemctl disable --now cafe || true
+fi
 
-[Install]
-WantedBy=multi-user.target
-UNIT
-systemctl daemon-reload; systemctl enable "$SERVICE" >/dev/null 2>&1 || true; systemctl restart "$SERVICE"
-sleep 1; systemctl --no-pager --lines=0 status "$SERVICE" || true
+# ---------- نصب وابستگی‌ها و build ----------
+cd "$APP_DIR"
+say "نصب وابستگی‌ها"
+npm ci --no-audit --no-fund
+mkdir -p data/uploads
+# رمز اولیه؛ Next این فایل را در حالت production می‌خواند (وارد گیت نمی‌شود)
+printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD" > .env.production.local
+chmod 600 .env.production.local
+say "build برنامه (چند دقیقه طول می‌کشد)"
+NODE_OPTIONS="--max-old-space-size=1536" npm run build
 
-# 4) Nginx + SSL
-if [ -n "$DOMAIN" ]; then
-  say "Nginx برای $DOMAIN"; apt-get install -y nginx >/dev/null
-  cat >/etc/nginx/sites-available/"$SERVICE" <<NGINX
+# ---------- pm2: اجرای دائمی + بالا آمدن خودکار بعد از ری‌بوت ----------
+say "راه‌اندازی با pm2"
+command -v pm2 >/dev/null 2>&1 || npm install -g pm2
+pm2 delete cafe >/dev/null 2>&1 || true
+APP_PORT="$APP_PORT" pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup systemd -u root --hp /root >/dev/null
+systemctl enable pm2-root >/dev/null 2>&1 || true
+
+# ---------- Nginx ----------
+say "پیکربندی Nginx"
+SERVER_NAME="${DOMAIN:-_}"
+cat >/etc/nginx/sites-available/cafe <<NGINX
 server {
-    listen 80;
-    server_name $DOMAIN;
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name $SERVER_NAME;
     client_max_body_size 12m;
+
     location / {
-        proxy_pass http://127.0.0.1:$PORT;
+        proxy_pass http://127.0.0.1:$APP_PORT;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
     }
 }
 NGINX
-  ln -sf /etc/nginx/sites-available/"$SERVICE" /etc/nginx/sites-enabled/"$SERVICE"
-  rm -f /etc/nginx/sites-enabled/default
-  nginx -t && systemctl restart nginx
-  if [ -n "$EMAIL" ]; then
-    say "SSL برای $DOMAIN"; apt-get install -y certbot python3-certbot-nginx >/dev/null
-    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect || \
-      echo "⚠️  certbot نشد؛ DNSِ $DOMAIN باید به IP این سرور باشد و پورت‌های 80/443 باز."
+rm -f /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/cafe /etc/nginx/sites-enabled/cafe
+nginx -t
+systemctl enable nginx >/dev/null 2>&1 || true
+systemctl restart nginx
+
+# فایروال (اگر فعال است)
+if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+  ufw allow OpenSSH >/dev/null || true
+  ufw allow 'Nginx Full' >/dev/null || true
+fi
+
+# ---------- SSL ----------
+PROTO="http"
+if [ -n "$DOMAIN" ] && [ -n "$EMAIL" ]; then
+  say "دریافت گواهی SSL برای $DOMAIN"
+  apt-get install -y certbot python3-certbot-nginx
+  if certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect; then
+    PROTO="https"
+  else
+    echo "⚠️  SSL نگرفت. رکورد A دامنه باید به IP همین سرور باشد و پورت‌های ۸۰ و ۴۴۳ باز باشند."
   fi
 fi
 
-say "تمام شد ✅"
-PROTO="http"; [ -n "$DOMAIN" ] && [ -n "$EMAIL" ] && PROTO="https"
-HOST="${DOMAIN:-<IP-سرور>:$PORT}"
-echo "  مشتری:  $PROTO://$HOST/?table=1"
-echo "  مدیر:   $PROTO://$HOST/login   (رمز: $ADMIN_PASSWORD)"
-[ "$ADMIN_PASSWORD" = "cafe1234" ] && echo "  ⚠️  رمز پیش‌فرض cafe1234 است؛ با ADMIN_PASSWORD عوضش کن."
+# ---------- بررسی نهایی ----------
+sleep 3
+CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$APP_PORT/" || true)"
+HOST="${DOMAIN:-$(curl -s --max-time 5 https://api.ipify.org || hostname -I | awk '{print $1}')}"
+say "تمام شد ✅  (پاسخ برنامه: $CODE)"
+echo "  منوی مشتری:   $PROTO://$HOST/?table=1"
+echo "  پنل کارکنان:  $PROTO://$HOST/staff"
+echo "  رمز اولیه:    $ADMIN_PASSWORD   (از تنظیماتِ پنل قابل تغییر است)"
+echo "  وضعیت:  pm2 status   ·   لاگ:  pm2 logs cafe   ·   به‌روزرسانی:  sudo bash update.sh"
+[ "$ADMIN_PASSWORD" = "cafe1234" ] && echo "  ⚠️  رمز پیش‌فرض است؛ حتماً از پنل → تنظیمات عوضش کن."
