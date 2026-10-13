@@ -326,6 +326,8 @@ export interface StaffFeedback {
 }
 export interface StaffCustomer {
   phone: string; tables: string[]; visits: number; firstSeen: string; lastSeen: string;
+  /** نمی‌خواهد پیامکِ تبلیغاتی بگیرد */
+  optOut: boolean;
 }
 
 export function listOrders(limit = 200): Order[] {
@@ -360,13 +362,17 @@ export function listFeedback(): StaffFeedback[] {
 }
 
 export function listCustomers(): StaffCustomer[] {
-  const rows = db().prepare("SELECT * FROM customers ORDER BY last_seen DESC LIMIT 1000").all() as unknown as {
-    phone: string; tables: string; visits: number; first_seen: string; last_seen: string;
+  const rows = db().prepare("SELECT * FROM customers ORDER BY last_seen DESC LIMIT 5000").all() as unknown as {
+    phone: string; tables: string; visits: number; first_seen: string; last_seen: string; sms_optout: number;
   }[];
   return rows.map((r) => ({
     phone: r.phone, tables: (r.tables || "").split(",").filter(Boolean),
-    visits: r.visits, firstSeen: r.first_seen, lastSeen: r.last_seen,
+    visits: r.visits, firstSeen: r.first_seen, lastSeen: r.last_seen, optOut: !!r.sms_optout,
   }));
+}
+export function setSmsOptOut(phone: string, optOut: boolean) {
+  db().prepare("UPDATE customers SET sms_optout=? WHERE phone=?").run(optOut ? 1 : 0, phone);
+  return { ok: true };
 }
 
 /* ---------- menu management ---------- */

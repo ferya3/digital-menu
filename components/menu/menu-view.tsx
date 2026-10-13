@@ -17,11 +17,12 @@ import dynamic from "next/dynamic";
 import { PhoneGate } from "@/components/menu/phone-gate";
 import { ShareSheet, copyText, nativeShare, type ShareTarget } from "@/components/menu/share-sheet";
 import { CatIcon } from "@/components/staff/kit";
-import { compressImage, imageForm } from "@/lib/client-image";
+import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
 import {
   placeOrderAction, billAction, ordersAction, uploadReceiptAction, posRequestAction,
   requestAction, feedbackAction,
 } from "@/app/actions";
+import { unwrap } from "@/lib/action-result";
 
 /** گزینه‌های سریعِ درخواست از گارسون (مثل نسخهٔ قبلی) */
 const QUICK_REQUESTS = [
@@ -271,7 +272,7 @@ export function MenuView({
     setSubmitting(true);
     try {
       const items = Object.entries(cart).map(([id, qty]) => ({ id, qty }));
-      const ord = await placeOrderAction(table, items, { note: note.trim(), phone });
+      const ord = unwrap(await placeOrderAction(table, items, { note: note.trim(), phone }));
       setMyOrders((l) => {
         const next = [ord, ...l.filter((o) => o.id !== ord.id)];
         try {
@@ -300,7 +301,7 @@ export function MenuView({
   async function requestPos() {
     setPosSending(true);
     try {
-      await posRequestAction(table);
+      unwrap(await posRequestAction(table));
       flash("درخواست کارت‌خوان ثبت شد ✅ — با فاکتور و کارت‌خوان سر میز می‌آییم", 5000);
       setBill(await billAction(table));
     } catch (e) {
@@ -326,7 +327,7 @@ export function MenuView({
     if (!f) return;
     try {
       const blob = await compressImage(f, 1600);
-      const r = await uploadReceiptAction(imageForm(blob, { table }));
+      const r = unwrap(await uploadReceiptAction(imageForm(blob, { table })));
       flash(r.reused ? "⚠️ این رسید قبلاً استفاده شده" : "رسید ارسال شد؛ منتظر تأیید صندوق");
       setBill(await billAction(table));
     } catch {
@@ -336,7 +337,7 @@ export function MenuView({
   async function sendRequest(type: "waiter" | "invoice") {
     setReqSending(type);
     try {
-      await requestAction(table, type, type === "waiter" ? reqNote : "");
+      unwrap(await requestAction(table, type, type === "waiter" ? reqNote : ""));
       setReqOpen(false);
       if (type === "waiter") setReqNote("");
       flash(type === "waiter" ? "گارسون به‌زودی می‌آید 🙋" : "درخواست فاکتور ارسال شد 🧾");
@@ -349,7 +350,7 @@ export function MenuView({
   async function sendFeedback() {
     setFbSending(true);
     try {
-      await feedbackAction({ table, orderId: myOrders[0]?.id, rating: fbRating, comment: fbComment });
+      unwrap(await feedbackAction({ table, orderId: myOrders[0]?.id, rating: fbRating, comment: fbComment }));
       setFbOpen(false);
       setFbComment("");
       setFbRating(5);
@@ -554,7 +555,7 @@ export function MenuView({
         )}
       </AnimatePresence>
 
-      <input ref={fileRef} type="file" accept="image/*" hidden onChange={onReceiptFile} />
+      <input ref={fileRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={onReceiptFile} />
 
       {/* ===== drawers ===== */}
       <Drawer open={cartOpen} onClose={() => setCartOpen(false)} title="سبد خرید">

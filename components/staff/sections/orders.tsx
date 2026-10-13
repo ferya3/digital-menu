@@ -8,6 +8,7 @@ import type { Order, OrderStatus } from "@/lib/types";
 import type { StaffFeedback } from "@/lib/queries";
 import { staffSetPaidAction, staffSetStatusAction } from "@/app/staff/actions";
 import { Empty, Panel, TableBadge, useStaff } from "@/components/staff/kit";
+import { unwrap } from "@/lib/action-result";
 
 const STATUS_FA: Record<OrderStatus, string> = {
   new: "جدید", preparing: "در حال آماده‌سازی", ready: "آماده", served: "سرو شد", cancelled: "لغو شد",
@@ -119,12 +120,12 @@ function OrderCard({ o, onChange }: { o: Order; onChange: (o: Order | null) => v
         <strong className="text-primary">{money(o.total)}</strong>
       </div>
       <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {next && <Button size="sm" className="h-8 flex-1 rounded-xl" disabled={busy} onClick={() => run(() => staffSetStatusAction(o.id, next.to))}>{next.label}</Button>}
+        {next && <Button size="sm" className="h-8 flex-1 rounded-xl" disabled={busy} onClick={() => run(async () => unwrap(await staffSetStatusAction(o.id, next.to)))}>{next.label}</Button>}
         {!o.paid && o.status !== "cancelled" && (
           <Button size="sm" variant="outline" className="h-8 rounded-xl" disabled={busy} onClick={() => run(() => staffSetPaidAction(o.id, true))}><CreditCard className="size-3.5" /> پرداخت شد</Button>
         )}
         {isActive(o) && (
-          <Button size="sm" variant="outline" className="h-8 rounded-xl text-primary" disabled={busy} onClick={() => { if (confirm(`لغو سفارش ${orderCode(o, codeMode)}؟`)) run(() => staffSetStatusAction(o.id, "cancelled")); }}><Ban className="size-3.5" /> لغو</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-xl text-primary" disabled={busy} onClick={() => { if (confirm(`لغو سفارش ${orderCode(o, codeMode)}؟`)) run(async () => unwrap(await staffSetStatusAction(o.id, "cancelled"))); }}><Ban className="size-3.5" /> لغو</Button>
         )}
         <Button size="sm" variant="ghost" className="h-8 rounded-xl" onClick={() => print("order=" + o.id)} title="چاپ فاکتور"><Printer className="size-3.5" /> چاپ فاکتور</Button>
       </div>
@@ -164,7 +165,7 @@ function AwaitingPanel({ list, onChange, onCashier }: { list: Order[]; onChange:
             </div>
             <div className="mt-2 flex gap-1.5">
               <Button size="sm" variant="outline" className="h-8 flex-1 rounded-xl" disabled={busy === o.id} onClick={() => run(o.id, () => staffSetPaidAction(o.id, true))}><CreditCard className="size-3.5" /> پرداخت شد</Button>
-              <Button size="sm" variant="ghost" className="h-8 rounded-xl text-primary" disabled={busy === o.id} onClick={() => { if (confirm(`لغو سفارش ${orderCode(o, codeMode)}؟`)) run(o.id, () => staffSetStatusAction(o.id, "cancelled")); }}><Ban className="size-3.5" /> لغو</Button>
+              <Button size="sm" variant="ghost" className="h-8 rounded-xl text-primary" disabled={busy === o.id} onClick={() => { if (confirm(`لغو سفارش ${orderCode(o, codeMode)}؟`)) run(o.id, async () => unwrap(await staffSetStatusAction(o.id, "cancelled"))); }}><Ban className="size-3.5" /> لغو</Button>
             </div>
           </div>
         ))}

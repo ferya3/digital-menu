@@ -4,13 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FolderTree, ImageIcon, Loader2, Pencil, Plus, Save, Trash2, X, Coins, PackageOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, toFa } from "@/lib/utils";
-import { compressImage, imageForm } from "@/lib/client-image";
+import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
 import type { Menu, MenuCategory, MenuItem } from "@/lib/types";
 import {
   staffMenuAction, staffSaveCategoryAction, staffDeleteCategoryAction, staffSaveItemAction, staffCategoryBannerAction,
   staffDeleteItemAction, staffQuickPriceAction, staffUpdateSettingsAction,
 } from "@/app/staff/actions";
 import { CatIcon, Empty, Field, Panel, Switch, inputCls, isImgSrc, useStaff } from "@/components/staff/kit";
+import { unwrap } from "@/lib/action-result";
 
 const EMOJIS = ["☕", "🍵", "🥤", "🧊", "🧋", "🍰", "🧁", "🍩", "🍪", "🍦", "🍔", "🍟", "🍕", "🌭", "🥪", "🥗", "🍝", "🍜", "🌮", "🥙", "🍳", "🥞", "🥐", "🍫", "🫖", "🧃"];
 const NEW_CAT = "__new__";
@@ -32,7 +33,7 @@ export function MenuManager({ onCurrency }: { onCurrency: (c: "toman" | "rial") 
   async function setCurrency(c: "toman" | "rial") {
     if (c === currency) return;
     onCurrency(c);
-    try { await staffUpdateSettingsAction({ cafe: { currency: c } }); flash(`واحد پول روی «${c === "rial" ? "ریال" : "تومان"}» تنظیم شد`); }
+    try { unwrap(await staffUpdateSettingsAction({ cafe: { currency: c } })); flash(`واحد پول روی «${c === "rial" ? "ریال" : "تومان"}» تنظیم شد`); }
     catch { flash("ذخیره واحد پول ناموفق بود"); }
   }
 
@@ -186,7 +187,7 @@ function ProductForm({ item, categories, unit, toDisplay, fromInput, onCancel, o
     if (cat === NEW_CAT && !newCat.trim()) return flash("نام دستهٔ جدید را وارد کنید");
     setSaving(true);
     try {
-      await staffSaveItemAction({
+      unwrap(await staffSaveItemAction({
         id: item?.id,
         name: name.trim(),
         categoryId: cat === NEW_CAT ? "" : cat,
@@ -198,7 +199,7 @@ function ProductForm({ item, categories, unit, toDisplay, fromInput, onCancel, o
         tag: tag.trim(),
         available,
         image,
-      }, blob ? imageForm(blob) : null);
+      }, blob ? imageForm(blob) : null));
       flash(item ? "✅ محصول ویرایش شد" : "✅ محصول اضافه شد");
       onSaved();
     } catch (e) { flash("❌ " + (e instanceof Error ? e.message : "خطا در ذخیره")); } finally { setSaving(false); }
@@ -237,7 +238,7 @@ function ProductForm({ item, categories, unit, toDisplay, fromInput, onCancel, o
                 <img src={preview} alt="" className="size-full object-cover" />
               ) : emoji || "🍽️"}
             </span>
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { try { const b = await compressImage(f, 1200); setBlob(b); setBlobUrl(URL.createObjectURL(b)); } catch { flash("خطا در خواندن عکس"); } } }} />
+            <input ref={fileRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { try { const b = await compressImage(f, 1200); setBlob(b); setBlobUrl(URL.createObjectURL(b)); } catch { flash("خطا در خواندن عکس"); } } }} />
             <Button variant="outline" className="rounded-xl" onClick={() => fileRef.current?.click()}><ImageIcon className="size-4" /> {preview ? "تغییر عکس" : "آپلود عکس"}</Button>
             {preview && <Button variant="ghost" size="icon" onClick={() => { setImage(""); setBlob(null); setBlobUrl(""); }} aria-label="حذف عکس"><X /></Button>}
           </div>
@@ -261,7 +262,7 @@ function CategoryBanner({ cat, reload }: { cat: MenuCategory; reload: () => void
     setBusy(true);
     try {
       const b = await compressImage(f, 1800, 0.86);
-      await staffCategoryBannerAction(cat.id, imageForm(b));
+      unwrap(await staffCategoryBannerAction(cat.id, imageForm(b)));
       flash(`✅ بنر «${cat.name}» ذخیره شد`);
       reload();
     } catch (e) { flash("❌ " + (e instanceof Error ? e.message : "خطا")); } finally { setBusy(false); }
@@ -269,12 +270,12 @@ function CategoryBanner({ cat, reload }: { cat: MenuCategory; reload: () => void
   async function remove() {
     if (!confirm(`حذف بنر «${cat.name}»؟`)) return;
     setBusy(true);
-    try { await staffCategoryBannerAction(cat.id, null); flash("بنر حذف شد"); reload(); }
+    try { unwrap(await staffCategoryBannerAction(cat.id, null)); flash("بنر حذف شد"); reload(); }
     catch { flash("خطا"); } finally { setBusy(false); }
   }
   return (
     <div className="mt-2">
-      <input ref={ref} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload(f); }} />
+      <input ref={ref} type="file" accept={IMAGE_ACCEPT} hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload(f); }} />
       {cat.banner ? (
         <div className="relative overflow-hidden rounded-xl">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -321,14 +322,14 @@ function Categories({ menu, reload }: { menu: Menu; reload: () => void }) {
     try {
       // اگر عکسِ قبلی دست‌نخورده بماند، همان مسیر نگه داشته می‌شود
       const keep = !iconBlob && iconUrl && !icon ? iconUrl : icon;
-      await staffSaveCategoryAction({ id: editing?.id, name: name.trim(), emoji: keep || "🍽️" }, iconBlob ? imageForm(iconBlob) : null);
+      unwrap(await staffSaveCategoryAction({ id: editing?.id, name: name.trim(), emoji: keep || "🍽️" }, iconBlob ? imageForm(iconBlob) : null));
       flash(editing ? "✅ دسته ویرایش شد" : "✅ دسته اضافه شد");
       reset(); reload();
     } catch (e) { flash("❌ " + (e instanceof Error ? e.message : "خطا")); } finally { setBusy(false); }
   }
   async function remove(c: MenuCategory) {
     if (!confirm(`حذف دستهٔ «${c.name}»؟`)) return;
-    try { await staffDeleteCategoryAction(c.id); flash("🗑️ دسته حذف شد"); if (editing?.id === c.id) reset(); reload(); }
+    try { unwrap(await staffDeleteCategoryAction(c.id)); flash("🗑️ دسته حذف شد"); if (editing?.id === c.id) reset(); reload(); }
     catch (e) { flash("❌ " + (e instanceof Error ? e.message : "خطا در حذف")); }
   }
 
@@ -362,7 +363,7 @@ function Categories({ menu, reload }: { menu: Menu; reload: () => void }) {
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام دسته (مثلاً برگرها)" className={inputCls} onKeyDown={(e) => e.key === "Enter" && save()} />
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { try { const b = await compressImage(f, 240); setIconBlob(b); setIconUrl(URL.createObjectURL(b)); setIcon(""); } catch { flash("عکس خوانده نشد"); } } }} />
+          <input ref={fileRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { try { const b = await compressImage(f, 240); setIconBlob(b); setIconUrl(URL.createObjectURL(b)); setIcon(""); } catch { flash("عکس خوانده نشد"); } } }} />
           <Button size="sm" variant="outline" className="rounded-xl" onClick={() => fileRef.current?.click()}><ImageIcon className="size-4" /> آپلود عکس آیکون</Button>
           <span className="text-[11px] text-muted-foreground">اختیاری — به‌جای ایموجی عکس خودت را بگذار</span>
           {iconUrl && (

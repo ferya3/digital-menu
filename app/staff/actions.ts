@@ -13,6 +13,7 @@ import {
   markRequestDone,
   listFeedback,
   listCustomers,
+  setSmsOptOut,
   setOrderStatus,
   setPayStatus,
   setPaid,
@@ -32,8 +33,10 @@ import {
   type StaffCustomer,
 } from "@/lib/queries";
 import { saveImageWebp, readUpload } from "@/lib/images";
-import { DEFAULT_SMS, sendTestSms } from "@/lib/otp";
+import { DEFAULT_SMS, isValidPhone, normalizePhone, sendTestSms } from "@/lib/otp";
 import { getAccounting, type Accounting } from "@/lib/accounting";
+import { startCampaign, listCampaigns, controlCampaign, sendSmsText, CANCEL_FOOTER, type Campaign } from "@/lib/bulk-sms";
+import type { ActionFail } from "@/lib/action-result";
 import type { CafeInfo, Gateway, Menu, Order, OrderCodeMode, OrderStatus, PaymentInfo, SmsSettings } from "@/lib/types";
 
 const DEFAULT_CAFE: CafeInfo = { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" };
@@ -51,15 +54,26 @@ function mergeGateways(saved: Gateway[] | undefined): Gateway[] {
   });
 }
 
+/** خطا را (با پیامِ فارسی) برمی‌گرداند؛ پرتاب‌شدن در production پیام را پنهان می‌کند */
+async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
+  try {
+    return await fn();
+  } catch (e) {
+    return { __error: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
 async function gate() {
   if (!(await isAuthed())) throw new Error("دسترسی غیرمجاز — ابتدا وارد شوید");
 }
 
 /* ---------- auth ---------- */
-export async function loginAction(password: string): Promise<{ ok: boolean }> {
+export async function loginAction(password: string): Promise<{ ok: boolean } | ActionFail> {
+  return guard(async () => {
   if (!checkAdmin(password)) throw new Error("رمز اشتباه است");
   await startSession();
   return { ok: true };
+  });
 }
 export async function logoutAction(): Promise<{ ok: boolean }> {
   await endSession();
@@ -71,9 +85,11 @@ export async function staffOrdersAction(): Promise<Order[]> {
   await gate();
   return listOrders();
 }
-export async function staffSetStatusAction(id: string, status: OrderStatus): Promise<Order | null> {
+export async function staffSetStatusAction(id: string, status: OrderStatus): Promise<Order | null | ActionFail> {
+  return guard(async () => {
   await gate();
   return setOrderStatus(id, status);
+  });
 }
 export async function staffConfirmPayAction(id: string): Promise<Order | null> {
   await gate();
@@ -124,15 +140,19 @@ export async function staffMenuAction(): Promise<Menu> {
 }
 /** افزودن/ویرایش دسته؛ آیکون می‌تواند ایموجی یا عکسِ آپلودی باشد */
 export async function staffSaveCategoryAction(input: { id?: string; name: string; emoji?: string }, iconForm?: FormData | null) {
+  return guard(async () => {
   return saveCategory(input, iconForm);
+  });
 }
 /** بنرِ تبلیغاتیِ تمام‌عرضِ یک دسته: آپلود (FormData) یا حذف (null) */
 export async function staffCategoryBannerAction(id: string, bannerForm: FormData | null) {
+  return guard(async () => {
   await gate();
   const buf = await readUpload(bannerForm);
   const banner = buf ? await saveImageWebp(buf, "banner", 1800) : "";
   updateCategory(id, { banner });
   return { banner };
+  });
 }
 async function saveCategory(input: { id?: string; name: string; emoji?: string }, iconForm?: FormData | null) {
   await gate();
@@ -146,8 +166,10 @@ async function saveCategory(input: { id?: string; name: string; emoji?: string }
   return addCategory({ name: input.name, emoji });
 }
 export async function staffDeleteCategoryAction(id: string) {
+  return guard(async () => {
   await gate();
   return deleteCategory(id);
+  });
 }
 export async function staffSaveItemAction(input: {
   id?: string;
@@ -163,6 +185,7 @@ export async function staffSaveItemAction(input: {
   /** ساختِ دستهٔ جدید همراهِ محصول */
   newCategory?: { name: string; emoji?: string };
 }, imageForm?: FormData | null) {
+  return guard(async () => {
   await gate();
   if (!input.name?.trim()) throw new Error("نام محصول را وارد کنید");
   if (input.newCategory) {
@@ -180,6 +203,7 @@ export async function staffSaveItemAction(input: {
     return { id: input.id };
   }
   return addItem(payload as Parameters<typeof addItem>[0]);
+  });
 }
 /** ویرایش سریع قیمت از داخل لیست */
 export async function staffQuickPriceAction(id: string, price: number) {
@@ -222,7 +246,8 @@ export async function staffUpdateSettingsAction(input: {
   gateways?: Gateway[];
   payFirst?: boolean;
   newPassword?: string;
-}, logoForm?: FormData | null): Promise<{ ok: boolean }> {
+}, logoForm?: FormData | null): Promise<{ ok: boolean } | ActionFail> {
+  return guard(async () => {
   await gate();
   const logoBuf = await readUpload(logoForm);
   if (input.cafe || logoBuf) {
@@ -249,6 +274,7 @@ export async function staffUpdateSettingsAction(input: {
     setAdminPassword(input.newPassword.trim());
   }
   return { ok: true };
+  });
 }
 
 /** ارسالِ پیامکِ آزمایشی (بعد از ذخیرهٔ تنظیمات) */
@@ -259,6 +285,33 @@ export async function staffTestSmsAction(phone: string): Promise<{ ok: boolean; 
   } catch (e) {
     return { ok: false, detail: e instanceof Error ? e.message : "خطا" };
   }
+}
+
+/* ---------- پیامک گروهی ---------- */
+export async function staffSetOptOutAction(phone: string, optOut: boolean) {
+  return guard(async () => { await gate(); return setSmsOptOut(phone, optOut); });
+}
+/** شروعِ ارسال به شماره‌های انتخاب‌شده (فقط مشتریانِ ثبت‌شده و غیرلغوشده) */
+export async function staffStartSmsCampaignAction(input: { message: string; phones: string[]; addCancel: boolean }) {
+  return guard(async () => { await gate(); return startCampaign(input.message, input.phones, input.addCancel); });
+}
+export async function staffSmsCampaignsAction(): Promise<Campaign[]> {
+  await gate();
+  return listCampaigns();
+}
+export async function staffSmsControlAction(id: string, action: "resume" | "retry" | "cancel") {
+  return guard(async () => { await gate(); return controlCampaign(id, action); });
+}
+/** ارسالِ آزمایشیِ همان متن به یک شماره (مثلاً موبایلِ خودِ مدیر) قبل از ارسالِ گروهی */
+export async function staffSmsPreviewAction(rawPhone: string, message: string, addCancel: boolean) {
+  return guard(async () => {
+    await gate();
+    const phone = normalizePhone(rawPhone);
+    if (!isValidPhone(phone)) throw new Error("شمارهٔ موبایل را درست وارد کنید (مثل ۰۹۱۲۳۴۵۶۷۸۹)");
+    const text = addCancel && !message.includes(CANCEL_FOOTER) ? `${message.trim()}\n${CANCEL_FOOTER}` : message.trim();
+    if (!text) throw new Error("متن پیامک را بنویسید");
+    return { detail: await sendSmsText(phone, text) };
+  });
 }
 
 /* ---------- حسابداری ---------- */

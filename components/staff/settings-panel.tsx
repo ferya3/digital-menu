@@ -7,10 +7,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { compressImage, imageForm } from "@/lib/client-image";
+import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
 import { staffSettingsAction, staffTestSmsAction, staffUpdateSettingsAction, type AdminSettings } from "@/app/staff/actions";
 import type { Gateway } from "@/lib/types";
 import { Field, Panel, Switch, inputCls, isImgSrc, useStaff } from "@/components/staff/kit";
+import { unwrap } from "@/lib/action-result";
 
 const FIELD_LABELS: Record<string, string> = {
   merchantId: "مرچنت‌کد / Merchant ID",
@@ -42,11 +43,11 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
   async function save() {
     setSaving(true);
     try {
-      await staffUpdateSettingsAction({
+      unwrap(await staffUpdateSettingsAction({
         cafe: { ...cafe, name: cafe.name.trim() || "کافه", logo: cafe.logo || "☕" },
         payment, orderCode: s!.orderCode, sms, gateways: s!.gateways, payFirst: s!.payFirst,
         ...(newPassword.trim() ? { newPassword: newPassword.trim() } : {}),
-      }, logoBlob ? imageForm(logoBlob) : null);
+      }, logoBlob ? imageForm(logoBlob) : null));
       setLogoBlob(null);
       if (newPassword.trim()) setS({ ...s!, hasPassword: true });
       setNewPassword("");
@@ -73,7 +74,7 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
           <Field label="لوگو (ایموجی مثل ☕ یا عکس)">
             <div className="flex gap-2">
               <input value={isImgSrc(cafe.logo) ? "" : cafe.logo} onChange={(e) => { setCafe({ logo: e.target.value }); setLogoBlob(null); setLogoUrl(""); }} placeholder="☕" className={inputCls} />
-              <input ref={fileRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { const b = await compressImage(f, 512); setLogoBlob(b); setLogoUrl(URL.createObjectURL(b)); } }} />
+              <input ref={fileRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { const b = await compressImage(f, 512); setLogoBlob(b); setLogoUrl(URL.createObjectURL(b)); } }} />
               <Button variant="outline" size="icon" className="shrink-0 rounded-xl" onClick={() => fileRef.current?.click()} aria-label="آپلود لوگو"><ImageIcon className="size-4" /></Button>
               {(logoUrl || isImgSrc(cafe.logo)) && <Button variant="ghost" size="icon" onClick={() => { setLogoBlob(null); setLogoUrl(""); setCafe({ logo: "☕" }); }} aria-label="حذف لوگو"><X /></Button>}
             </div>

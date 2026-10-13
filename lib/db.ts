@@ -43,6 +43,15 @@ function createDb(): DatabaseSync {
       first_seen TEXT, last_seen TEXT
     );
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+    -- پیامک گروهی: هر ارسال یک «کمپین» است و برای هر شماره یک ردیف در صف (outbox) دارد
+    CREATE TABLE IF NOT EXISTS sms_campaigns (
+      id TEXT PRIMARY KEY, message TEXT NOT NULL, created_at TEXT, total INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'running', note TEXT DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS sms_outbox (
+      campaign_id TEXT NOT NULL, phone TEXT NOT NULL, status TEXT DEFAULT 'queued',
+      detail TEXT DEFAULT '', sent_at TEXT DEFAULT '', PRIMARY KEY (campaign_id, phone)
+    );
     CREATE INDEX IF NOT EXISTS idx_orders_tbl ON orders(tbl);
     CREATE INDEX IF NOT EXISTS idx_items_cat ON items(category_id);
   `);
@@ -53,6 +62,8 @@ function createDb(): DatabaseSync {
     // حسابداری: زمان و روشِ پرداخت
     "ALTER TABLE orders ADD COLUMN paid_at TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN pay_method TEXT DEFAULT ''",
+    // مشتریانی که نمی‌خواهند پیامکِ تبلیغاتی بگیرند
+    "ALTER TABLE customers ADD COLUMN sms_optout INTEGER DEFAULT 0",
   ]) {
     try {
       db.exec(sql);
@@ -64,6 +75,8 @@ function createDb(): DatabaseSync {
   db.exec(`UPDATE orders SET paid_at = updated_at,
              pay_method = CASE WHEN pay_method != '' THEN pay_method WHEN receipt != '' THEN 'receipt' ELSE 'counter' END
            WHERE paid = 1 AND (paid_at IS NULL OR paid_at = '')`);
+  // ارسالی که با ری‌استارتِ سرور نیمه‌کاره مانده را «قطع‌شده» علامت بزن (از پنل قابل ادامه است)
+  db.exec("UPDATE sms_campaigns SET status='interrupted' WHERE status='running'");
   seed(db);
   return db;
 }

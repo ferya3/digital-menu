@@ -9,13 +9,20 @@ export const UPLOADS = path.join(process.cwd(), "data", "uploads");
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
-/** فایلِ ارسالی در FormData (کلید file) را می‌خواند و بررسی می‌کند */
+/** فایلِ ارسالی در FormData (کلید file) را می‌خواند و بررسی می‌کند.
+ *  نوعِ فایل از روی «محتوا» (sharp) تشخیص داده می‌شود نه از MIME؛ چون بعضی گوشی‌ها webp را با نوعِ خالی/عجیب می‌فرستند. */
 export async function readUpload(fd: FormData | null | undefined): Promise<Buffer | null> {
   const f = fd?.get("file");
   if (!f || typeof f === "string") return null;
   if (f.size > MAX_BYTES) throw new Error("حجم تصویر بیش از ۱۰ مگابایت است");
-  if (f.type && !f.type.startsWith("image/")) throw new Error("فقط فایل تصویری مجاز است");
-  return Buffer.from(await f.arrayBuffer());
+  const buf = Buffer.from(await f.arrayBuffer());
+  try {
+    const meta = await sharp(buf).metadata();
+    if (!meta.width || !meta.height) throw new Error("bad");
+  } catch {
+    throw new Error("فایل، یک تصویرِ معتبر نیست (فرمت‌های JPG، PNG، WebP، AVIF، HEIC، GIF پذیرفته می‌شود)");
+  }
+  return buf;
 }
 
 /** رسید پرداخت: تبدیل به WebP + مهرِ ضدجعلِ کم‌رنگ (سمت سرور). هش برای تشخیص تکراری برمی‌گردد. */

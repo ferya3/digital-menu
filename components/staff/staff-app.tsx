@@ -23,6 +23,7 @@ import { QrSection } from "@/components/staff/sections/qr";
 import { AccountingSection } from "@/components/staff/sections/accounting";
 import { MenuManager } from "@/components/staff/menu-manager";
 import { SettingsPanel } from "@/components/staff/settings-panel";
+import { unwrap } from "@/lib/action-result";
 
 type Section = "orders" | "requests" | "products" | "cashier" | "accounting" | "customers" | "settings" | "qr";
 
@@ -52,7 +53,7 @@ function Login({ onDone }: { onDone: () => void }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setErr("");
-    try { await loginAction(pass); onDone(); }
+    try { unwrap(await loginAction(pass)); onDone(); }
     catch (e2) { setErr(e2 instanceof Error ? e2.message : "ورود ناموفق"); }
     finally { setBusy(false); }
   }
@@ -239,12 +240,13 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   }, [orders, requests, payFirst]);
 
   const ctx: StaffCtx = useMemo(() => ({
+    cafeName: cafe.name,
     money: (n: number) => formatMoney(n, currency),
     currency, codeMode, flash,
     print: (q: string) => window.open("/print?" + q, "_blank"),
     viewImage: setImage,
     ask: (title: string, hint?: string) => new Promise<string | null>((resolve) => { setAskText(""); setAsking({ title, hint, resolve }); }),
-  }), [currency, codeMode, flash]);
+  }), [currency, codeMode, flash, cafe.name]);
 
   const upsertOrder = useCallback((o: Order | null) => { if (o) setOrders((l) => l.map((x) => (x.id === o.id ? o : x))); }, []);
   const go = (s: Section) => { setSection(s); setSideOpen(false); window.scrollTo({ top: 0 }); };
@@ -336,7 +338,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           {section === "products" && <MenuManager onCurrency={setCurrency} />}
           {section === "cashier" && <CashierSection orders={orders} onRefresh={poll} />}
           {section === "accounting" && <AccountingSection />}
-          {section === "customers" && <CustomersSection items={customers} />}
+          {section === "customers" && <CustomersSection items={customers} onChange={setCustomers} />}
           {section === "settings" && <SettingsPanel onSaved={loadMeta} />}
           {section === "qr" && <QrSection />}
         </main>

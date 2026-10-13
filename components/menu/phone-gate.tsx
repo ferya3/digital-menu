@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn, thumb, toFa } from "@/lib/utils";
 import { otpRequestAction, otpVerifyAction } from "@/app/actions";
 import type { CafeInfo } from "@/lib/types";
+import { unwrap } from "@/lib/action-result";
 
 const KEY = "cafe_verified";
 const TTL = 12 * 3600 * 1000;
@@ -44,7 +45,7 @@ export function PhoneGate({ cafe, table, onVerified }: { cafe: CafeInfo; table: 
     if (!/^0?9\d{9}$/.test(p)) return setErr("شماره موبایل را درست وارد کنید (مثل ۰۹۱۲۳۴۵۶۷۸۹)");
     setBusy(true);
     try {
-      const r = await otpRequestAction(p);
+      const r = unwrap(await otpRequestAction(p));
       setDemo(r.demoCode || "");
       setStep(2); setCode("");
     } catch (e) { setErr(e instanceof Error ? e.message : "خطا در ارسال کد"); } finally { setBusy(false); }
@@ -54,7 +55,7 @@ export function PhoneGate({ cafe, table, onVerified }: { cafe: CafeInfo; table: 
     if (!latin(code)) return setErr("کد تأیید را وارد کنید");
     setBusy(true);
     try {
-      const r = await otpVerifyAction(latin(phone), latin(code), table);
+      const r = unwrap(await otpVerifyAction(latin(phone), latin(code), table));
       try { localStorage.setItem(KEY, JSON.stringify({ phone: r.phone, ts: Date.now() })); } catch {}
       onVerified(r.phone);
       setOpen(false);

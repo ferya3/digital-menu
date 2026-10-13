@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QrCode, Eye, Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IMAGE_ACCEPT } from "@/lib/client-image";
 import { LiveScanner, canLiveScan, chromeIntent, decodeQrFromFile, inAppBrowser, preloadQr, tableFromQr } from "@/components/fx/qr-scanner";
 import type { CafeInfo } from "@/lib/types";
 
@@ -99,7 +100,7 @@ export function ScanGate({ cafe, onTable }: { cafe: CafeInfo; onTable: (table: s
             ? "دکمهٔ زیر را بزنید و دوربین را روی QR کدِ روی میزتان بگیرید تا منوی همان میز باز شود."
             : "سریع‌ترین راه: دوربینِ خودِ گوشی (یا اسکنرِ QR) را روی QR کدِ میز بگیرید و لینک را باز کنید. یا با دکمهٔ زیر از QR عکس بگیرید."}
         </p>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onPhoto(f); }} />
+        <input ref={fileRef} type="file" accept={IMAGE_ACCEPT} capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onPhoto(f); }} />
         <Button size="lg" className="mt-6 h-12 w-full max-w-xs rounded-full text-base" onClick={scan} disabled={busy}>
           {busy ? <><Loader2 className="animate-spin" /> در حال خواندنِ QR…</> : <><Camera className="size-5" /> {live0 ? "اسکن QR با دوربین" : "عکس گرفتن از QR میز"}</>}
         </Button>

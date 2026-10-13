@@ -6,6 +6,7 @@ import type { OrderCodeMode } from "@/lib/types";
 
 /** اطلاعات مشترکِ پنل (واحد پول، حالت کد سفارش، پیام کوتاه) */
 export interface StaffCtx {
+  cafeName: string;
   money: (n: number) => string;
   currency: "toman" | "rial";
   codeMode: OrderCodeMode;
