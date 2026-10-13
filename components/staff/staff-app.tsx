@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Coffee, LogOut, Loader2, ClipboardList, BellRing, LayoutGrid, CreditCard, Users,
-  Settings as SettingsIcon, QrCode, ExternalLink, Menu as MenuIcon, X, Volume2, VolumeX, Lock,
+  Settings as SettingsIcon, QrCode, Calculator, ExternalLink, Menu as MenuIcon, X, Volume2, VolumeX, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatMoney, toFa } from "@/lib/utils";
@@ -20,10 +20,11 @@ import { RequestsSection } from "@/components/staff/sections/requests";
 import { CashierSection } from "@/components/staff/sections/cashier";
 import { CustomersSection } from "@/components/staff/sections/customers";
 import { QrSection } from "@/components/staff/sections/qr";
+import { AccountingSection } from "@/components/staff/sections/accounting";
 import { MenuManager } from "@/components/staff/menu-manager";
 import { SettingsPanel } from "@/components/staff/settings-panel";
 
-type Section = "orders" | "requests" | "products" | "cashier" | "customers" | "settings" | "qr";
+type Section = "orders" | "requests" | "products" | "cashier" | "accounting" | "customers" | "settings" | "qr";
 
 // همان ترتیبِ منوی کناریِ پنل قبلی
 const NAV: { id: Section; label: string; title: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -31,6 +32,7 @@ const NAV: { id: Section; label: string; title: string; icon: React.ComponentTyp
   { id: "requests", label: "درخواست‌ها", title: "درخواست گارسون و صورتحساب", icon: BellRing },
   { id: "products", label: "محصولات", title: "مدیریت محصولات", icon: LayoutGrid },
   { id: "cashier", label: "صندوق", title: "صندوق و تأیید پرداخت‌ها", icon: CreditCard },
+  { id: "accounting", label: "حسابداری", title: "حسابداری — درآمد روزانه و ماهانه", icon: Calculator },
   { id: "customers", label: "مشتری‌ها", title: "بانک شمارهٔ مشتری‌ها", icon: Users },
   { id: "settings", label: "تنظیمات", title: "تنظیمات", icon: SettingsIcon },
   { id: "qr", label: "کدهای QR", title: "کدهای QR میزها", icon: QrCode },
@@ -333,6 +335,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           {section === "requests" && <RequestsSection requests={requests} onChange={setRequests} />}
           {section === "products" && <MenuManager onCurrency={setCurrency} />}
           {section === "cashier" && <CashierSection orders={orders} onRefresh={poll} />}
+          {section === "accounting" && <AccountingSection />}
           {section === "customers" && <CustomersSection items={customers} />}
           {section === "settings" && <SettingsPanel onSaved={loadMeta} />}
           {section === "qr" && <QrSection />}

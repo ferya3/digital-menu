@@ -50,6 +50,9 @@ function createDb(): DatabaseSync {
   for (const sql of [
     "ALTER TABLE orders ADD COLUMN note TEXT DEFAULT ''",
     "ALTER TABLE categories ADD COLUMN banner TEXT DEFAULT ''",
+    // حسابداری: زمان و روشِ پرداخت
+    "ALTER TABLE orders ADD COLUMN paid_at TEXT DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN pay_method TEXT DEFAULT ''",
   ]) {
     try {
       db.exec(sql);
@@ -57,6 +60,10 @@ function createDb(): DatabaseSync {
       /* ستون از قبل هست */
     }
   }
+  // سفارش‌های پرداخت‌شدهٔ قدیمی: زمانِ پرداخت ≈ آخرین تغییر؛ روش از روی فیش
+  db.exec(`UPDATE orders SET paid_at = updated_at,
+             pay_method = CASE WHEN pay_method != '' THEN pay_method WHEN receipt != '' THEN 'receipt' ELSE 'counter' END
+           WHERE paid = 1 AND (paid_at IS NULL OR paid_at = '')`);
   seed(db);
   return db;
 }

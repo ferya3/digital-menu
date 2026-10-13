@@ -33,6 +33,7 @@ import {
 } from "@/lib/queries";
 import { saveImageWebp, readUpload } from "@/lib/images";
 import { DEFAULT_SMS, sendTestSms } from "@/lib/otp";
+import { getAccounting, type Accounting } from "@/lib/accounting";
 import type { CafeInfo, Gateway, Menu, Order, OrderCodeMode, OrderStatus, PaymentInfo, SmsSettings } from "@/lib/types";
 
 const DEFAULT_CAFE: CafeInfo = { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" };
@@ -258,6 +259,12 @@ export async function staffTestSmsAction(phone: string): Promise<{ ok: boolean; 
   } catch (e) {
     return { ok: false, detail: e instanceof Error ? e.message : "خطا" };
   }
+}
+
+/* ---------- حسابداری ---------- */
+export async function staffAccountingAction(month?: string): Promise<Accounting> {
+  await gate();
+  return getAccounting(month);
 }
 
 /* ---------- QR ---------- */

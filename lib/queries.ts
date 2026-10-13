@@ -191,7 +191,8 @@ function changed(o: Order | null): Order | null {
 export function setPayStatus(orderId: string, pay: PayStatus, reason = ""): Order | null {
   const d = db();
   if (pay === "confirmed") {
-    d.prepare("UPDATE orders SET pay_status='confirmed', paid=1, updated_at=? WHERE id=?").run(now(), orderId);
+    // تأییدِ فیشِ کارت‌به‌کارت
+    d.prepare("UPDATE orders SET pay_status='confirmed', paid=1, paid_at=CASE WHEN paid=1 AND paid_at!='' THEN paid_at ELSE ? END, pay_method=CASE WHEN pay_method!='' AND paid=1 THEN pay_method ELSE 'receipt' END, updated_at=? WHERE id=?").run(now(), now(), orderId);
   } else if (pay === "rejected") {
     const o = getOrder(orderId);
     const file = o?.receipt || "";
@@ -210,10 +211,12 @@ export function setPayStatus(orderId: string, pay: PayStatus, reason = ""): Orde
 }
 
 /** علامت «پرداخت شد» دستی (پرداخت نقدی/کارتخوان بدون فیش) */
-export function setPaid(orderId: string, paid: boolean): Order | null {
+/** روشِ پرداخت برای حسابداری: receipt = کارت‌به‌کارت، pos = کارت‌خوان سر میز، counter = صندوق (نقدی/کارتخوان) */
+export type PayMethod = "receipt" | "pos" | "counter";
+export function setPaid(orderId: string, paid: boolean, method: PayMethod = "counter"): Order | null {
   const d = db();
-  if (paid) d.prepare("UPDATE orders SET paid=1, pay_status='confirmed', updated_at=? WHERE id=?").run(now(), orderId);
-  else d.prepare("UPDATE orders SET paid=0, pay_status='none', updated_at=? WHERE id=?").run(now(), orderId);
+  if (paid) d.prepare("UPDATE orders SET paid=1, pay_status='confirmed', paid_at=?, pay_method=?, updated_at=? WHERE id=? AND paid=0").run(now(), method, now(), orderId);
+  else d.prepare("UPDATE orders SET paid=0, pay_status='none', paid_at='', pay_method='', updated_at=? WHERE id=?").run(now(), orderId);
   return changed(getOrder(orderId));
 }
 
@@ -233,7 +236,7 @@ export function requestPos(table: string) {
 /** تسویهٔ کلِ صورتحسابِ بازِ یک میز (کارت‌خوان/نقدی) + بستنِ درخواستِ کارت‌خوانِ آن میز */
 export function settleTable(table: string): number {
   const open = openBillOrders(table);
-  for (const o of open) setPaid(o.id, true);
+  for (const o of open) setPaid(o.id, true, o.payStatus === "pos" ? "pos" : "counter");
   db().prepare("UPDATE requests SET status='done' WHERE tbl=? AND type='pos' AND status='pending'").run(String(table));
   publish({ type: "request", table: String(table) });
   return open.length;
