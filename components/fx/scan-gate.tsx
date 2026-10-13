@@ -14,6 +14,9 @@ export function ScanGate({ cafe, onTable }: { cafe: CafeInfo; onTable: (table: s
   const [live, setLive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // روی HTTP دوربینِ زنده در دسترس نیست؛ دکمه برنامهٔ دوربین را برای عکس گرفتن باز می‌کند
+  const [live0, setLive0] = useState(true);
+  useEffect(() => setLive0(canLiveScan()), []);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -66,11 +69,13 @@ export function ScanGate({ cafe, onTable }: { cafe: CafeInfo; onTable: (table: s
         </button>
         <h2 className="mt-6 text-xl font-extrabold">QR میز خود را اسکن کنید</h2>
         <p className="mx-auto mt-2 max-w-xs text-sm leading-7 text-muted-foreground">
-          دکمهٔ زیر را بزنید و دوربین را روی QR کدِ روی میزتان بگیرید تا منوی همان میز باز شود.
+          {live0
+            ? "دکمهٔ زیر را بزنید و دوربین را روی QR کدِ روی میزتان بگیرید تا منوی همان میز باز شود."
+            : "سریع‌ترین راه: دوربینِ خودِ گوشی (یا اسکنرِ QR) را روی QR کدِ میز بگیرید و لینک را باز کنید. یا با دکمهٔ زیر از QR عکس بگیرید."}
         </p>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onPhoto(f); }} />
         <Button size="lg" className="mt-6 h-12 w-full max-w-xs rounded-full text-base" onClick={scan} disabled={busy}>
-          {busy ? <><Loader2 className="animate-spin" /> در حال خواندنِ QR…</> : <><Camera className="size-5" /> اسکن QR با دوربین</>}
+          {busy ? <><Loader2 className="animate-spin" /> در حال خواندنِ QR…</> : <><Camera className="size-5" /> {live0 ? "اسکن QR با دوربین" : "عکس گرفتن از QR میز"}</>}
         </Button>
         {err && <p className="mx-auto mt-3 max-w-xs rounded-xl bg-primary/10 p-2.5 text-sm text-primary">{err}</p>}
         <Button
