@@ -124,7 +124,7 @@ export function ScanGate({ cafe, onTable }: { cafe: CafeInfo; onTable: (table: s
           <Eye className="size-4" /> فقط دیدنِ منو
         </Button>
       </div>
-      {live && <LiveScanner onResult={go} onClose={closeLive} onError={liveFailed} />}
+      {live && <LiveScanner onResult={go} onClose={closeLive} onError={liveFailed} onUsePhoto={() => { setLive(false); fileRef.current?.click(); }} />}
     </div>
   );
 }

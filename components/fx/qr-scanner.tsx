@@ -22,18 +22,29 @@ export function preloadQr() {
   if (!getDetector()) loadJsQR().catch(() => { jsqrPromise = null; });
 }
 
-/** خواندنِ QR از یک تصویر: اول دیکودرِ خودِ گوشی (BarcodeDetector)، وگرنه jsQR */
+const withTimeout = <T,>(p: Promise<T>, ms: number) =>
+  new Promise<T>((res, rej) => {
+    const t = window.setTimeout(() => rej(new Error("timeout")), ms);
+    p.then((v) => { clearTimeout(t); res(v); }, (e) => { clearTimeout(t); rej(e); });
+  });
+
+/** خواندنِ QR فقط با jsQR (نرم‌افزاری؛ روی همهٔ گوشی‌ها کار می‌کند) */
+export async function decodeJs(img: ImageData, thorough = false): Promise<string | null> {
+  const jsQR = await loadJsQR();
+  // QRِ چاپی تیره روی زمینهٔ روشن است؛ حالتِ برعکس فقط در تلاشِ کامل (دو برابر کندتر)
+  return jsQR(img.data, img.width, img.height, { inversionAttempts: thorough ? "attemptBoth" : "dontInvert" })?.data || null;
+}
+
+/** خواندنِ QR از یک تصویر: دیکودرِ خودِ گوشی (با مهلت)، و اگر نخواند/خطا داد jsQR */
 export async function decodeQr(img: ImageData, thorough = false): Promise<string | null> {
   const det = getDetector();
   if (det) {
     try {
-      const r = await det.detect(img);
+      const r = await withTimeout(det.detect(img), 1200);
       if (r[0]?.rawValue) return r[0].rawValue;
     } catch {}
   }
-  const jsQR = await loadJsQR();
-  // QRِ چاپی تیره روی زمینهٔ روشن است؛ حالتِ برعکس فقط در تلاشِ کامل (دو برابر کندتر)
-  return jsQR(img.data, img.width, img.height, { inversionAttempts: thorough ? "attemptBoth" : "dontInvert" })?.data || null;
+  return decodeJs(img, thorough);
 }
 
 /** شمارهٔ میز از متنِ QR (لینکِ …/?table=۵) */
@@ -54,7 +65,7 @@ export async function decodeQrFromFile(file: File): Promise<string | null> {
   try { full = await createImageBitmap(file); } catch {}
   if (det && full) {
     try {
-      const r = await det.detect(full);
+      const r = await withTimeout(det.detect(full), 2000);
       if (r[0]?.rawValue) { full.close(); return r[0].rawValue; }
     } catch {}
   }
@@ -112,8 +123,16 @@ export const chromeIntent = () =>
   `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end`;
 
 /** اسکنِ زنده با دوربین (تمام‌صفحه) */
-export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: string) => void; onClose: () => void; onError: (name: string) => void }) {
+export function LiveScanner({ onResult, onClose, onError, onUsePhoto }: {
+  onResult: (text: string) => void; onClose: () => void; onError: (name: string) => void;
+  /** باید مستقیم داخلِ کلیکِ کاربر صدا زده شود (وگرنه Chrome انتخابِ عکس را نمی‌گذارد) */
+  onUsePhoto: () => void;
+}) {
   const video = useRef<HTMLVideoElement>(null);
+  const [seen, setSeen] = useState(0);
+  const [engine, setEngine] = useState(getDetector() ? "native" : "jsqr");
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = window.setTimeout(() => setSlow(true), 6000); return () => window.clearTimeout(t); }, []);
   const [hint, setHint] = useState("در حال درخواستِ اجازهٔ دوربین… اگر پنجرهٔ اجازه آمد «اجازه دادن» را بزنید");
 
   useEffect(() => {
@@ -155,23 +174,37 @@ export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: s
         }
         setHint("QR روی میز را داخل کادر بگیرید");
         const det = getDetector();
-        if (!det) await loadJsQR(); // قبل از شروعِ حلقه
-        let n = 0;
+        loadJsQR().catch(() => {}); // همیشه آماده؛ اگر خوانندهٔ گوشی خراب بود بدونِ معطلی
+        let nativeOk = !!det; // اگر دوبار خطا/گیر کرد کنار گذاشته می‌شود
+        let nativeFails = 0;
+        let frames = 0;
+        const grab = (frac: number, max: number) => {
+          // مربعِ وسطِ تصویر (همان کادرِ اسکن)؛ تا ۶۴۰px تا QRِ کوچک/دور هم دیده شود
+          const side = Math.min(v.videoWidth, v.videoHeight) * frac;
+          const out = Math.max(64, Math.min(max, Math.round(side)));
+          canvas.width = out; canvas.height = out;
+          ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, out, out);
+          return ctx.getImageData(0, 0, out, out);
+        };
         const tick = async () => {
           if (stop) return;
           if (v.videoWidth) {
+            frames++;
+            setSeen(frames);
             let text: string | null = null;
-            if (det) {
-              // دیکودرِ خودِ گوشی مستقیم روی ویدیو (سریع)
-              try { text = (await det.detect(v))[0]?.rawValue || null; } catch {}
-            } else {
-              // فقط مربعِ وسط (همان کادرِ اسکن) و کوچک‌شده → چند برابر سریع‌تر
-              const side = Math.min(v.videoWidth, v.videoHeight) * 0.8;
-              const out = 480;
-              canvas.width = out; canvas.height = out;
-              ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, out, out);
-              // هر چند فریم یک‌بار تلاشِ کامل (QRِ برعکس/کم‌کنتراست)
-              text = await decodeQr(ctx.getImageData(0, 0, out, out), ++n % 6 === 0).catch(() => null);
+            // ۱) خوانندهٔ خودِ گوشی (با مهلت؛ اگر خطا داد یا گیر کرد کنار می‌رود)
+            if (det && nativeOk) {
+              try {
+                text = (await withTimeout(det.detect(v), 700))[0]?.rawValue || null;
+                nativeFails = 0;
+              } catch {
+                if (++nativeFails >= 2) { nativeOk = false; setEngine("jsqr"); }
+              }
+            }
+            // ۲) jsQR: اگر خوانندهٔ گوشی نیست/خراب است هر فریم؛ اگر هست ولی چیزی نمی‌خواند هر چند فریم یک‌بار
+            if (!text && !stop && (!det || !nativeOk || nativeFails > 0 || frames % 3 === 0)) {
+              const thorough = frames % 4 === 0; // گاهی تلاشِ برعکس و کم‌کنتراست
+              text = await decodeJs(grab(thorough ? 1 : 0.9, 640), thorough).catch(() => null);
             }
             if (text && !stop) {
               stop = true;
@@ -179,7 +212,7 @@ export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: s
               return;
             }
           }
-          timer = window.setTimeout(tick, det ? 80 : 60);
+          timer = window.setTimeout(tick, 60);
         };
         tick();
       } catch (e) {
@@ -207,7 +240,13 @@ export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: s
           <span className="absolute inset-x-6 top-1/2 h-0.5 animate-pulse rounded bg-primary shadow-[0_0_12px_hsl(var(--primary))]" />
         </div>
       </div>
-      <p className="absolute inset-x-0 bottom-24 text-center text-sm font-semibold text-white">{hint}</p>
+      <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 px-6 text-center text-white">
+        <p className="text-sm font-semibold drop-shadow">{slow && seen > 0 ? "QR را ثابت، نزدیک‌تر (۱۵ تا ۲۵ سانتی‌متر) و با نورِ کافی بگیرید" : hint}</p>
+        <button onClick={onUsePhoto} className="rounded-full border border-white/40 bg-white/15 px-4 py-2 text-sm font-bold backdrop-blur">
+          📷 نمی‌خواند؟ عکس گرفتن از QR
+        </button>
+        <p className="text-[10px] opacity-60" dir="ltr">scan: {engine} · frames {seen}</p>
+      </div>
       <button onClick={onClose} aria-label="بستن" className="absolute left-4 top-4 grid size-11 place-items-center rounded-full bg-white/15 text-white backdrop-blur">
         <X className="size-6" />
       </button>
