@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ShoppingBag, X, Coffee, Star, Trash2, BellRing, Moon, Sun,
+  ShoppingBag, X, Coffee, Star, Trash2, BellRing, Moon, Sun, QrCode,
   ReceiptText, Upload, Loader2, ClipboardList, Check, CheckCircle2, Menu as MenuIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -530,14 +530,20 @@ export function MenuView({
       </AnimatePresence>
 
       {/* نوارِ پایینِ موبایل (با دکمهٔ گردِ سبد در وسط) */}
-      {!viewOnly && <MobileTabBar
+      <MobileTabBar
         count={count}
         activeOrders={activeOrders}
         onRequest={() => setReqOpen(true)}
         onStatus={() => setStatusOpen(true)}
         onCart={() => setCartOpen(true)}
         onBill={openBill}
-      />}
+        viewOnly={viewOnly}
+        onScan={() => {
+          // بدون میز: صفحهٔ اسکنِ QR (با دکمهٔ دوربین)
+          try { sessionStorage.removeItem("cafe_browse"); } catch {}
+          window.location.href = "/";
+        }}
+      />
 
       {/* placed toast */}
       <AnimatePresence>
@@ -796,8 +802,10 @@ function CategoryTitle({ cat }: { cat: MenuCategory; count?: number }) {
 }
 
 /* ---------- نوارِ پایینِ موبایل ---------- */
-function MobileTabBar({ count, activeOrders, onRequest, onStatus, onCart, onBill }: {
+function MobileTabBar({ count, activeOrders, onRequest, onStatus, onCart, onBill, viewOnly, onScan }: {
   count: number; activeOrders: number; onRequest: () => void; onStatus: () => void; onCart: () => void; onBill: () => void;
+  /** بدون شمارهٔ میز: دکمه‌ها به «اسکن QR میز» می‌روند */
+  viewOnly?: boolean; onScan: () => void;
 }) {
   const [dark, setDark] = useState(false);
   useEffect(() => setDark(document.documentElement.classList.contains("dark")), []);
@@ -821,27 +829,28 @@ function MobileTabBar({ count, activeOrders, onRequest, onStatus, onCart, onBill
       {/* بدنهٔ نوار با فرورفتگیِ گرد در وسط */}
       <div className="flex h-[68px] drop-shadow-[0_-6px_14px_rgba(60,35,20,0.10)] dark:drop-shadow-[0_-6px_14px_rgba(0,0,0,0.45)]">
         <div className="flex-1 rounded-tr-[22px] bg-card" />
-        <svg viewBox="0 0 110 68" className="h-[68px] w-[110px] shrink-0 fill-card" aria-hidden>
+        <svg viewBox="0 0 110 68" preserveAspectRatio="none" className="relative -mx-[2px] h-[68px] w-[114px] shrink-0 fill-card" aria-hidden>
+          {/* لبه‌ها ۲px روی دو تکهٔ کناری می‌افتند تا خطِ درز دیده نشود */}
           <path d="M0 0 H10 C22 0 24 6 27 14 C33 32 42 41 55 41 C68 41 77 32 83 14 C86 6 88 0 100 0 H110 V68 H0 Z" />
         </svg>
         <div className="flex-1 rounded-tl-[22px] bg-card" />
       </div>
       <div className="bg-card pb-[env(safe-area-inset-bottom)]" />
       <div className="absolute inset-x-0 top-0 flex h-[68px] items-stretch">
-        <Item icon={<BellRing />} label="درخواست" onClick={onRequest} />
-        <Item icon={<ClipboardList />} label="وضعیت سفارش" onClick={onStatus} badge={activeOrders} />
+        <Item icon={<BellRing />} label="درخواست" onClick={viewOnly ? onScan : onRequest} />
+        <Item icon={<ClipboardList />} label="وضعیت سفارش" onClick={viewOnly ? onScan : onStatus} badge={viewOnly ? 0 : activeOrders} />
         <div className="w-[96px] shrink-0" />
-        <Item icon={<ReceiptText />} label="صورتحساب" onClick={onBill} />
+        <Item icon={<ReceiptText />} label="صورتحساب" onClick={viewOnly ? onScan : onBill} />
         <Item icon={dark ? <Sun /> : <Moon />} label={dark ? "حالت روز" : "حالت شب"} onClick={toggleTheme} />
       </div>
-      {/* دکمهٔ گردِ سبد خرید */}
+      {/* دکمهٔ گردِ وسط: سبد خرید (یا «اسکن QR» وقتی میز مشخص نیست) */}
       <button
-        onClick={onCart}
-        aria-label="سبد خرید"
+        onClick={viewOnly ? onScan : onCart}
+        aria-label={viewOnly ? "اسکن QR میز" : "سبد خرید"}
         className="absolute left-1/2 top-0 grid size-[62px] -translate-x-1/2 -translate-y-[38%] place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_10px_22px_-6px_hsl(var(--primary)/0.6)] ring-[5px] ring-background transition active:scale-95"
       >
-        <ShoppingBag className="size-7" />
-        {count > 0 && (
+        {viewOnly ? <QrCode className="size-7" /> : <ShoppingBag className="size-7" />}
+        {!viewOnly && count > 0 && (
           <motion.span key={count} initial={{ scale: 0.4 }} animate={{ scale: 1 }} className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-white px-1 text-xs font-black text-primary shadow">{toFa(count)}</motion.span>
         )}
       </button>
