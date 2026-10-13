@@ -69,30 +69,45 @@ npm run build && npm start
 - ویدیوی صفحهٔ اول با **ffmpeg** خودکار سبک می‌شود (۷۲۰p، بی‌صدا، شروعِ پخشِ فوری + عکس کاور). برای ویدیوی قبلی، در تنظیمات دکمهٔ «سبک‌سازی» را بزنید.
 - سفارش‌ها و وضعیت‌ها با کانال زنده (Server-Sent Events) فوراً می‌رسند.
 
-## فاز ۵ — نصب روی سرور (✅ انجام شد)
+## نصب روی سرور (فاز ۵ + همهٔ تغییراتِ بعدی)
 
-روی **اوبونتو ۲۴** با root، یک خط (بدون دامنه، روی IP سرور):
+سرورِ **اوبونتو ۲۴ تمیز**، با root (یا sudo). همهٔ پیش‌نیازها (Node 22، Nginx، ffmpeg، pm2، swap) خودکار نصب می‌شوند.
 
-```bash
-sudo apt-get update && sudo apt-get install -y git && sudo rm -rf /opt/cafe-next && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo ADMIN_PASSWORD='رمز-دلخواه' bash install.sh
-```
-
-با دامنه و SSL، فقط `DOMAIN` و `EMAIL` اضافه می‌شود:
+### ۱) نصبِ تازه با یک خط (بدون دامنه؛ روی IP سرور)
 
 ```bash
-sudo apt-get update && sudo apt-get install -y git && sudo rm -rf /opt/cafe-next && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo DOMAIN=example.com EMAIL=you@mail.com ADMIN_PASSWORD='رمز-دلخواه' bash install.sh
+sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo ADMIN_PASSWORD='رمز-دلخواه' bash install.sh
 ```
 
-اسکریپت: Node 22 نصب می‌کند، روی سرورِ کم‌رم swap می‌سازد، build می‌گیرد، برنامه را با **pm2** دائمی اجرا می‌کند
-(بعد از ری‌بوت هم خودکار بالا می‌آید)، Nginx را جلویش می‌گذارد، در صورت دادنِ دامنه SSL می‌گیرد،
-و سرویسِ نسخهٔ قبلی (`cafe` در systemd) را غیرفعال می‌کند.
+### ۲) نصب با دامنه و HTTPS (دو رکورد A برای `دامنه` و `www` باید از قبل روی IP سرور باشد)
 
-- **اتصال دامنه + HTTPS** (بعد از تنظیمِ رکورد A دامنه و www روی IP سرور):
-  `cd /opt/cafe-next && sudo DOMAIN=artavilstar.com bash set-domain.sh`
-  گواهی رایگان Let's Encrypt (تمدیدِ خودکار)، HTTP/2، و هدایتِ IP/http/www به `https://دامنه` با حفظِ `?table=` (QRهای قدیمی خراب نمی‌شوند).
-- به‌روزرسانی (با بک‌آپِ خودکار از دیتابیس و عکس‌ها در `/root/cafe-backups`):  `cd /opt/cafe-next && sudo bash update.sh`
-- وضعیت و لاگ:  `pm2 status` · `pm2 logs cafe`
-- داده‌ها: دیتابیس در `data/cafe.db` و عکس‌ها در `data/uploads` (وارد گیت نمی‌شوند؛ برای بک‌آپ همین پوشهٔ `data/` کافی است).
+```bash
+sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo DOMAIN=artavilstar.com EMAIL=you@mail.com ADMIN_PASSWORD='رمز-دلخواه' bash install.sh
+```
+
+(اگر هنوز DNS آماده نبود، سایت روی HTTP بالا می‌آید و بعداً با `sudo DOMAIN=artavilstar.com bash set-domain.sh` دامنه + HTTPS وصل می‌شود.)
+
+> `git clone` اگر پوشهٔ `/opt/cafe-next` از قبل باشد خطا می‌دهد؛ این عمدی است تا سهواً دادهٔ سرورِ فعلی پاک نشود. روی سرورِ فعلی از `sudo bash update.sh` استفاده کنید.
+
+### ۳) انتقال به سرورِ جدید با تمامِ داده‌ها (منو، عکس‌ها، ویدیو، تنظیمات، مشتری‌ها، سفارش‌ها، حسابداری، پیامک‌ها)
+
+روی **سرور قبلی**:
+```bash
+cd /opt/cafe-next && sudo bash backup.sh        # فایل را در /root/cafe-backups می‌سازد و مسیرش را چاپ می‌کند
+scp /root/cafe-backups/data-XXXX.tar.gz root@IP-سرور-جدید:/root/
+```
+روی **سرور جدید** (همان یک خط، فقط با `RESTORE`):
+```bash
+sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo RESTORE=/root/data-XXXX.tar.gz DOMAIN=artavilstar.com EMAIL=you@mail.com bash install.sh
+```
+- رمز پنل: اگر آن را از داخل پنل عوض کرده بودید همان می‌ماند؛ وگرنه رمزِ `ADMIN_PASSWORD` همین دستور اعمال می‌شود.
+- دیتابیس و عکس‌ها داخل `data/` هستند و عمداً داخل گیت نیستند (رمز و اطلاعاتِ مشتری‌ها دارند).
+
+### نگهداری
+- به‌روزرسانی (با بک‌آپِ خودکار در `/root/cafe-backups`):  `cd /opt/cafe-next && sudo bash update.sh`
+- بک‌آپِ دستی:  `sudo bash backup.sh` · وضعیت و لاگ:  `pm2 status` · `pm2 logs cafe`
+- اتصالِ دامنه + HTTPS بعد از نصب:  `sudo DOMAIN=artavilstar.com bash set-domain.sh`
+  (گواهی رایگانِ Let's Encrypt با تمدیدِ خودکار، HTTP/2، و هدایتِ IP/http/www به `https://دامنه` با حفظِ `?table=` — QRهای قدیمی خراب نمی‌شوند)
 
 ## نقشهٔ راه (فازهای بعد)
 

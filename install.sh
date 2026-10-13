@@ -8,6 +8,8 @@
 #    EMAIL           ایمیل برای گواهی SSL رایگان (فقط همراه با DOMAIN)
 #    ADMIN_PASSWORD  رمز اولیهٔ پنل کارکنان (پیش‌فرض cafe1234 — از پنل قابل تغییر)
 #    APP_PORT        پورت داخلی برنامه (پیش‌فرض 3000)
+#    RESTORE         مسیر فایلِ بک‌آپِ سرور قبلی (data-*.tar.gz از backup.sh) برای انتقالِ منو، عکس‌ها،
+#                    تنظیمات، مشتری‌ها و سفارش‌ها؛ رمز پنل هم از همان بک‌آپ می‌آید
 #
 #  نمونه با IP:      sudo ADMIN_PASSWORD='Str0ng!' bash install.sh
 #  نمونه با دامنه:  sudo DOMAIN=example.com EMAIL=you@mail.com ADMIN_PASSWORD='Str0ng!' bash install.sh
@@ -17,6 +19,8 @@ set -euo pipefail
 DOMAIN="${DOMAIN:-}"
 EMAIL="${EMAIL:-}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-cafe1234}"
+RESTORE="${RESTORE:-}"
+PW_RESTORED=0
 APP_PORT="${APP_PORT:-3000}"
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -58,6 +62,19 @@ cd "$APP_DIR"
 say "نصب وابستگی‌ها"
 npm ci --no-audit --no-fund
 mkdir -p data/uploads
+# انتقال از سرورِ قبلی: دیتابیس + عکس‌ها از فایلِ بک‌آپ برمی‌گردد (قبل از اولین اجرا)
+if [ -n "$RESTORE" ]; then
+  [ -f "$RESTORE" ] || { echo "فایل بک‌آپ پیدا نشد: $RESTORE"; exit 1; }
+  say "بازیابی داده‌ها از $RESTORE"
+  tar -xzf "$RESTORE" -C "$APP_DIR"
+  [ -f "$APP_DIR/data/cafe.db" ] || { echo "این فایل بک‌آپِ معتبری نیست (data/cafe.db ندارد)"; exit 1; }
+  rm -f "$APP_DIR"/data/cafe.db-wal "$APP_DIR"/data/cafe.db-shm
+  # رمزِ پنل فقط وقتی در بک‌آپ هست که از داخلِ پنل عوض شده باشد؛ وگرنه رمزِ همین نصب (ADMIN_PASSWORD) اعمال می‌شود
+  if (cd "$APP_DIR" && node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync("data/cafe.db",{readOnly:true});process.exit(d.prepare("SELECT 1 FROM settings WHERE key=? AND value!=?").get("admin_pw","\"\"")?0:1)' 2>/dev/null); then
+    PW_RESTORED=1
+  fi
+  echo "  داده‌ها بازیابی شد."
+fi
 # رمز اولیه؛ Next این فایل را در حالت production می‌خواند (وارد گیت نمی‌شود)
 printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD" > .env.production.local
 chmod 600 .env.production.local
@@ -70,16 +87,19 @@ command -v pm2 >/dev/null 2>&1 || npm install -g pm2
 pm2 delete cafe >/dev/null 2>&1 || true
 APP_PORT="$APP_PORT" pm2 start ecosystem.config.cjs
 pm2 save
-pm2 startup systemd -u root --hp /root >/dev/null
+pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || echo "⚠️  راه‌اندازیِ خودکارِ pm2 بعد از ری‌بوت تنظیم نشد؛ بعداً:  pm2 startup && pm2 save"
 systemctl enable pm2-root >/dev/null 2>&1 || true
 
 # ---------- Nginx ----------
 say "پیکربندی Nginx"
 SERVER_NAME="${DOMAIN:-_}"
+# روی سرورهایی که IPv6 ندارند «listen [::]» باعثِ خطای Nginx می‌شود
+LISTEN6=""
+[ -f /proc/net/if_inet6 ] && LISTEN6="listen [::]:80 default_server;"
 cat >/etc/nginx/sites-available/cafe <<NGINX
 server {
     listen 80 default_server;
-    listen [::]:80 default_server;
+    $LISTEN6
     server_name $SERVER_NAME;
     client_max_body_size 120m;
 
@@ -99,7 +119,7 @@ rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/cafe /etc/nginx/sites-enabled/cafe
 nginx -t
 systemctl enable nginx >/dev/null 2>&1 || true
-systemctl restart nginx
+systemctl restart nginx || nginx -s reload
 
 # فایروال (اگر فعال است)
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
@@ -125,6 +145,13 @@ HOST="${DOMAIN:-$(curl -s --max-time 5 https://api.ipify.org || hostname -I | aw
 say "تمام شد ✅  (پاسخ برنامه: $CODE)"
 echo "  منوی مشتری:   $PROTO://$HOST/?table=1"
 echo "  پنل کارکنان:  $PROTO://$HOST/staff"
-echo "  رمز اولیه:    $ADMIN_PASSWORD   (از تنظیماتِ پنل قابل تغییر است)"
-echo "  وضعیت:  pm2 status   ·   لاگ:  pm2 logs cafe   ·   به‌روزرسانی:  sudo bash update.sh"
-[ "$ADMIN_PASSWORD" = "cafe1234" ] && echo "  ⚠️  رمز پیش‌فرض است؛ حتماً از پنل → تنظیمات عوضش کن."
+if [ "$PW_RESTORED" = "1" ]; then
+  echo "  رمز پنل:      همان رمزِ سرورِ قبلی (از بک‌آپ بازیابی شد)"
+else
+  echo "  رمز پنل:      $ADMIN_PASSWORD   (از تنظیماتِ پنل قابل تغییر است)"
+fi
+echo "  وضعیت:  pm2 status   ·   لاگ:  pm2 logs cafe   ·   به‌روزرسانی:  sudo bash update.sh   ·   بک‌آپ:  sudo bash backup.sh"
+if [ "$PW_RESTORED" != "1" ] && [ "$ADMIN_PASSWORD" = "cafe1234" ]; then
+  echo "  ⚠️  رمز پیش‌فرض است؛ حتماً از پنل → تنظیمات عوضش کن."
+fi
+exit 0
