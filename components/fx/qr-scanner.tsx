@@ -4,18 +4,36 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 type Detector = { detect: (src: ImageBitmapSource) => Promise<{ rawValue: string }[]> };
+type JsQR = typeof import("jsqr").default;
+
+// یک نمونهٔ دیکودر برای همهٔ فریم‌ها (ساختنِ مکرر کند است)
+let detector: Detector | null | undefined;
+function getDetector(): Detector | null {
+  if (detector !== undefined) return detector;
+  const BD = (window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => Detector }).BarcodeDetector;
+  try { detector = BD ? new BD({ formats: ["qr_code"] }) : null; } catch { detector = null; }
+  return detector;
+}
+let jsqrPromise: Promise<JsQR> | null = null;
+const loadJsQR = () => (jsqrPromise ??= import("jsqr").then((m) => m.default));
+
+/** آماده‌سازیِ دیکودر از قبل (تا اولین اسکن منتظرِ دانلود نماند) */
+export function preloadQr() {
+  if (!getDetector()) loadJsQR().catch(() => { jsqrPromise = null; });
+}
 
 /** خواندنِ QR از یک تصویر: اول دیکودرِ خودِ گوشی (BarcodeDetector)، وگرنه jsQR */
-export async function decodeQr(img: ImageData): Promise<string | null> {
-  const BD = (window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => Detector }).BarcodeDetector;
-  if (BD) {
+export async function decodeQr(img: ImageData, thorough = false): Promise<string | null> {
+  const det = getDetector();
+  if (det) {
     try {
-      const r = await new BD({ formats: ["qr_code"] }).detect(img);
+      const r = await det.detect(img);
       if (r[0]?.rawValue) return r[0].rawValue;
     } catch {}
   }
-  const jsQR = (await import("jsqr")).default;
-  return jsQR(img.data, img.width, img.height, { inversionAttempts: "attemptBoth" })?.data || null;
+  const jsQR = await loadJsQR();
+  // QRِ چاپی تیره روی زمینهٔ روشن است؛ حالتِ برعکس فقط در تلاشِ کامل (دو برابر کندتر)
+  return jsQR(img.data, img.width, img.height, { inversionAttempts: thorough ? "attemptBoth" : "dontInvert" })?.data || null;
 }
 
 /** شمارهٔ میز از متنِ QR (لینکِ …/?table=۵) */
@@ -28,29 +46,50 @@ export function tableFromQr(text: string): string | null {
   return m ? decodeURIComponent(m[1]).slice(0, 20) : null;
 }
 
-/** تصویرِ عکس‌گرفته‌شده → ImageData (در چند اندازه تا QRِ کوچک/بزرگ هر دو خوانده شوند) */
+/** عکسِ گرفته‌شده → متنِ QR (عکسِ ۱۲ مگاپیکسلی هنگامِ خواندن کوچک می‌شود تا سریع باشد) */
 export async function decodeQrFromFile(file: File): Promise<string | null> {
-  const url = URL.createObjectURL(file);
+  // دیکودرِ خودِ گوشی مستقیم روی عکس
+  const det = getDetector();
+  let full: ImageBitmap | null = null;
+  try { full = await createImageBitmap(file); } catch {}
+  if (det && full) {
+    try {
+      const r = await det.detect(full);
+      if (r[0]?.rawValue) { full.close(); return r[0].rawValue; }
+    } catch {}
+  }
+  const draw = async (max: number, crop = 1): Promise<ImageData | null> => {
+    let src: CanvasImageSource | null = full;
+    let w = full?.width ?? 0, h = full?.height ?? 0;
+    if (!src) {
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+        src = img; w = img.naturalWidth; h = img.naturalHeight;
+      } finally { URL.revokeObjectURL(url); }
+    }
+    if (!src || !w || !h) return null;
+    // crop<1: فقط وسطِ عکس (جایی که معمولاً QR است)
+    const cw = Math.round(w * crop), ch = Math.round(h * crop);
+    const sx = Math.round((w - cw) / 2), sy = Math.round((h - ch) / 2);
+    const s = Math.min(1, max / Math.max(cw, ch));
+    const c = document.createElement("canvas");
+    c.width = Math.round(cw * s); c.height = Math.round(ch * s);
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    ctx.drawImage(src, sx, sy, cw, ch, 0, 0, c.width, c.height);
+    return ctx.getImageData(0, 0, c.width, c.height);
+  };
   try {
-    const img = await new Promise<HTMLImageElement>((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = rej;
-      i.src = url;
-    });
-    for (const max of [1600, 900, 2400]) {
-      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.naturalWidth * s);
-      c.height = Math.round(img.naturalHeight * s);
-      const ctx = c.getContext("2d", { willReadFrequently: true })!;
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      const text = await decodeQr(ctx.getImageData(0, 0, c.width, c.height));
+    // از ارزان به گران: کلِ عکس کوچک، وسطِ عکس، بزرگ‌تر، و در آخر تلاشِ کامل
+    for (const [max, crop, thorough] of [[1000, 1, false], [1000, 0.55, false], [1600, 1, false], [1600, 0.6, true]] as const) {
+      const img = await draw(max, crop);
+      if (!img) break;
+      const text = await decodeQr(img, thorough);
       if (text) return text;
     }
     return null;
   } finally {
-    URL.revokeObjectURL(url);
+    full?.close();
   }
 }
 
@@ -71,26 +110,46 @@ export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: s
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
     (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        // فوکوسِ پیوسته (اگر دوربین پشتیبانی کند) برای خواندنِ سریعِ QRِ نزدیک
+        try {
+          const track = stream.getVideoTracks()[0];
+          const caps = (track.getCapabilities?.() || {}) as { focusMode?: string[] };
+          if (caps.focusMode?.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] });
+        } catch {}
         const v = video.current!;
         v.srcObject = stream;
         await v.play();
         setHint("QR روی میز را داخل کادر بگیرید");
+        const det = getDetector();
+        if (!det) await loadJsQR(); // قبل از شروعِ حلقه
+        let n = 0;
         const tick = async () => {
           if (stop) return;
           if (v.videoWidth) {
-            const s = Math.min(1, 720 / Math.max(v.videoWidth, v.videoHeight));
-            canvas.width = Math.round(v.videoWidth * s);
-            canvas.height = Math.round(v.videoHeight * s);
-            ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-            const text = await decodeQr(ctx.getImageData(0, 0, canvas.width, canvas.height)).catch(() => null);
+            let text: string | null = null;
+            if (det) {
+              // دیکودرِ خودِ گوشی مستقیم روی ویدیو (سریع)
+              try { text = (await det.detect(v))[0]?.rawValue || null; } catch {}
+            } else {
+              // فقط مربعِ وسط (همان کادرِ اسکن) و کوچک‌شده → چند برابر سریع‌تر
+              const side = Math.min(v.videoWidth, v.videoHeight) * 0.8;
+              const out = 480;
+              canvas.width = out; canvas.height = out;
+              ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, out, out);
+              // هر چند فریم یک‌بار تلاشِ کامل (QRِ برعکس/کم‌کنتراست)
+              text = await decodeQr(ctx.getImageData(0, 0, out, out), ++n % 6 === 0).catch(() => null);
+            }
             if (text && !stop) {
               stop = true;
               onResult(text);
               return;
             }
           }
-          timer = window.setTimeout(tick, 220);
+          timer = window.setTimeout(tick, det ? 80 : 60);
         };
         tick();
       } catch {

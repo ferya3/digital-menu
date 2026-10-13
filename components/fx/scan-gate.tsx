@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QrCode, Eye, Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { LiveScanner, canLiveScan, decodeQrFromFile, tableFromQr } from "@/components/fx/qr-scanner";
+import { LiveScanner, canLiveScan, decodeQrFromFile, preloadQr, tableFromQr } from "@/components/fx/qr-scanner";
 import type { CafeInfo } from "@/lib/types";
 
 const isImg = (s: string) => /^https?:|^data:|^\/uploads\//.test(s || "");
 
 /** بدون شمارهٔ میز: «QR میز خود را اسکن کنید» + اسکن با دوربین + فقط دیدنِ منو */
-export function ScanGate({ cafe }: { cafe: CafeInfo }) {
+export function ScanGate({ cafe, onTable }: { cafe: CafeInfo; onTable: (table: string) => void }) {
   const [open, setOpen] = useState(true);
   const [live, setLive] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -18,6 +18,8 @@ export function ScanGate({ cafe }: { cafe: CafeInfo }) {
 
   useEffect(() => {
     try { if (sessionStorage.getItem("cafe_browse")) setOpen(false); } catch {}
+    // دیکودر را از قبل آماده کن تا اولین اسکن منتظرِ دانلود نماند
+    preloadQr();
   }, []);
   useEffect(() => {
     document.documentElement.style.overflow = open ? "hidden" : "";
@@ -27,9 +29,9 @@ export function ScanGate({ cafe }: { cafe: CafeInfo }) {
   const go = useCallback((text: string) => {
     const t = tableFromQr(text);
     if (!t) { setLive(false); setErr("این QR مربوط به میزهای کافه نیست؛ QRِ روی میز را اسکن کنید."); return; }
-    try { sessionStorage.removeItem("cafe_browse"); } catch {}
-    window.location.href = `/?table=${encodeURIComponent(t)}`;
-  }, []);
+    setLive(false);
+    onTable(t); // بدونِ بارگذاریِ دوبارهٔ صفحه
+  }, [onTable]);
   const liveFailed = useCallback(() => { setLive(false); fileRef.current?.click(); }, []);
   const closeLive = useCallback(() => setLive(false), []);
 

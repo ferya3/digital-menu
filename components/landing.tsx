@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import { SmoothScroll } from "@/components/fx/smooth-scroll";
 import { MobileMenu } from "@/components/fx/mobile-menu";
 import { HeroSplash } from "@/components/fx/hero-splash";
@@ -9,7 +10,7 @@ import type { CafeInfo, Menu, PaymentInfo } from "@/lib/types";
 
 export function Landing({
   menu,
-  table,
+  table: initialTable,
   cafe,
   payment,
   otp = false,
@@ -22,6 +23,15 @@ export function Landing({
   otp?: boolean;
   payFirst?: boolean;
 }) {
+  // میز می‌تواند بدونِ بارگذاریِ دوبارهٔ صفحه عوض شود (بعد از اسکنِ QR داخلِ سایت → فوری)
+  const [table, setTable] = useState(initialTable);
+  const openTable = useCallback((t: string) => {
+    try { sessionStorage.removeItem("cafe_browse"); } catch {}
+    window.history.replaceState(null, "", `/?table=${encodeURIComponent(t)}`);
+    window.scrollTo(0, 0);
+    setTable(t);
+  }, []);
+
   return (
     <SmoothScroll>
       <MobileMenu cafeName={cafe.name} table={table} />
@@ -31,7 +41,7 @@ export function Landing({
         <HeroSplash cafe={cafe} table={table} />
       ) : (
         // بدون شمارهٔ میز: صفحهٔ «QR میز را اسکن کنید»
-        <ScanGate cafe={cafe} />
+        <ScanGate cafe={cafe} onTable={openTable} />
       )}
 
       {/* ===== MENU + ordering (پنل منتخب‌ها هم داخل همین است تا به همان سبد اضافه شود) ===== */}
