@@ -89,23 +89,33 @@ sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs h
 
 > `git clone` اگر پوشهٔ `/opt/cafe-next` از قبل باشد خطا می‌دهد؛ این عمدی است تا سهواً دادهٔ سرورِ فعلی پاک نشود. روی سرورِ فعلی از `sudo bash update.sh` استفاده کنید.
 
-### ۳) انتقال به سرورِ جدید با تمامِ داده‌ها (منو، عکس‌ها، ویدیو، تنظیمات، مشتری‌ها، سفارش‌ها، حسابداری، پیامک‌ها)
+### ۳) بک‌آپِ اساسی و انتقال به سرورِ جدید (با تمامِ داده‌ها)
 
-روی **سرور قبلی**:
+بک‌آپ شاملِ: منو و دسته‌ها، عکس‌ها و ویدیوی هیرو، تنظیمات (پرداخت، پیامک، دامنه…)، رمزِ پنل، مشتری‌ها، سفارش‌ها، حسابداری و تاریخچهٔ پیامک‌هاست.
+دیتابیس به‌صورتِ «نسخهٔ یکدست» گرفته می‌شود (سایت می‌تواند همان لحظه در حال کار باشد)، سلامتش بررسی می‌شود و کنارِ فایل یک `.sha256` برای تأییدِ سالم‌ماندن در انتقال ساخته می‌شود.
+
+**روی سرورِ قبلی** (یک دستور؛ هم بک‌آپ می‌گیرد هم به سرورِ جدید می‌فرستد):
 ```bash
-cd /opt/cafe-next && sudo bash backup.sh        # فایل را در /root/cafe-backups می‌سازد و مسیرش را چاپ می‌کند
-scp /root/cafe-backups/data-XXXX.tar.gz root@IP-سرور-جدید:/root/
+cd /opt/cafe-next && sudo bash backup.sh root@IP-سرور-جدید
 ```
-روی **سرور جدید** (همان یک خط، فقط با `RESTORE`):
+(یا فقط بک‌آپ: `sudo bash backup.sh` ← فایل در `/root/cafe-backups`؛ بعد دستی با `scp` ببرید.)
+
+**روی سرورِ جدید — حالتِ الف: یک خط (نصب + بازیابی با هم):**
 ```bash
 sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo RESTORE=/root/data-XXXX.tar.gz DOMAIN=artavilstar.com EMAIL=you@mail.com bash install.sh
 ```
-- رمز پنل: اگر آن را از داخل پنل عوض کرده بودید همان می‌ماند؛ وگرنه رمزِ `ADMIN_PASSWORD` همین دستور اعمال می‌شود.
-- دیتابیس و عکس‌ها داخل `data/` هستند و عمداً داخل گیت نیستند (رمز و اطلاعاتِ مشتری‌ها دارند).
+**حالتِ ب: اول نصب کردید، بعداً بازیابی می‌کنید:**
+```bash
+cd /opt/cafe-next && sudo bash restore.sh /root/data-XXXX.tar.gz
+```
+- قبل از بازیابی، دادهٔ فعلیِ آن سرور هم نگه داشته می‌شود (`/root/cafe-backups/before-restore-*.tar.gz`) و فایلِ خراب یا بی‌ربط رد می‌شود.
+- رمزِ پنل: همان رمزِ سرورِ قبلی می‌ماند (چه از پنل عوض کرده باشید چه رمزِ زمانِ نصب). فقط اگر در دستور `ADMIN_PASSWORD=...` بدهید همان اعمال می‌شود.
+- دیتابیس و عکس‌ها داخل `data/` هستند و عمداً داخل گیت نیستند (رمز و اطلاعاتِ مشتری‌ها دارند)؛ فایلِ بک‌آپ را جایی عمومی نگذارید.
+- اگر دامنه عوض شده: بعد از بازیابی `sudo DOMAIN=دامنهٔ-جدید bash set-domain.sh`.
 
 ### نگهداری
 - به‌روزرسانی (با بک‌آپِ خودکار در `/root/cafe-backups`):  `cd /opt/cafe-next && sudo bash update.sh`
-- بک‌آپِ دستی:  `sudo bash backup.sh` · وضعیت و لاگ:  `pm2 status` · `pm2 logs cafe`
+- بک‌آپِ دستی:  `sudo bash backup.sh` · بازیابی:  `sudo bash restore.sh فایل` · وضعیت و لاگ:  `pm2 status` · `pm2 logs cafe`
 - اتصالِ دامنه + HTTPS بعد از نصب:  `sudo DOMAIN=artavilstar.com bash set-domain.sh`
   (گواهی رایگانِ Let's Encrypt با تمدیدِ خودکار، HTTP/2، و هدایتِ IP/http/www به `https://دامنه` با حفظِ `?table=` — QRهای قدیمی خراب نمی‌شوند)
 

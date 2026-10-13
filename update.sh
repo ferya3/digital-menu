@@ -12,8 +12,11 @@ BK_DIR=/root/cafe-backups
 mkdir -p "$BK_DIR"
 if [ -d data ]; then
   say "بک‌آپ از data/"
-  tar -czf "$BK_DIR/data-$(date +%Y%m%d-%H%M%S).tar.gz" data
-  ls -1t "$BK_DIR"/data-*.tar.gz | tail -n +11 | xargs -r rm -f   # فقط ۱۰ بک‌آپ آخر
+  if [ -f backup.sh ]; then
+    OUT_DIR="$BK_DIR" bash backup.sh >/dev/null 2>&1 || tar -czf "$BK_DIR/data-$(date +%Y%m%d-%H%M%S).tar.gz" data
+  else
+    tar -czf "$BK_DIR/data-$(date +%Y%m%d-%H%M%S).tar.gz" data
+  fi
 fi
 
 say "دریافت آخرین کد ($BRANCH)"

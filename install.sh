@@ -9,7 +9,7 @@
 #    ADMIN_PASSWORD  رمز اولیهٔ پنل کارکنان (پیش‌فرض cafe1234 — از پنل قابل تغییر)
 #    APP_PORT        پورت داخلی برنامه (پیش‌فرض 3000)
 #    RESTORE         مسیر فایلِ بک‌آپِ سرور قبلی (data-*.tar.gz از backup.sh) برای انتقالِ منو، عکس‌ها،
-#                    تنظیمات، مشتری‌ها و سفارش‌ها؛ رمز پنل هم از همان بک‌آپ می‌آید
+#                    تنظیمات، مشتری‌ها و سفارش‌ها؛ رمز پنل هم از همان بک‌آپ می‌آید (مگر ADMIN_PASSWORD بدهید)
 #
 #  نمونه با IP:      sudo ADMIN_PASSWORD='Str0ng!' bash install.sh
 #  نمونه با دامنه:  sudo DOMAIN=example.com EMAIL=you@mail.com ADMIN_PASSWORD='Str0ng!' bash install.sh
@@ -18,6 +18,7 @@ set -euo pipefail
 
 DOMAIN="${DOMAIN:-}"
 EMAIL="${EMAIL:-}"
+ADMIN_PASSWORD_GIVEN="${ADMIN_PASSWORD:-}"   # آیا رمز صراحتاً در دستور داده شده؟
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-cafe1234}"
 RESTORE="${RESTORE:-}"
 PW_RESTORED=0
@@ -62,21 +63,22 @@ cd "$APP_DIR"
 say "نصب وابستگی‌ها"
 npm ci --no-audit --no-fund
 mkdir -p data/uploads
-# انتقال از سرورِ قبلی: دیتابیس + عکس‌ها از فایلِ بک‌آپ برمی‌گردد (قبل از اولین اجرا)
+# انتقال از سرورِ قبلی: دیتابیس + عکس‌ها + تنظیمات از فایلِ بک‌آپ (قبل از اولین اجرا)
 if [ -n "$RESTORE" ]; then
-  [ -f "$RESTORE" ] || { echo "فایل بک‌آپ پیدا نشد: $RESTORE"; exit 1; }
   say "بازیابی داده‌ها از $RESTORE"
-  tar -xzf "$RESTORE" -C "$APP_DIR"
-  [ -f "$APP_DIR/data/cafe.db" ] || { echo "این فایل بک‌آپِ معتبری نیست (data/cafe.db ندارد)"; exit 1; }
-  rm -f "$APP_DIR"/data/cafe.db-wal "$APP_DIR"/data/cafe.db-shm
-  # رمزِ پنل فقط وقتی در بک‌آپ هست که از داخلِ پنل عوض شده باشد؛ وگرنه رمزِ همین نصب (ADMIN_PASSWORD) اعمال می‌شود
+  # اگر رمز صراحتاً داده شده همان می‌ماند؛ وگرنه رمزِ سرورِ قبلی از بک‌آپ می‌آید
+  NO_RESTART=1 KEEP_PASSWORD="$([ -n "$ADMIN_PASSWORD_GIVEN" ] && echo 1 || echo 0)" bash "$APP_DIR/restore.sh" "$RESTORE" || exit 1
+  # رمزِ پنل فقط وقتی در دیتابیس هست که از داخلِ پنل عوض شده باشد
   if (cd "$APP_DIR" && node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync("data/cafe.db",{readOnly:true});process.exit(d.prepare("SELECT 1 FROM settings WHERE key=? AND value!=?").get("admin_pw","\"\"")?0:1)' 2>/dev/null); then
     PW_RESTORED=1
+  elif [ -z "$ADMIN_PASSWORD_GIVEN" ] && [ -f "$APP_DIR/.env.production.local" ]; then
+    ADMIN_PASSWORD="$(sed -n 's/^ADMIN_PASSWORD=//p' "$APP_DIR/.env.production.local" | head -1)"
   fi
-  echo "  داده‌ها بازیابی شد."
 fi
 # رمز اولیه؛ Next این فایل را در حالت production می‌خواند (وارد گیت نمی‌شود)
-printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD" > .env.production.local
+if [ -n "$ADMIN_PASSWORD_GIVEN" ] || [ ! -f .env.production.local ]; then
+  printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD" > .env.production.local
+fi
 chmod 600 .env.production.local
 say "build برنامه (چند دقیقه طول می‌کشد)"
 NODE_OPTIONS="--max-old-space-size=1536" npm run build
