@@ -44,6 +44,10 @@ export function ScanGate({ cafe, onTable }: { cafe: CafeInfo; onTable: (table: s
       setCamIssue(app
         ? { title: `این صفحه داخلِ ${app} باز شده و اجازهٔ دوربین ندارد`, fix: "صفحه را در Chrome باز کنید تا دوربین داخلِ سایت کار کند.", code: name, chrome: true }
         : { title: "اجازهٔ دوربین به سایت داده نشده", fix: "روی آیکونِ 🔒 کنارِ آدرسِ سایت بزنید ← «مجوزها» ← «دوربین» ← «اجازه دادن»، بعد دوباره «اسکن QR» را بزنید.", code: name });
+    } else if (name === "Timeout") {
+      setCamIssue(app
+        ? { title: `این صفحه داخلِ ${app} باز شده و دوربین جواب نداد`, fix: "صفحه را در Chrome باز کنید.", code: name, chrome: true }
+        : { title: "دوربین جواب نداد", fix: "اگر پنجرهٔ اجازه نیامد: روی 🔒 کنارِ آدرس ← «مجوزها» ← «دوربین» را روی «اجازه دادن» بگذارید و دوباره امتحان کنید.", code: name });
     } else if (name === "NotReadableError") {
       setCamIssue({ title: "دوربین دستِ برنامهٔ دیگری است", fix: "برنامه‌هایی که از دوربین استفاده می‌کنند را ببندید و دوباره امتحان کنید.", code: name });
     } else if (name === "NotFoundError") {

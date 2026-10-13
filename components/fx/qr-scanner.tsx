@@ -114,7 +114,7 @@ export const chromeIntent = () =>
 /** اسکنِ زنده با دوربین (تمام‌صفحه) */
 export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: string) => void; onClose: () => void; onError: (name: string) => void }) {
   const video = useRef<HTMLVideoElement>(null);
-  const [hint, setHint] = useState("در حال روشن‌کردنِ دوربین…");
+  const [hint, setHint] = useState("در حال درخواستِ اجازهٔ دوربین… اگر پنجرهٔ اجازه آمد «اجازه دادن» را بزنید");
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -122,6 +122,8 @@ export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: s
     let timer = 0;
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    // اگر دوربین تا ۸ ثانیه جواب نداد (پنجرهٔ اجازه نیامد/گیر کرد) بی‌صدا نمان
+    const watchdog = window.setTimeout(() => { if (!stop && !stream) { stop = true; onError("Timeout"); } }, 8000);
     (async () => {
       try {
         try {
@@ -140,9 +142,17 @@ export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: s
           const caps = (track.getCapabilities?.() || {}) as { focusMode?: string[] };
           if (caps.focusMode?.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] });
         } catch {}
+        window.clearTimeout(watchdog);
+        if (stop) { stream.getTracks().forEach((t) => t.stop()); return; }
         const v = video.current!;
         v.srcObject = stream;
-        await v.play();
+        try {
+          await v.play();
+        } catch {
+          // بعضی گوشی‌ها اولین play را رد می‌کنند؛ بعد از آماده‌شدنِ تصویر دوباره
+          await new Promise((res) => v.addEventListener("loadedmetadata", res, { once: true }));
+          await v.play();
+        }
         setHint("QR روی میز را داخل کادر بگیرید");
         const det = getDetector();
         if (!det) await loadJsQR(); // قبل از شروعِ حلقه
@@ -173,10 +183,12 @@ export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: s
         };
         tick();
       } catch (e) {
-        if (!stop) onError((e as Error)?.name || "Error");
+        window.clearTimeout(watchdog);
+        if (!stop) { stop = true; onError((e as Error)?.name || "Error"); }
       }
     })();
     return () => {
+      window.clearTimeout(watchdog);
       stop = true;
       window.clearTimeout(timer);
       stream?.getTracks().forEach((t) => t.stop());
