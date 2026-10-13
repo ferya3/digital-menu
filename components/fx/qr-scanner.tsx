@@ -97,8 +97,22 @@ export async function decodeQrFromFile(file: File): Promise<string | null> {
 export const canLiveScan = () =>
   typeof window !== "undefined" && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
 
+/** آیا صفحه داخلِ مرورگرِ درون‌برنامه‌ای (تلگرام، اینستاگرام، …) باز شده؟ */
+export function inAppBrowser(): string | null {
+  const ua = navigator.userAgent || "";
+  if (/Instagram/i.test(ua)) return "اینستاگرام";
+  if (/FBAN|FBAV|FB_IAB/i.test(ua)) return "فیسبوک";
+  if (/Telegram/i.test(ua)) return "تلگرام";
+  if (/WhatsApp/i.test(ua)) return "واتساپ";
+  if (/; wv\)/.test(ua)) return "یک برنامه";
+  return null;
+}
+/** لینکِ بازکردنِ همین صفحه در Chrome (اندروید) */
+export const chromeIntent = () =>
+  `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end`;
+
 /** اسکنِ زنده با دوربین (تمام‌صفحه) */
-export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: string) => void; onClose: () => void; onError: () => void }) {
+export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: string) => void; onClose: () => void; onError: (name: string) => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const [hint, setHint] = useState("در حال روشن‌کردنِ دوربین…");
 
@@ -110,10 +124,16 @@ export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: s
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
     (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        });
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false,
+          });
+        } catch (e) {
+          // اجازه رد شده → همان خطا؛ بقیه (دوربینِ قدیمی/محدودیت) → یک بار با تنظیماتِ ساده
+          if ((e as Error)?.name === "NotAllowedError" || (e as Error)?.name === "SecurityError") throw e;
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
         // فوکوسِ پیوسته (اگر دوربین پشتیبانی کند) برای خواندنِ سریعِ QRِ نزدیک
         try {
           const track = stream.getVideoTracks()[0];
@@ -152,8 +172,8 @@ export function LiveScanner({ onResult, onClose, onError }: { onResult: (text: s
           timer = window.setTimeout(tick, det ? 80 : 60);
         };
         tick();
-      } catch {
-        if (!stop) onError();
+      } catch (e) {
+        if (!stop) onError((e as Error)?.name || "Error");
       }
     })();
     return () => {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QrCode, Eye, Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { LiveScanner, canLiveScan, decodeQrFromFile, preloadQr, tableFromQr } from "@/components/fx/qr-scanner";
+import { LiveScanner, canLiveScan, chromeIntent, decodeQrFromFile, inAppBrowser, preloadQr, tableFromQr } from "@/components/fx/qr-scanner";
 import type { CafeInfo } from "@/lib/types";
 
 const isImg = (s: string) => /^https?:|^data:|^\/uploads\//.test(s || "");
@@ -35,14 +35,36 @@ export function ScanGate({ cafe, onTable }: { cafe: CafeInfo; onTable: (table: s
     setLive(false);
     onTable(t); // بدونِ بارگذاریِ دوبارهٔ صفحه
   }, [onTable]);
-  const liveFailed = useCallback(() => { setLive(false); fileRef.current?.click(); }, []);
+  // دوربینِ زنده باز نشد: دلیل و راه‌حل را نشان بده (نه بازکردنِ بی‌صدای برنامهٔ دوربین)
+  const [camIssue, setCamIssue] = useState<{ title: string; fix: string; code: string; chrome?: boolean } | null>(null);
+  const liveFailed = useCallback((name: string) => {
+    setLive(false);
+    const app = inAppBrowser();
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      setCamIssue(app
+        ? { title: `این صفحه داخلِ ${app} باز شده و اجازهٔ دوربین ندارد`, fix: "صفحه را در Chrome باز کنید تا دوربین داخلِ سایت کار کند.", code: name, chrome: true }
+        : { title: "اجازهٔ دوربین به سایت داده نشده", fix: "روی آیکونِ 🔒 کنارِ آدرسِ سایت بزنید ← «مجوزها» ← «دوربین» ← «اجازه دادن»، بعد دوباره «اسکن QR» را بزنید.", code: name });
+    } else if (name === "NotReadableError") {
+      setCamIssue({ title: "دوربین دستِ برنامهٔ دیگری است", fix: "برنامه‌هایی که از دوربین استفاده می‌کنند را ببندید و دوباره امتحان کنید.", code: name });
+    } else if (name === "NotFoundError") {
+      setCamIssue({ title: "دوربینی پیدا نشد", fix: "از دکمهٔ «عکس گرفتن از QR» استفاده کنید.", code: name });
+    } else {
+      setCamIssue({ title: "دوربینِ زنده باز نشد", fix: app ? "صفحه را در Chrome باز کنید." : "دوباره امتحان کنید یا از QR عکس بگیرید.", code: name, chrome: !!app });
+    }
+  }, []);
   const closeLive = useCallback(() => setLive(false), []);
 
   function scan() {
-    setErr("");
+    setErr(""); setCamIssue(null);
     // دوربینِ زنده فقط روی HTTPS؛ روی HTTP دوربینِ گوشی برای گرفتنِ عکس از QR باز می‌شود
-    if (canLiveScan()) setLive(true);
-    else fileRef.current?.click();
+    if (canLiveScan()) return setLive(true);
+    const app = inAppBrowser();
+    if (window.isSecureContext && app) {
+      // HTTPS هست ولی مرورگرِ درون‌برنامه‌ای دوربین ندارد
+      setCamIssue({ title: `این صفحه داخلِ ${app} باز شده و دوربینِ زنده ندارد`, fix: "صفحه را در Chrome باز کنید تا دوربین داخلِ سایت کار کند.", code: "no-media", chrome: true });
+      return;
+    }
+    fileRef.current?.click();
   }
   async function onPhoto(f: File) {
     setBusy(true); setErr("");
@@ -78,6 +100,18 @@ export function ScanGate({ cafe, onTable }: { cafe: CafeInfo; onTable: (table: s
           {busy ? <><Loader2 className="animate-spin" /> در حال خواندنِ QR…</> : <><Camera className="size-5" /> {live0 ? "اسکن QR با دوربین" : "عکس گرفتن از QR میز"}</>}
         </Button>
         {err && <p className="mx-auto mt-3 max-w-xs rounded-xl bg-primary/10 p-2.5 text-sm text-primary">{err}</p>}
+        {camIssue && (
+          <div className="mx-auto mt-3 max-w-xs rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-right text-sm">
+            <p className="font-bold text-amber-900 dark:text-amber-200">⚠️ {camIssue.title}</p>
+            <p className="mt-1 text-xs leading-6 text-amber-900/80 dark:text-amber-200/80">{camIssue.fix}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {camIssue.chrome && <a href={chromeIntent()} className="rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">بازکردن در Chrome</a>}
+              <button onClick={() => fileRef.current?.click()} className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold">📷 عکس گرفتن از QR</button>
+              {!camIssue.chrome && <button onClick={scan} className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold">دوباره امتحان</button>}
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground" dir="ltr">code: {camIssue.code}</p>
+          </div>
+        )}
         <Button
           variant="ghost"
           className="mt-3 rounded-full px-6 text-muted-foreground"
