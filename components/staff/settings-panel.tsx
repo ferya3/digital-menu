@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { compressImage, imageForm } from "@/lib/client-image";
-import { staffSettingsAction, staffUpdateSettingsAction, type AdminSettings } from "@/app/staff/actions";
+import { staffSettingsAction, staffTestSmsAction, staffUpdateSettingsAction, type AdminSettings } from "@/app/staff/actions";
 import type { Gateway } from "@/lib/types";
 import { Field, Panel, Switch, inputCls, isImgSrc, useStaff } from "@/components/staff/kit";
 
@@ -138,15 +138,29 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
           <p className="mt-1.5 text-[11px] text-muted-foreground">شماره‌های تأییدشده در «مشتری‌ها» جمع می‌شوند و روی سفارش‌ها نمایش داده می‌شوند. اگر سامانه «هیچ‌کدام» باشد، کد در حالت آزمایشی روی صفحه نشان داده می‌شود.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="سامانه پیامک">
-            <select value={sms.provider} onChange={(e) => setSms({ provider: e.target.value === "kavenegar" ? "kavenegar" : "none" })} className={inputCls}>
+          <Field label="سامانه پیامک" className="sm:col-span-2">
+            <select value={sms.provider} onChange={(e) => setSms({ provider: (["kavenegar", "wide"].includes(e.target.value) ? e.target.value : "none") as typeof sms.provider })} className={inputCls}>
               <option value="none">هیچ‌کدام (حالت آزمایشی)</option>
+              <option value="wide">وایدی (wide.ir) / عصر فرا ارتباط (afe.ir) و نمایندگی‌ها</option>
               <option value="kavenegar">کاوه‌نگار</option>
             </select>
           </Field>
-          <Field label="نام الگو / Template (مخصوص کاوه‌نگار)"><input value={sms.template} onChange={(e) => setSms({ template: e.target.value })} className={inputCls} dir="ltr" placeholder="verify" /></Field>
-          <Field label="کلید API" className="sm:col-span-2"><input value={sms.apiKey} onChange={(e) => setSms({ apiKey: e.target.value })} className={inputCls} dir="ltr" placeholder="API Key سامانه پیامک" /></Field>
+          {sms.provider === "wide" && (
+            <>
+              <Field label="نام کاربری پنل"><input value={sms.username || ""} onChange={(e) => setSms({ username: e.target.value })} className={inputCls} dir="ltr" autoComplete="off" /></Field>
+              <Field label="رمز پنل"><input type="password" value={sms.password || ""} onChange={(e) => setSms({ password: e.target.value })} className={inputCls} dir="ltr" autoComplete="new-password" /></Field>
+              <Field label="شمارهٔ اختصاصی (خط ارسال)"><input value={sms.sender || ""} onChange={(e) => setSms({ sender: e.target.value })} className={inputCls} dir="ltr" placeholder="مثلاً 3000xxxx" /></Field>
+              <Field label="دامنهٔ پنل" hint="خالی یا wide.ir — برای نمایندگی‌های دیگر دامنهٔ پنلتان (مثلاً afe.ir)"><input value={sms.domain || ""} onChange={(e) => setSms({ domain: e.target.value })} className={inputCls} dir="ltr" placeholder="wide.ir" /></Field>
+            </>
+          )}
+          {sms.provider === "kavenegar" && (
+            <>
+              <Field label="نام الگو / Template"><input value={sms.template} onChange={(e) => setSms({ template: e.target.value })} className={inputCls} dir="ltr" placeholder="verify" /></Field>
+              <Field label="کلید API"><input value={sms.apiKey} onChange={(e) => setSms({ apiKey: e.target.value })} className={inputCls} dir="ltr" placeholder="API Key" /></Field>
+            </>
+          )}
         </div>
+        {sms.provider !== "none" && <TestSms />}
       </Panel>
 
       <Panel icon={<Landmark className="size-5 text-primary" />} title="درگاه‌های پرداخت">
@@ -268,5 +282,30 @@ function HeroVideoCard({ video, onChange, flash }: { video: string; onChange: (v
         )}
       </div>
     </Panel>
+  );
+}
+
+
+/** ارسالِ پیامکِ آزمایشی با تنظیماتِ ذخیره‌شده */
+function TestSms() {
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ ok: boolean; detail: string } | null>(null);
+  return (
+    <div className="mt-3 rounded-2xl border border-dashed border-border p-3">
+      <p className="mb-2 text-xs text-muted-foreground">بعد از «ذخیرهٔ تنظیمات»، با یک پیامکِ آزمایشی مطمئن شوید سامانه درست کار می‌کند:</p>
+      <div className="flex gap-2">
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="۰۹۱۲۳۴۵۶۷۸۹" inputMode="tel" dir="ltr" className={inputCls} />
+        <Button
+          variant="outline"
+          className="shrink-0 rounded-xl"
+          disabled={busy || !phone.trim()}
+          onClick={async () => { setBusy(true); setRes(null); try { setRes(await staffTestSmsAction(phone)); } finally { setBusy(false); } }}
+        >
+          {busy ? <Loader2 className="animate-spin" /> : "ارسال آزمایشی"}
+        </Button>
+      </div>
+      {res && <p className={cn("mt-2 rounded-xl px-3 py-2 text-xs", res.ok ? "bg-green-600/10 text-green-700 dark:text-green-400" : "bg-primary/10 text-primary")}>{res.ok ? "✅ " : "❌ "}{res.detail}</p>}
+    </div>
   );
 }

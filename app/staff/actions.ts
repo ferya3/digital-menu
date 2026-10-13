@@ -32,7 +32,7 @@ import {
   type StaffCustomer,
 } from "@/lib/queries";
 import { saveImageWebp, readUpload } from "@/lib/images";
-import { DEFAULT_SMS } from "@/lib/otp";
+import { DEFAULT_SMS, sendTestSms } from "@/lib/otp";
 import type { CafeInfo, Gateway, Menu, Order, OrderCodeMode, OrderStatus, PaymentInfo, SmsSettings } from "@/lib/types";
 
 const DEFAULT_CAFE: CafeInfo = { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" };
@@ -238,7 +238,7 @@ export async function staffUpdateSettingsAction(input: {
   if (input.sms) {
     const cur = { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) };
     const next = { ...cur, ...input.sms };
-    if (next.provider !== "kavenegar") next.provider = "none";
+    if (next.provider !== "kavenegar" && next.provider !== "wide") next.provider = "none";
     next.otpEnabled = !!next.otpEnabled;
     setSetting("sms", next);
   }
@@ -248,6 +248,16 @@ export async function staffUpdateSettingsAction(input: {
     setAdminPassword(input.newPassword.trim());
   }
   return { ok: true };
+}
+
+/** ارسالِ پیامکِ آزمایشی (بعد از ذخیرهٔ تنظیمات) */
+export async function staffTestSmsAction(phone: string): Promise<{ ok: boolean; detail: string }> {
+  await gate();
+  try {
+    return { ok: true, detail: await sendTestSms(phone) };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "خطا" };
+  }
 }
 
 /* ---------- QR ---------- */

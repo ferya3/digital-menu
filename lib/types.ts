@@ -83,9 +83,15 @@ export type OrderCodeMode = "number" | "id";
 
 /** سامانهٔ پیامک برای کد تأیید شمارهٔ مشتری */
 export interface SmsSettings {
-  provider: "none" | "kavenegar";
+  /** wide = عصر فرا ارتباط و نمایندگی‌ها (wide.ir، afe.ir، …) */
+  provider: "none" | "kavenegar" | "wide";
   apiKey: string;
   template: string;
+  /** پنلِ wide/afe */
+  username?: string;
+  password?: string;
+  sender?: string;
+  domain?: string;
   /** اگر روشن باشد، مشتری قبل از دیدن منو شماره‌اش را با کد پیامکی تأیید می‌کند */
   otpEnabled: boolean;
 }
