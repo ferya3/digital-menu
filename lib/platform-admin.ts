@@ -3,7 +3,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { DATA_DIR, rootDomain } from "@/lib/tenant-context";
+import { DATA_DIR, rootDomain, tenantDir as tenantDirOf } from "@/lib/tenant-context";
+import { DatabaseSync } from "node:sqlite";
 import {
   listPayments, listTenants, pdb, platformSettings, platformSmsReady, rawGet, rawSet, sendPlatformSms, tenantState,
   type Plan, type Tenant,
@@ -288,4 +289,36 @@ export function platformStats(): PlatformStats {
       .map(({ t, st }) => ({ slug: t.slug, name: t.name, daysLeft: st.daysLeft, phone: t.ownerPhone })),
     recentSignups: tenants.slice(0, 8).map((t) => ({ slug: t.slug, name: t.name, at: t.createdAt })),
   };
+}
+
+/* ============================ مشتریانِ همهٔ مجموعه‌ها ============================ */
+export interface PlatformCustomer {
+  phone: string; slug: string; tenant: string; visits: number; firstSeen: string; lastSeen: string; optOut: boolean; tables: string;
+}
+/** شماره‌هایی که مشتریان در منوی هر مجموعه با کدِ پیامکی تأیید کرده‌اند (فقط خواندنی، از دیتابیسِ هر مجموعه) */
+export function allCustomers(onlySlug = ""): { rows: PlatformCustomer[]; perTenant: { slug: string; name: string; count: number }[] } {
+  const rows: PlatformCustomer[] = [];
+  const perTenant: { slug: string; name: string; count: number }[] = [];
+  for (const t of listTenants()) {
+    if (onlySlug && t.slug !== onlySlug) continue;
+    const file = path.join(tenantDirOf(t.slug), "cafe.db");
+    if (!fs.existsSync(file)) { perTenant.push({ slug: t.slug, name: t.name, count: 0 }); continue; }
+    try {
+      const d = new DatabaseSync(file, { readOnly: true });
+      let list: Record<string, unknown>[];
+      try { list = d.prepare("SELECT phone, tables, visits, first_seen, last_seen, sms_optout FROM customers ORDER BY last_seen DESC").all(); }
+      catch { list = d.prepare("SELECT phone, tables, visits, first_seen, last_seen, 0 AS sms_optout FROM customers ORDER BY last_seen DESC").all(); }
+      d.close();
+      for (const r of list) rows.push({
+        phone: String(r.phone), slug: t.slug, tenant: t.name, visits: Number(r.visits) || 1, firstSeen: String(r.first_seen || ""),
+        lastSeen: String(r.last_seen || ""), optOut: !!r.sms_optout, tables: String(r.tables || ""),
+      });
+      perTenant.push({ slug: t.slug, name: t.name, count: list.length });
+    } catch {
+      perTenant.push({ slug: t.slug, name: t.name, count: 0 });
+    }
+  }
+  rows.sort((a, b) => (b.lastSeen > a.lastSeen ? 1 : -1));
+  perTenant.sort((a, b) => b.count - a.count);
+  return { rows, perTenant };
 }

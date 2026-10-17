@@ -23,8 +23,8 @@ import type { ActionFail } from "@/lib/action-result";
 import {
   announcement, applyCoupon, audit, deleteCoupon, listAudit, listCoupons, listOwnerSms, listReminders,
   notifySettings, ownersFor, platformStats, runReminders, saveAnnouncement, saveCoupon, saveNotifySettings, savePlatformLogo,
-  saveSiteContent, siteContent, startOwnerSms,
-  type Announcement, type AuditRow, type Coupon, type NotifySettings, type OwnerAudience, type PlatformStats,
+  saveSiteContent, siteContent, startOwnerSms, allCustomers,
+  type Announcement, type AuditRow, type Coupon, type NotifySettings, type OwnerAudience, type PlatformStats, type PlatformCustomer,
 } from "@/lib/platform-admin";
 import { readUpload } from "@/lib/images";
 import type { SiteContent } from "@/lib/site-content";
@@ -343,4 +343,16 @@ export async function adminOwnerSmsAction(message: string, audience: OwnerAudien
 }
 export async function adminAuditAction(q = "") {
   return adminGuard((): AuditRow[] => listAudit(400, q));
+}
+
+/** شماره‌های مشتریانِ همهٔ مجموعه‌ها (یا یک مجموعه) — مشاهده و خروجی در گزارشِ فعالیت ثبت می‌شود */
+export async function adminCustomersAction(slug = "") {
+  return adminGuard(async (): Promise<{ rows: PlatformCustomer[]; perTenant: { slug: string; name: string; count: number }[] }> => {
+    const r = allCustomers(slug);
+    await log("مشاهدهٔ شماره‌های مشتریان", slug || "همه", `${r.rows.length} شماره`);
+    return r;
+  });
+}
+export async function adminCustomersExportAction(slug: string, count: number) {
+  return adminGuard(async () => { await log("خروجیِ اکسلِ شماره‌های مشتریان", slug || "همه", `${count} شماره`); return { ok: true }; });
 }

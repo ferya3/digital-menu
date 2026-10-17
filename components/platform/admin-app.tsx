@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Ban, CalendarPlus, Check, CircleDollarSign, Download, ExternalLink, FileText, Globe, History, KeyRound, LayoutDashboard,
-  Loader2, LogIn, LogOut, Megaphone, Menu as MenuIcon, MessageSquareText, Pencil, Percent, Plus, Receipt, Search, Settings, Store, Trash2, X,
+  Loader2, LogIn, LogOut, Megaphone, Menu as MenuIcon, MessageSquareText, Pencil, Percent, Plus, Receipt, Search, Settings, Store, Trash2, Users, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -22,14 +22,16 @@ import { ContentEditor } from "@/components/platform/admin/content-editor";
 import { Coupons } from "@/components/platform/admin/coupons";
 import { Notify } from "@/components/platform/admin/notify";
 import { AuditLog } from "@/components/platform/admin/audit";
+import { PlatformCustomers } from "@/components/platform/admin/customers";
 
 const PAY: Record<string, string> = { pending: "در انتظار", paid: "پرداخت‌شده", failed: "ناموفق", rejected: "ردشده" };
 const METHOD: Record<string, string> = { zarinpal: "زرین‌پال", card: "کارت‌به‌کارت", manual: "دستی" };
 
-type Section = "dashboard" | "tenants" | "payments" | "coupons" | "content" | "notify" | "audit" | "settings";
+type Section = "dashboard" | "tenants" | "customers" | "payments" | "coupons" | "content" | "notify" | "audit" | "settings";
 const NAV: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "dashboard", label: "داشبورد", icon: LayoutDashboard },
   { id: "tenants", label: "مجموعه‌ها", icon: Store },
+  { id: "customers", label: "مشتریانِ مجموعه‌ها", icon: Users },
   { id: "payments", label: "پرداخت‌ها", icon: CircleDollarSign },
   { id: "coupons", label: "کدهای تخفیف", icon: Percent },
   { id: "content", label: "محتوای سایت", icon: FileText },
@@ -74,6 +76,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const [data, setData] = useState<AdminData | null>(null);
   const [section, setSection] = useState<Section>("dashboard");
   const [openSlug, setOpenSlug] = useState<string | null>(null);
+  const [customersSlug, setCustomersSlug] = useState("");
   const [side, setSide] = useState(false);
   const [toast, setToast] = useState("");
   const flash = useCallback((t: string) => { setToast(t); window.setTimeout(() => setToast(""), 4000); }, []);
@@ -84,7 +87,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
 
   const pending = data?.payments.filter((p) => p.status === "pending" && p.method === "card").length || 0;
   // با هر بارِ رفتن به یک بخش، داده تازه می‌شود (پرداخت/ثبت‌نامِ جدید بدونِ رفرشِ صفحه دیده شود)
-  const go = (s: Section) => { setSection(s); setSide(false); window.scrollTo({ top: 0 }); load(); };
+  const go = (s: Section) => { setSection(s); setSide(false); window.scrollTo({ top: 0 }); load(); if (s !== "customers") setCustomersSlug(""); };
   const openTenant = (slug: string) => { setOpenSlug(slug); go("tenants"); };
   const siteUrl = data ? `${window.location.protocol}//${window.location.host}/` : "/";
 
@@ -129,7 +132,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
       <main className="mx-auto max-w-6xl px-4 py-5">
         {!data ? <div className="grid h-60 place-items-center"><Loader2 className="animate-spin text-muted-foreground" /></div>
           : section === "dashboard" ? <Dashboard flash={flash} onOpenTenant={openTenant} />
-          : section === "tenants" ? <Tenants data={data} reload={load} flash={flash} openSlug={openSlug} setOpenSlug={setOpenSlug} />
+          : section === "tenants" ? <Tenants data={data} reload={load} flash={flash} openSlug={openSlug} setOpenSlug={setOpenSlug} onCustomers={(s) => { setOpenSlug(null); setCustomersSlug(s); go("customers"); }} />
+          : section === "customers" ? <PlatformCustomers flash={flash} initialSlug={customersSlug} />
           : section === "payments" ? <Payments data={data} reload={load} flash={flash} />
           : section === "coupons" ? <Coupons flash={flash} plans={data.settings.plans} />
           : section === "content" ? <ContentEditor flash={flash} siteUrl={siteUrl} />
@@ -145,7 +149,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
 type Tools = { data: AdminData; reload: () => void; flash: Flash };
 
 /* ============================ مجموعه‌ها ============================ */
-function Tenants({ data, reload, flash, openSlug, setOpenSlug }: Tools & { openSlug: string | null; setOpenSlug: (s: string | null) => void }) {
+function Tenants({ data, reload, flash, openSlug, setOpenSlug, onCustomers }: Tools & { openSlug: string | null; setOpenSlug: (s: string | null) => void; onCustomers: (slug: string) => void }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "trial" | "active" | "expired" | "suspended">("all");
   const [creating, setCreating] = useState(false);
@@ -206,13 +210,13 @@ function Tenants({ data, reload, flash, openSlug, setOpenSlug }: Tools & { openS
         </div>
       )}
 
-      {sel && <TenantDrawer t={sel} data={data} onClose={() => setOpenSlug(null)} reload={reload} flash={flash} />}
+      {sel && <TenantDrawer t={sel} data={data} onClose={() => setOpenSlug(null)} reload={reload} flash={flash} onCustomers={() => onCustomers(sel.slug)} />}
       {creating && <CreateTenant root={data.root} trial={data.settings.trialDays} onClose={() => setCreating(false)} reload={reload} flash={flash} />}
     </div>
   );
 }
 
-function TenantDrawer({ t, data, onClose, reload, flash }: { t: AdminTenant; onClose: () => void } & Tools) {
+function TenantDrawer({ t, data, onClose, reload, flash, onCustomers }: { t: AdminTenant; onClose: () => void; onCustomers: () => void } & Tools) {
   const [busy, setBusy] = useState("");
   const [info, setInfo] = useState({ name: t.name, ownerName: t.ownerName, ownerPhone: t.ownerPhone, kind: t.kind });
   const [editing, setEditing] = useState(false);
@@ -256,7 +260,7 @@ function TenantDrawer({ t, data, onClose, reload, flash }: { t: AdminTenant; onC
           <dt className="text-muted-foreground">ثبت‌نام</dt><dd>{faDate(t.createdAt)}</dd>
           <dt className="text-muted-foreground">اعتبار تا</dt><dd>{t.expiresAt.startsWith("2099") ? "بدونِ انقضا" : `${faDate(t.expiresAt)} (${t.daysLeft > 0 ? `${toFa(t.daysLeft)} روز` : "تمام‌شده"})`}</dd>
           <dt className="text-muted-foreground">آخرین فعالیت</dt><dd>{t.lastSeen ? faDateTime(t.lastSeen) : "—"}</dd>
-          <dt className="text-muted-foreground">آمار</dt><dd>{toFa(t.stats.orders)} سفارش · {toFa(t.stats.customers)} مشتری · فروشِ ۳۰ روز {money(t.stats.revenue30)}</dd>
+          <dt className="text-muted-foreground">آمار</dt><dd>{toFa(t.stats.orders)} سفارش · <button onClick={onCustomers} className="font-semibold text-primary underline-offset-2 hover:underline">{toFa(t.stats.customers)} شمارهٔ مشتری</button> · فروشِ ۳۰ روز {money(t.stats.revenue30)}</dd>
         </dl>
       )}
 
