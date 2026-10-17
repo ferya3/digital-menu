@@ -81,3 +81,8 @@ export async function tenantRoute(fn: () => Promise<Response> | Response, opts: 
     throw e;
   }
 }
+
+/** آیا این درخواست روی دامنهٔ اصلیِ پلتفرم است (سایتِ معرفی/ثبت‌نام/مدیرِ کل)؟ */
+export async function onPlatformHost(): Promise<boolean> {
+  return saasEnabled() && classifyHost((await requestHost()).host).kind === "platform";
+}

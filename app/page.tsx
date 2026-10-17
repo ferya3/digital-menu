@@ -2,6 +2,9 @@ import { Landing } from "@/components/landing";
 import { getMenu, getSetting } from "@/lib/queries";
 import type { CafeInfo, PaymentInfo, SmsSettings } from "@/lib/types";
 import { tenantPage } from "@/lib/tenant-page";
+import { onPlatformHost } from "@/lib/tenant";
+import { PlatformHome } from "@/components/platform/home";
+import { publicPlatform } from "@/app/platform/public";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +13,8 @@ export default async function Home({
 }: {
   searchParams: Promise<{ table?: string }>;
 }) {
+  // دامنهٔ اصلیِ پلتفرم: صفحهٔ معرفی و تعرفه‌ها
+  if (await onPlatformHost()) return <PlatformHome p={publicPlatform()} />;
   const sp = await searchParams;
   // بدون شماره میز (مثلاً بازکردنِ آدرسِ خالیِ سایت) = صفحهٔ «QR میز را اسکن کنید»؛ دیگر پیش‌فرضِ میز ۱ نداریم
   const table = String(sp.table || "").trim().slice(0, 20);

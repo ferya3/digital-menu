@@ -1,12 +1,17 @@
 import { PlatformFooter, PlatformNav } from "@/components/platform/home";
 import { SignupForm } from "@/components/platform/signup-form";
 import { KIND_LABEL } from "@/lib/seeds";
-import { publicPlatform } from "../public";
+import { publicPlatform } from "@/app/platform/public";
+
+import { notFound } from "next/navigation";
+import { onPlatformHost } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ثبت‌نام" };
 
-export default function SignupPage() {
+export default async function SignupPage() {
+  // فقط روی دامنهٔ اصلیِ پلتفرم؛ روی زیردامنهٔ مجموعه‌ها وجود ندارد
+  if (!(await onPlatformHost())) notFound();
   const p = publicPlatform();
   return (
     <div className="min-h-screen bg-background">
