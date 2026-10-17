@@ -15,6 +15,7 @@ import { isVerifiedPhone, normalizePhone, requestOtp, verifyOtp } from "@/lib/ot
 import type { Bill, Order } from "@/lib/types";
 import type { ActionFail } from "@/lib/action-result";
 import { withTenant } from "@/lib/tenant";
+import { myOrderIds, rememberOrder } from "@/lib/security";
 
 /** خطا را (با پیامِ فارسی) برمی‌گرداند؛ پرتاب‌شدن در production پیام را پنهان می‌کند */
 async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
@@ -42,25 +43,39 @@ export async function placeOrderAction(
   table = needTable(table);
   // شماره فقط اگر قبلاً با کد پیامکی تأیید شده باشد ثبت می‌شود
   const phone = extra?.phone && (await isVerifiedPhone(extra.phone)) ? normalizePhone(extra.phone) : "";
-  return createOrder({ table, items, note: extra?.note, phone });
+  const order = createOrder({ table, items, note: extra?.note, phone });
+  // این مرورگر صاحبِ این سفارش است (کوکیِ امضاشده) — فقط خودش وضعیت/صورتحسابش را می‌بیند
+  await rememberOrder(order.id);
+  return order;
   });
 }
 
+/** آیا این مرورگر روی این میز سفارشی ثبت کرده؟ (شرطِ دیدنِ صورتحساب/ارسالِ فیشِ میز) */
+async function ownsTable(table: string): Promise<boolean> {
+  const t = String(table || "").trim();
+  if (!t) return false;
+  for (const id of await myOrderIds()) if (getOrder(id)?.table === t) return true;
+  return false;
+}
+const EMPTY_BILL = (table: string): Bill => ({ table, count: 0, total: 0, payStatus: "none", rejectedReason: "", receipt: "", orders: [] });
+
+/** صورتحسابِ میز — فقط برای مرورگری که روی همین میز سفارش داده */
 export async function billAction(table: string): Promise<Bill> {
   return withTenant(async () => {
-    return getBill(table);
+    return (await ownsTable(table)) ? getBill(table) : EMPTY_BILL(table);
   }, { active: true });
 }
 
 export async function orderAction(id: string): Promise<Order | null> {
   return withTenant(async () => {
-    return getOrder(id);
+    return (await myOrderIds()).includes(id) ? getOrder(id) : null;
   }, { active: true });
 }
 
 export async function ordersAction(ids: string[]): Promise<Order[]> {
   return withTenant(async () => {
-    return ids.map((id) => getOrder(id)).filter(Boolean) as Order[];
+    const mine = new Set(await myOrderIds());
+    return ids.filter((id) => mine.has(id)).map((id) => getOrder(id)).filter(Boolean) as Order[];
   }, { active: true });
 }
 
@@ -70,6 +85,7 @@ export async function uploadReceiptAction(
   return guard(async () => {
   const table = String(formData.get("table") || "").trim();
   if (!table) throw new Error("شماره میز نامعتبر است");
+  if (!(await ownsTable(table))) throw new Error("ابتدا از همین گوشی سفارش ثبت کنید");
   const buf = await readUpload(formData);
   if (!buf) throw new Error("تصویر رسید ارسال نشد");
   const { path, hash } = await saveReceiptWebp(buf, table);
@@ -99,6 +115,8 @@ export async function feedbackAction(input: {
   comment?: string;
 }): Promise<{ ok: boolean } | ActionFail> {
   return guard(async () => {
+  // نظر فقط به سفارشِ خودِ همین مرورگر وصل می‌شود
+  if (input.orderId && !(await myOrderIds()).includes(input.orderId)) input = { ...input, orderId: undefined };
   createFeedback(input);
   return { ok: true };
   });

@@ -13,7 +13,8 @@ import type {
   RequestType,
 } from "@/lib/types";
 
-const id = (p: string) => `${p}_${crypto.randomUUID().slice(0, 8)}`;
+// ۷۲ بیت تصادفی (۱۲ نویسه) — قابلِ حدس‌زدن نیست
+const id = (p: string) => `${p}_${crypto.randomBytes(9).toString("base64url")}`;
 const now = () => new Date().toISOString();
 
 /* ---------- menu ---------- */

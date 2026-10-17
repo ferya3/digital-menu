@@ -106,8 +106,8 @@ export function SignupForm({ root, trialDays, otp, kinds }: { root: string; tria
             <input required value={f.phone} onChange={(e) => { set({ phone: e.target.value }); setCodeSent(false); }} inputMode="tel" dir="ltr" placeholder="09123456789" className={fieldCls} />
           </Label>
         </div>
-        <Label text="رمزِ پنلِ مدیریت" hint="حداقل ۶ نویسه؛ با همین رمز وارد پنلِ مجموعه می‌شوید">
-          <input required type="password" minLength={6} value={f.password} onChange={(e) => set({ password: e.target.value })} className={fieldCls} autoComplete="new-password" />
+        <Label text="رمزِ پنلِ مدیریت" hint="حداقل ۸ نویسه؛ با همین رمز وارد پنلِ مجموعه می‌شوید">
+          <input required type="password" minLength={8} value={f.password} onChange={(e) => set({ password: e.target.value })} className={fieldCls} autoComplete="new-password" />
         </Label>
         {/* تلهٔ ربات‌ها: برای انسان دیده نمی‌شود */}
         <input tabIndex={-1} autoComplete="off" value={f.website} onChange={(e) => set({ website: e.target.value })} className="hidden" aria-hidden name="website" />

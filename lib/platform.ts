@@ -5,7 +5,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { DATA_DIR, rootDomain, runAsTenant, tenantDir } from "@/lib/tenant-context";
 import { closeTenantDb, initTenantDb } from "@/lib/db";
-import { hashPassword, verifyPassword } from "@/lib/auth";
+import { hashPassword, isWeakPassword, verifyPassword } from "@/lib/auth";
 import { setSetting } from "@/lib/queries";
 import { sendSmsWith } from "@/lib/sms-send";
 import { DEFAULT_SMS } from "@/lib/otp";
@@ -200,7 +200,7 @@ export function createTenant(input: NewTenant): Tenant {
   const name = String(input.name || "").trim().slice(0, 60);
   if (name.length < 2) throw new Error("نامِ مجموعه را وارد کنید");
   if (!slugAvailable(slug)) throw new Error("این آدرس قبلاً گرفته شده است");
-  if (String(input.password || "").length < 6) throw new Error("رمزِ پنل حداقل ۶ نویسه باشد");
+  if (isWeakPassword(String(input.password || ""))) throw new Error("رمزِ پنل حداقل ۸ نویسه باشد و رمزِ ساده نباشد");
   const kind: BusinessKind = (["cafe", "restaurant", "fastfood", "other"] as const).includes(input.kind) ? input.kind : "cafe";
   const days = input.days ?? platformSettings().trialDays;
   const now = new Date();
@@ -382,7 +382,10 @@ function migrateLegacy(d: DatabaseSync) {
     if (r) name = (JSON.parse(r.value) as { name?: string }).name || legacy;
     const pw = t.prepare("SELECT value FROM settings WHERE key='admin_pw'").get();
     if (!pw) {
-      t.prepare("INSERT INTO settings (key, value) VALUES ('admin_pw', ?)").run(JSON.stringify(hashPassword(process.env.ADMIN_PASSWORD || "cafe1234")));
+      // رمزِ قبلی (ADMIN_PASSWORD) منتقل می‌شود؛ اگر ضعیف بود، اولین ورود مجبور به عوض‌کردنش است
+      const old = process.env.ADMIN_PASSWORD || "cafe1234";
+      t.prepare("INSERT INTO settings (key, value) VALUES ('admin_pw', ?)").run(JSON.stringify(hashPassword(old)));
+      if (isWeakPassword(old)) t.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_pw_weak', 'true')").run();
     }
     t.close();
   } catch (e) {

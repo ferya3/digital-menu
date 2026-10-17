@@ -1,7 +1,9 @@
 "use server";
 
 import crypto from "node:crypto";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
+import { assertNotLocked, checkCode, hit, issueCode } from "@/lib/limits";
+import { clientIp } from "@/lib/security";
 import { saasEnabled, rootDomain } from "@/lib/tenant-context";
 import { classifyHost, requestHost, requestProto, tenantUrl } from "@/lib/tenant";
 import {
@@ -33,21 +35,8 @@ async function assertPlatformHost() {
   if (!saasEnabled()) throw new Error("حالتِ چندمستاجری فعال نیست");
   if (classifyHost((await requestHost()).host).kind !== "platform") throw new Error("دسترسی مجاز نیست");
 }
-async function clientIp() {
-  return ((await headers()).get("x-forwarded-for") || "x").split(",")[0].trim();
-}
-
-/* محدودیتِ ساده در حافظه (ثبت‌نام، کد تأیید، ورودِ مدیر) */
-const g = globalThis as unknown as { __pfHits?: Map<string, { n: number; t: number }>; __pfOtp?: Map<string, { code: string; exp: number; tries: number }> };
-const hits = (g.__pfHits ??= new Map());
-const otps = (g.__pfOtp ??= new Map());
-function limit(key: string, max: number, windowMs: number) {
-  const r = hits.get(key) || { n: 0, t: Date.now() };
-  if (Date.now() - r.t > windowMs) { r.n = 0; r.t = Date.now(); }
-  if (r.n >= max) throw new Error("تعداد درخواست زیاد است؛ کمی بعد دوباره امتحان کنید");
-  r.n += 1;
-  hits.set(key, r);
-}
+/* محدودیت‌ها و کدها روی دیسک (lib/limits) — با ری‌استارت پاک نمی‌شوند */
+const limit = (key: string, max: number, windowMs: number) => hit("pf:" + key, max, windowMs);
 
 /* ============================ ثبت‌نام ============================ */
 export async function checkSlugAction(raw: string): Promise<{ ok: boolean; slug: string; message: string }> {
@@ -67,8 +56,7 @@ export async function signupOtpAction(rawPhone: string) {
     if (!platformSmsReady()) return { ok: true, required: false };
     limit("otp-ip:" + (await clientIp()), 5, 10 * 60_000);
     limit("otp-phone:" + phone, 3, 10 * 60_000);
-    const code = String(crypto.randomInt(10000, 100000));
-    otps.set(phone, { code, exp: Date.now() + 5 * 60_000, tries: 0 });
+    const code = issueCode("pf-signup:" + phone, 5 * 60_000);
     await sendPlatformSms(phone, `${platformSettings().brand}\nکد تأیید ثبت‌نام: ${code}`).catch(() => {
       throw new Error("ارسال پیامک انجام نشد؛ کمی بعد دوباره تلاش کنید");
     });
@@ -89,13 +77,7 @@ export async function signupAction(input: SignupInput) {
     limit("signup:" + (await clientIp()), 5, 60 * 60_000);
     const phone = normalizePhone(input.phone);
     if (!isValidPhone(phone)) throw new Error("شمارهٔ موبایل نامعتبر است");
-    if (platformSmsReady()) {
-      const rec = otps.get(phone);
-      if (!rec || Date.now() > rec.exp) throw new Error("ابتدا کدِ تأیید را دریافت کنید");
-      if (++rec.tries > 5) { otps.delete(phone); throw new Error("تعداد تلاش زیاد است؛ دوباره کد بگیرید"); }
-      if (normalizePhone(input.code || "") !== rec.code) throw new Error("کد تأیید نادرست است");
-      otps.delete(phone);
-    }
+    if (platformSmsReady()) checkCode("pf-signup:" + phone, normalizePhone(input.code || ""));
     const t = createTenant({
       slug: input.slug, name: input.name, kind: input.kind, ownerName: input.ownerName, ownerPhone: phone,
       password: input.password, sample: input.sample,
@@ -146,9 +128,15 @@ export async function adminStatusAction(): Promise<{ authed: boolean; configured
 }
 export async function adminLoginAction(password: string) {
   return guard(async () => {
-    limit("admin-login:" + (await clientIp()), 8, 15 * 60_000);
     if (!platformAdminConfigured()) throw new Error("رمزِ مدیرِ کل تنظیم نشده (PLATFORM_ADMIN_PASSWORD در سرور)");
-    if (!checkPlatformAdmin(password)) throw new Error("رمز اشتباه است");
+    assertNotLocked("pf:admin-login:" + (await clientIp()), 8, 15 * 60_000);
+    assertNotLocked("pf:admin-login", 30, 15 * 60_000);
+    if (!checkPlatformAdmin(password)) {
+      // فقط تلاش‌های ناموفق شمرده می‌شوند: ۸ در ۱۵ دقیقه برای هر IP، ۳۰ برای همه
+      limit("admin-login:" + (await clientIp()), 8, 15 * 60_000);
+      limit("admin-login", 30, 15 * 60_000);
+      throw new Error("رمز اشتباه است");
+    }
     (await cookies()).set(ADMIN_COOKIE, signPlatform({ r: "admin" }, 12 * 3600_000), {
       httpOnly: true, sameSite: "lax", path: "/", maxAge: 12 * 3600, secure: (await requestProto()) === "https",
     });

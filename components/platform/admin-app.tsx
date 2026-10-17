@@ -294,7 +294,7 @@ function CreateTenant({ root, trial, onClose, reload, flash }: { root: string; t
           <input value={f.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder="نامِ صاحب" className={fieldCls} />
           <input value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="موبایل" dir="ltr" className={fieldCls} />
         </div>
-        <input required minLength={6} value={f.password} onChange={(e) => set({ password: e.target.value })} placeholder="رمزِ پنلِ مجموعه (حداقل ۶ نویسه)" dir="ltr" className={fieldCls} />
+        <input required minLength={8} value={f.password} onChange={(e) => set({ password: e.target.value })} placeholder="رمزِ پنلِ مجموعه (حداقل ۸ نویسه)" dir="ltr" className={fieldCls} />
         <select value={f.months} onChange={(e) => set({ months: Number(e.target.value) })} className={fieldCls}>
           <option value={0}>دورهٔ آزمایشی ({toFa(trial)} روز)</option>
           {[1, 3, 6, 12].map((m) => <option key={m} value={m}>اشتراکِ {toFa(m)} ماهه (پرداختِ حضوری)</option>)}

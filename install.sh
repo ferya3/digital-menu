@@ -6,7 +6,7 @@
 #  متغیرها (همه اختیاری):
 #    DOMAIN          دامنه (بدون آن، سایت روی IP سرور باز می‌شود)
 #    EMAIL           ایمیل برای گواهی SSL رایگان (فقط همراه با DOMAIN)
-#    ADMIN_PASSWORD  رمز اولیهٔ پنل کارکنان (پیش‌فرض cafe1234 — از پنل قابل تغییر)
+#    ADMIN_PASSWORD  رمز اولیهٔ پنل کارکنان (اگر ندهید، یک رمزِ قوی و تصادفی ساخته و در پایان چاپ می‌شود)
 #    APP_PORT        پورت داخلی برنامه (پیش‌فرض 3000)
 #    ROOT_DOMAIN     حالتِ «پلتفرمِ اشتراکی»: سایتِ ثبت‌نام روی این دامنه و هر مجموعه روی <آدرس>.ROOT_DOMAIN
 #                    (همراه با PLATFORM_ADMIN_PASSWORD؛ جزئیات در set-saas.sh)
@@ -21,7 +21,8 @@ set -euo pipefail
 DOMAIN="${DOMAIN:-}"
 EMAIL="${EMAIL:-}"
 ADMIN_PASSWORD_GIVEN="${ADMIN_PASSWORD:-}"   # آیا رمز صراحتاً در دستور داده شده؟
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-cafe1234}"
+# رمزِ پیش‌فرضِ ثابت وجود ندارد: اگر داده نشود، رمزِ تصادفیِ ۱۴ نویسه‌ای ساخته می‌شود
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(head -c 64 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 14)}"
 RESTORE="${RESTORE:-}"
 PW_RESTORED=0
 APP_PORT="${APP_PORT:-3000}"
@@ -65,6 +66,7 @@ cd "$APP_DIR"
 say "نصب وابستگی‌ها"
 npm ci --no-audit --no-fund
 mkdir -p data/uploads
+chmod 700 data   # دیتابیس‌ها، رمزها و کلیدها فقط برای root
 # انتقال از سرورِ قبلی: دیتابیس + عکس‌ها + تنظیمات از فایلِ بک‌آپ (قبل از اولین اجرا)
 if [ -n "$RESTORE" ]; then
   say "بازیابی داده‌ها از $RESTORE"
@@ -78,10 +80,16 @@ if [ -n "$RESTORE" ]; then
   fi
 fi
 # رمز اولیه؛ Next این فایل را در حالت production می‌خواند (وارد گیت نمی‌شود)
-if [ -n "$ADMIN_PASSWORD_GIVEN" ] || [ ! -f .env.production.local ]; then
-  printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD" > .env.production.local
+touch .env.production.local; chmod 600 .env.production.local
+OLD_PW="$(sed -n 's/^ADMIN_PASSWORD=//p' .env.production.local | head -1)"
+if [ -z "$ADMIN_PASSWORD_GIVEN" ] && [ -n "$OLD_PW" ]; then
+  ADMIN_PASSWORD="$OLD_PW"   # نصبِ دوباره: رمزِ قبلی حفظ می‌شود (رمزِ تصادفیِ تازه چاپ نمی‌شود)
+  ADMIN_PASSWORD_GIVEN="$OLD_PW"
+else
+  # فقط همین کلید عوض می‌شود؛ بقیهٔ تنظیمات (مثل ROOT_DOMAIN) دست نمی‌خورد
+  { grep -v '^ADMIN_PASSWORD=' .env.production.local || true; printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD"; } > .env.tmp && mv .env.tmp .env.production.local
+  chmod 600 .env.production.local
 fi
-chmod 600 .env.production.local
 say "build برنامه (چند دقیقه طول می‌کشد)"
 NODE_OPTIONS="--max-old-space-size=1536" npm run build
 
@@ -168,7 +176,7 @@ else
   echo "  رمز پنل:      $ADMIN_PASSWORD   (از تنظیماتِ پنل قابل تغییر است)"
 fi
 echo "  وضعیت:  pm2 status   ·   لاگ:  pm2 logs cafe   ·   به‌روزرسانی:  sudo bash update.sh   ·   بک‌آپ:  sudo bash backup.sh"
-if [ "$PW_RESTORED" != "1" ] && [ "$ADMIN_PASSWORD" = "cafe1234" ]; then
-  echo "  ⚠️  رمز پیش‌فرض است؛ حتماً از پنل → تنظیمات عوضش کن."
+if [ "$PW_RESTORED" != "1" ] && [ -z "$ADMIN_PASSWORD_GIVEN" ]; then
+  echo "  ⚠️  این رمز به‌صورت تصادفی ساخته شد؛ همین حالا یادداشتش کنید (در فایلِ .env.production.local هم هست)."
 fi
 exit 0

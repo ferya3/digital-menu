@@ -11,7 +11,7 @@ import { cn, formatMoney, toFa } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { Order, OrderCodeMode } from "@/lib/types";
 import {
-  loginAction, logoutAction, staffCustomersAction, staffSettingsAction,
+  loginAction, logoutAction, staffChangePasswordAction, staffCustomersAction, staffSettingsAction,
 } from "@/app/staff/actions";
 import type { StaffCustomer, StaffFeedback, StaffRequest } from "@/lib/queries";
 import { Ctx, inputCls, isImgSrc, type StaffCtx } from "@/components/staff/kit";
@@ -57,12 +57,24 @@ export function StaffApp({ initialAuthed, subscription = null }: { initialAuthed
 /* ===================== ورود ===================== */
 function Login({ onDone }: { onDone: () => void }) {
   const [pass, setPass] = useState("");
+  const [pass2, setPass2] = useState("");
+  // رمزِ نصب ضعیف/پیش‌فرض است ← قبل از بازشدنِ پنل باید عوض شود
+  const [mustChange, setMustChange] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setErr("");
-    try { unwrap(await loginAction(pass)); onDone(); }
+    try {
+      if (mustChange) {
+        if (pass !== pass2) throw new Error("دو رمز یکسان نیستند");
+        unwrap(await staffChangePasswordAction(pass));
+        onDone();
+      } else {
+        const r = unwrap(await loginAction(pass));
+        if (r.mustChange) { setMustChange(true); setPass(""); } else onDone();
+      }
+    }
     catch (e2) { setErr(e2 instanceof Error ? e2.message : "ورود ناموفق"); }
     finally { setBusy(false); }
   }
@@ -70,11 +82,14 @@ function Login({ onDone }: { onDone: () => void }) {
     <div className="grid min-h-screen place-items-center px-4">
       <form onSubmit={submit} className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 text-center shadow-xl">
         <span className="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-primary text-primary-foreground"><Lock className="size-6" /></span>
-        <h1 className="text-xl font-extrabold">ورود مدیریت</h1>
-        <p className="mb-5 mt-1 text-sm text-muted-foreground">برای دسترسی به داشبورد، رمز عبور را وارد کنید</p>
-        <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} autoFocus autoComplete="current-password" className={cn(inputCls, "mb-3 py-2.5 text-center")} placeholder="رمز عبور" />
+        <h1 className="text-xl font-extrabold">{mustChange ? "رمزِ جدید انتخاب کنید" : "ورود مدیریت"}</h1>
+        <p className="mb-5 mt-1 text-sm text-muted-foreground">
+          {mustChange ? "رمزِ فعلی ساده یا پیش‌فرض است. برای امنیت، یک رمزِ حداقل ۸ نویسه‌ای بگذارید." : "برای دسترسی به داشبورد، رمز عبور را وارد کنید"}
+        </p>
+        <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} autoFocus autoComplete={mustChange ? "new-password" : "current-password"} className={cn(inputCls, "mb-3 py-2.5 text-center")} placeholder={mustChange ? "رمزِ جدید" : "رمز عبور"} />
+        {mustChange && <input type="password" value={pass2} onChange={(e) => setPass2(e.target.value)} autoComplete="new-password" className={cn(inputCls, "mb-3 py-2.5 text-center")} placeholder="تکرارِ رمزِ جدید" />}
         {err && <p className="mb-3 text-sm text-primary">{err}</p>}
-        <Button type="submit" size="lg" className="w-full rounded-xl" disabled={busy}>{busy ? <><Loader2 className="animate-spin" /> در حال ورود…</> : "ورود"}</Button>
+        <Button type="submit" size="lg" className="w-full rounded-xl" disabled={busy}>{busy ? <><Loader2 className="animate-spin" /> لطفاً صبر کنید…</> : mustChange ? "ذخیره و ورود" : "ورود"}</Button>
       </form>
     </div>
   );

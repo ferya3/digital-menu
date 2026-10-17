@@ -41,6 +41,7 @@ if [ -f "$NGX" ] && grep -q "client_max_body_size 12m;" "$NGX"; then
   nginx -t && systemctl reload nginx
 fi
 
+[ -d data ] && chmod 700 data   # دیتابیس‌ها، رمزها و کلیدها فقط برای root
 say "ری‌لود بدون قطعی"
 pm2 reload cafe --update-env || APP_PORT="${APP_PORT:-3000}" pm2 start ecosystem.config.cjs
 pm2 save

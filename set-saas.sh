@@ -111,6 +111,8 @@ $( [ -n "$V6" ] && echo "    listen [::]:443 ssl default_server;" )
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_cache shared:CAFE:10m;
     ssl_session_timeout 1d;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    server_tokens off;
 $(proxy)
     }
 }
