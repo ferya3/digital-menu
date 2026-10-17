@@ -57,7 +57,10 @@ mkdir -p data.new/uploads
 rm -rf data.old && [ -d data ] && mv data data.old
 mv data.new data && rm -rf data.old
 # کلیدِ اطلاعاتِ رمزشده باید همراهِ دیتابیس برگردد
-[ -f "$STAGE/env/.data-key" ] && install -m 600 "$STAGE/env/.data-key" .data-key
+KEYF="${DATA_KEY_FILE:-/etc/cafe-menu/data.key}"; [ "$(id -u)" -eq 0 ] || KEYF=".data-key"
+for k in "$STAGE/env/data.key" "$STAGE/env/.data-key"; do
+  [ -f "$k" ] && { mkdir -p "$(dirname "$KEYF")" && chmod 700 "$(dirname "$KEYF")" 2>/dev/null; install -m 600 "$k" "$KEYF"; break; }
+done
 if [ -f "$STAGE/env/.env.production.local" ]; then
   # تنظیماتِ سرورِ قبلی (رمزِ اولیه، و در حالتِ پلتفرم: دامنهٔ اصلی و رمزِ مدیرِ کل) — کلید به کلید ادغام می‌شود
   touch .env.production.local

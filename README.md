@@ -96,17 +96,17 @@ sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs h
 
 **روی سرورِ قبلی** (یک دستور؛ هم بک‌آپ می‌گیرد هم به سرورِ جدید می‌فرستد):
 ```bash
-cd /opt/cafe-next && sudo bash backup.sh root@IP-سرور-جدید
+cd /opt/cafe-next && sudo BACKUP_PASSWORD='یک-رمز-برای-بک‌آپ' bash backup.sh root@IP-سرور-جدید
 ```
 (یا فقط بک‌آپ: `sudo bash backup.sh` ← فایل در `/root/cafe-backups`؛ بعد دستی با `scp` ببرید.)
 
 **روی سرورِ جدید — حالتِ الف: یک خط (نصب + بازیابی با هم):**
 ```bash
-sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo RESTORE=/root/data-XXXX.tar.gz DOMAIN=artavilstar.com EMAIL=you@mail.com bash install.sh
+sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo RESTORE=/root/data-XXXX.tar.gz.enc DOMAIN=artavilstar.com EMAIL=you@mail.com bash install.sh
 ```
 **حالتِ ب: اول نصب کردید، بعداً بازیابی می‌کنید:**
 ```bash
-cd /opt/cafe-next && sudo bash restore.sh /root/data-XXXX.tar.gz
+cd /opt/cafe-next && sudo bash restore.sh /root/data-XXXX.tar.gz.enc
 ```
 - قبل از بازیابی، دادهٔ فعلیِ آن سرور هم نگه داشته می‌شود (`/root/cafe-backups/before-restore-*.tar.gz`) و فایلِ خراب یا بی‌ربط رد می‌شود.
 - رمزِ پنل: همان رمزِ سرورِ قبلی می‌ماند (چه از پنل عوض کرده باشید چه رمزِ زمانِ نصب). فقط اگر در دستور `ADMIN_PASSWORD=...` بدهید همان اعمال می‌شود.
@@ -162,8 +162,8 @@ sudo apt-get update && sudo apt-get install -y git && sudo git clone -b saas htt
 - **سفارش‌ها:** هر مرورگر فقط سفارش‌ها/صورتحسابِ میزی را می‌بیند که خودش روی آن سفارش داده (کوکیِ امضاشدهٔ httpOnly، ۱۲ ساعت)؛ شناسهٔ سفارش ۹۶ بیت تصادفی است.
 - **کوکی‌ها:** `httpOnly` + `SameSite=Lax`، و پشتِ HTTPS `Secure`. نشستِ هر مجموعه با کلیدِ همان مجموعه امضا می‌شود.
 - **سرآیندها (داخلِ خودِ برنامه، مستقل از Nginx):** CSPِ سخت‌گیرانه با nonceِ تازه برای هر درخواست (`script-src 'nonce-…' 'strict-dynamic'` — اسکریپتِ تزریق‌شده اجرا نمی‌شود)، HSTS روی HTTPS، `X-Content-Type-Options`، `X-Frame-Options`، `Referrer-Policy`، `Permissions-Policy`، COOP. سرآیندِ Host نامعتبر با ۴۰۰ رد می‌شود و برنامه فقط روی `127.0.0.1` گوش می‌دهد (فقط Nginx به آن می‌رسد).
-- **رمزگذاری روی دیسک:** اطلاعاتِ حساس در دیتابیس (رمز/کلیدِ سامانهٔ پیامک، درگاه‌های پرداخت، مرچنتِ زرین‌پال، کلیدهای امضا) با AES-256-GCM رمز می‌شوند؛ کلید در `.data-key` کنارِ برنامه و **بیرون از `data/`** است (۶۰۰، خودکار ساخته می‌شود، در گیت نیست). مقدارهای قدیمیِ رمزنشده در اولین اجرا رمز و فایل بازنویسی می‌شود.
-- **بک‌آپِ رمزدار:** `sudo BACKUP_PASSWORD='رمز' bash backup.sh` ← فایلِ `.enc` (AES-256)؛ بازیابی با همان رمز (`restore.sh` می‌پرسد). کلیدِ `.data-key` همراهِ بک‌آپ است تا داده روی سرورِ جدید خوانا بماند.
+- **رمزگذاری روی دیسک:** اطلاعاتِ حساس در دیتابیس (رمز/کلیدِ سامانهٔ پیامک، درگاه‌های پرداخت، مرچنتِ زرین‌پال، کلیدهای امضا) با AES-256-GCM رمز می‌شوند؛ کلید در `/etc/cafe-menu/data.key` است — **بیرون از پوشهٔ برنامه و `data/`** (پوشه ۷۰۰، فایل ۶۰۰، فقط root، خودکار ساخته می‌شود، در گیت نیست). مقدارهای قدیمیِ رمزنشده در اولین اجرا رمز و فایل بازنویسی می‌شود.
+- **بک‌آپ و کلید جدا:** بک‌آپِ معمولی کلید را **ندارد**. بک‌آپِ رمزدار (`sudo BACKUP_PASSWORD='رمز' bash backup.sh` ← فایلِ `.enc`، AES-256) کلید را داخلِ همان فایلِ رمزشده دارد و برای **انتقال به سرورِ جدید** همین را بگیرید (`restore.sh` رمز را می‌پرسد). بازیابیِ بک‌آپِ معمولی روی سرورِ دیگر کار می‌کند ولی رمزهای سامانهٔ پیامک/درگاه باید دوباره وارد شوند.
 - **فایل‌ها:** پوشهٔ `data/` فقط برای root (`chmod 700`)، فایل‌های بک‌آپ `600`. آپلودها با sharp از روی محتوا بررسی و به WebP تبدیل می‌شوند.
 - **پیشنهاد برای محیط‌های حساس:** رمزگذاریِ کاملِ دیسکِ سرور (LUKS یا گزینهٔ «Encrypted volume» در پنلِ ارائه‌دهندهٔ سرور).
 

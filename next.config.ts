@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   // sharp باید روی سرور از node_modules خوانده شود، نه باندل
   serverExternalPackages: ["sharp"],
   poweredByHeader: false,
-  // سرآیندهای امنیتی روی همهٔ صفحه‌ها (HSTS در Nginx، فقط روی HTTPS)
+  // سرآیندهای امنیتی: صفحه‌ها در middleware.ts (همراهِ CSP و HSTS)؛ این‌جا برای فایل‌های ثابتِ /_next هم
   async headers() {
     return [
       {

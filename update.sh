@@ -42,7 +42,7 @@ if [ -f "$NGX" ] && grep -q "client_max_body_size 12m;" "$NGX"; then
 fi
 
 [ -d data ] && chmod 700 data   # دیتابیس‌ها، رمزها و کلیدها فقط برای root
-[ -f .data-key ] && chmod 600 .data-key
+[ -d /etc/cafe-menu ] && chmod 700 /etc/cafe-menu && chmod 600 /etc/cafe-menu/* 2>/dev/null || true
 say "ری‌لود بدون قطعی"
 pm2 reload cafe --update-env || APP_PORT="${APP_PORT:-3000}" pm2 start ecosystem.config.cjs
 pm2 save

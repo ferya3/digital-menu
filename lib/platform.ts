@@ -310,7 +310,7 @@ const toPayment = (r: PRow): Payment => ({
   createdAt: r.created_at, paidAt: r.paid_at,
 });
 export function createPayment(p: { slug: string; plan: Plan; method: Payment["method"]; receipt?: string; note?: string }): Payment {
-  const id = `pay_${crypto.randomUUID().slice(0, 12)}`;
+  const id = `pay_${crypto.randomBytes(12).toString("base64url")}`; // ۹۶ بیت
   pdb().prepare(
     "INSERT INTO payments (id, slug, plan, months, amount, method, status, receipt, note, created_at) VALUES (?,?,?,?,?,?, 'pending', ?, ?, ?)"
   ).run(id, p.slug, p.plan.id, p.plan.months, p.plan.price, p.method, p.receipt || "", p.note || "", new Date().toISOString());

@@ -53,6 +53,12 @@ function secure(req: NextRequest, res?: NextResponse): NextResponse {
     out = NextResponse.next({ request: { headers: h } });
   }
   out.headers.set("Content-Security-Policy", csp);
+  out.headers.set("X-Content-Type-Options", "nosniff");
+  out.headers.set("X-Frame-Options", "SAMEORIGIN");
+  out.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  // دوربین فقط برای اسکنِ QR در همین سایت
+  out.headers.set("Permissions-Policy", "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()");
+  out.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   if (https) out.headers.set("Strict-Transport-Security", "max-age=31536000");
   return out;
 }

@@ -53,7 +53,12 @@ say "کپیِ عکس‌ها و فایل‌ها"
 # همهٔ فایل‌های دیگر (عکس‌ها، ویدیوها، لاگ‌ها) — دیتابیس‌ها بالا جدا گرفته شدند؛ بندانگشتی‌ها خودکار دوباره ساخته می‌شوند
 tar -C data --exclude='*.db' --exclude='*.db-wal' --exclude='*.db-shm' --exclude='.thumbs' -cf - . | tar -C "$STAGE/data" -xf -
 [ -f .env.production.local ] && { mkdir -p "$STAGE/env"; cp .env.production.local "$STAGE/env/"; }   # رمزِ اولیهٔ نصب
-[ -f .data-key ] && { mkdir -p "$STAGE/env"; cp .data-key "$STAGE/env/"; }   # کلیدِ اطلاعاتِ رمزشده (بدونِ آن قابلِ بازیابی نیست)
+# کلیدِ رمزگذاری جدا از داده نگه داشته می‌شود: فقط داخلِ بک‌آپِ رمزدار (BACKUP_PASSWORD) یا با INCLUDE_KEY=1
+KEYF="${DATA_KEY_FILE:-/etc/cafe-menu/data.key}"; [ -f "$KEYF" ] || KEYF=".data-key"
+KEY_INCLUDED=0
+if [ -f "$KEYF" ] && { [ -n "${BACKUP_PASSWORD:-}" ] || [ "${INCLUDE_KEY:-0}" = "1" ]; }; then
+  mkdir -p "$STAGE/env"; install -m 600 "$KEYF" "$STAGE/env/data.key"; KEY_INCLUDED=1
+fi
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo ?)"
 cat > "$STAGE/MANIFEST.txt" <<EOF
 cafe-backup
@@ -83,7 +88,11 @@ echo "   فایل: $FILE  ($(du -h "$FILE" | cut -f1))"
 if [ -n "${BACKUP_PASSWORD:-}" ]; then
   echo "   🔒 رمزدار است؛ برای بازیابی همان BACKUP_PASSWORD لازم است (گم شود، بک‌آپ قابلِ استفاده نیست)."
 else
-  echo "   ⚠️ این فایل شاملِ رمزها و شمارهٔ مشتری‌هاست؛ جایی عمومی نگذارید. (بک‌آپِ رمزدار:  sudo BACKUP_PASSWORD='…' bash backup.sh)"
+  echo "   ⚠️ این فایل شاملِ شمارهٔ مشتری‌ها و سفارش‌هاست؛ جایی عمومی نگذارید. (بک‌آپِ رمزدار:  sudo BACKUP_PASSWORD='…' bash backup.sh)"
+fi
+if [ "$KEY_INCLUDED" = "0" ] && [ -f "$KEYF" ]; then
+  echo "   🔑 کلیدِ رمزگذاری ($KEYF) عمداً در این بک‌آپ نیست. برای انتقال به سرورِ دیگر یا بک‌آپِ رمزدار بگیرید،"
+  echo "      یا کلید را جدا (و جای امن) نگه دارید؛ بدونِ آن فقط رمزهای سامانهٔ پیامک/درگاه باید دوباره وارد شوند."
 fi
 
 if [ -n "$DEST" ]; then

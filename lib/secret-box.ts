@@ -7,7 +7,8 @@ import type { DatabaseSync } from "node:sqlite";
 /**
  * رمزگذاریِ اطلاعاتِ حساس در دیتابیس (AES-256-GCM): رمز/کلیدِ سامانهٔ پیامک، درگاه‌های پرداخت،
  * مرچنتِ زرین‌پال و کلیدهای امضا. اگر فقط فایلِ دیتابیس (یا پوشهٔ data) لو برود، این‌ها خوانا نیستند.
- * کلید: DATA_KEY در محیط، یا فایلِ .data-key کنارِ برنامه (بیرون از data/، فقط root) که خودکار ساخته می‌شود.
+ * کلید: DATA_KEY در محیط، یا فایلِ /etc/cafe-menu/data.key (بیرون از پوشهٔ برنامه و data/، ۰۶۰۰، فقط root)
+ * که خودکار ساخته می‌شود. بک‌آپِ معمولی آن را ندارد (فقط بک‌آپِ رمزدار) — جدا نگه‌داشتنِ کلید و داده.
  */
 const PREFIX = "enc:v1:";
 let cached: Buffer | null = null;
@@ -16,13 +17,24 @@ function key(): Buffer {
   if (cached) return cached;
   const env = (process.env.DATA_KEY || "").trim();
   if (/^[0-9a-f]{64}$/i.test(env)) return (cached = Buffer.from(env, "hex"));
-  const file = path.join(process.cwd(), ".data-key");
+  const file = keyFile();
+  const legacy = path.join(process.cwd(), ".data-key");
   if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, crypto.randomBytes(32).toString("hex") + "\n", { mode: 0o600, flag: "wx" });
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    // کلیدِ نسخهٔ قبلی (کنارِ برنامه) به جای امن منتقل می‌شود
+    if (file !== legacy && fs.existsSync(legacy)) { fs.copyFileSync(legacy, file); fs.rmSync(legacy); }
+    else fs.writeFileSync(file, crypto.randomBytes(32).toString("hex") + "\n", { mode: 0o600, flag: "wx" });
   }
+  fs.chmodSync(file, 0o600);
   const hex = fs.readFileSync(file, "utf8").trim();
   if (!/^[0-9a-f]{64}$/i.test(hex)) throw new Error(".data-key نامعتبر است");
   return (cached = Buffer.from(hex, "hex"));
+}
+
+/** محلِ فایلِ کلید: DATA_KEY_FILE، یا /etc/cafe-menu/data.key روی سرور (root)، یا .data-key در حالتِ توسعه */
+export function keyFile(): string {
+  if (process.env.DATA_KEY_FILE) return process.env.DATA_KEY_FILE;
+  return process.getuid?.() === 0 ? "/etc/cafe-menu/data.key" : path.join(process.cwd(), ".data-key");
 }
 
 export const isSealed = (v: string) => typeof v === "string" && v.startsWith(PREFIX);
