@@ -8,6 +8,13 @@ import type { CafeInfo } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+/** فقط درخواست از خودِ سایت (جلوگیری از CSRF؛ مرورگر سرآیندِ Origin را خودش می‌گذارد) */
+function sameOrigin(req: Request): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return true; // درخواست‌های غیرمرورگری کوکیِ نشست ندارند
+  try { return new URL(origin).host === req.headers.get("host"); } catch { return false; }
+}
+
 // ویدیو بزرگ‌تر از سقفِ Server Actions است؛ برای همین مستقیم (استریم) روی دیسک نوشته می‌شود
 const MAX_BYTES = 100 * 1024 * 1024;
 const EXT: Record<string, string> = {
@@ -23,6 +30,7 @@ function json(body: unknown, status = 200) {
 
 /** آپلود ویدیوی هیرو: بدنهٔ درخواست خودِ فایل است (Content-Type = نوع ویدیو) */
 export async function POST(req: Request) {
+  if (!sameOrigin(req)) return json({ ok: false, error: "درخواست نامعتبر" }, 403);
   if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
   const type = (req.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
   const ext = EXT[type];
@@ -67,7 +75,8 @@ export async function POST(req: Request) {
 }
 
 /** حذف ویدیو → هیرو به صحنهٔ سه‌بعدی برمی‌گردد */
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  if (!sameOrigin(req)) return json({ ok: false, error: "درخواست نامعتبر" }, 403);
   if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
   const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
   if (cur.heroVideo) deleteUpload(cur.heroVideo);
@@ -77,7 +86,8 @@ export async function DELETE() {
 }
 
 /** سبک‌سازیِ ویدیوی فعلی (برای ویدیوهایی که قبل از این قابلیت آپلود شده‌اند) */
-export async function PATCH() {
+export async function PATCH(req: Request) {
+  if (!sameOrigin(req)) return json({ ok: false, error: "درخواست نامعتبر" }, 403);
   if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
   const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
   if (!cur.heroVideo) return json({ ok: false, error: "ویدیویی نیست" }, 400);

@@ -3,6 +3,7 @@
 import {
   checkAdmin,
   isAuthed,
+  needsPasswordChange,
   startSession,
   endSession,
   setAdminPassword,
@@ -37,6 +38,8 @@ import { DEFAULT_SMS, isValidPhone, normalizePhone, sendTestSms } from "@/lib/ot
 import { getAccounting, type Accounting } from "@/lib/accounting";
 import { startCampaign, listCampaigns, controlCampaign, sendSmsText, CANCEL_FOOTER, type Campaign } from "@/lib/bulk-sms";
 import type { ActionFail } from "@/lib/action-result";
+import { assertNotLocked, clearHits, hit } from "@/lib/limits";
+import { clientIp } from "@/lib/security";
 import type { CafeInfo, Gateway, Menu, Order, OrderCodeMode, OrderStatus, PaymentInfo, SmsSettings } from "@/lib/types";
 
 const DEFAULT_CAFE: CafeInfo = { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" };
@@ -68,10 +71,31 @@ async function gate() {
 }
 
 /* ---------- auth ---------- */
-export async function loginAction(password: string): Promise<{ ok: boolean } | ActionFail> {
+export async function loginAction(password: string): Promise<{ ok: boolean; mustChange: boolean } | ActionFail> {
   return guard(async () => {
-  if (!checkAdmin(password)) throw new Error("رمز اشتباه است");
-  await startSession();
+  // حدسِ رمز: حداکثر ۱۰ تلاشِ ناموفق در ۱۵ دقیقه برای هر IP (و ۵۰ برای کلِ مجموعه)
+  const ip = await clientIp();
+  const LOCK = "تعداد تلاش زیاد است؛ ۱۵ دقیقه بعد دوباره امتحان کنید";
+  // قفل قبل از بررسیِ رمز: در زمانِ قفل حتی رمزِ درست هم پذیرفته نمی‌شود (حدس‌زدن بی‌فایده است)
+  assertNotLocked(`login:${ip}`, 10, 15 * 60_000, LOCK);
+  assertNotLocked(`login:all`, 100, 15 * 60_000, LOCK);
+  const res = checkAdmin(String(password || ""));
+  if (!res.ok) {
+    hit(`login:${ip}`, 10, 15 * 60_000, LOCK);
+    hit(`login:all`, 100, 15 * 60_000, LOCK);
+    throw new Error("رمز اشتباه است");
+  }
+  clearHits(`login:${ip}`);
+  await startSession(res.mustChange);
+  return { ok: true, mustChange: res.mustChange };
+  });
+}
+/** عوض‌کردنِ رمزِ ضعیف/پیش‌فرض (اولین ورود) — بعد از آن پنل باز می‌شود */
+export async function staffChangePasswordAction(newPassword: string): Promise<{ ok: boolean } | ActionFail> {
+  return guard(async () => {
+  if (!(await needsPasswordChange()) && !(await isAuthed())) throw new Error("ابتدا وارد شوید");
+  setAdminPassword(String(newPassword || "").trim());
+  await startSession(false);
   return { ok: true };
   });
 }

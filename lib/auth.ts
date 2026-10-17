@@ -1,6 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getSetting, setSetting } from "@/lib/queries";
 
 const COOKIE = "cafe_session";
@@ -23,14 +23,28 @@ export function verifyPassword(pw: string, stored: string): boolean {
 
 const sha = (s: string) => crypto.createHash("sha256").update(s).digest();
 
-/** رمز مدیر: اگر در تنظیمات هش ذخیره شده باشد از آن، وگرنه ADMIN_PASSWORD یا پیش‌فرض */
-export function checkAdmin(pw: string): boolean {
+/** رمزِ ضعیف: کوتاه‌تر از ۸ نویسه یا رمزِ پیش‌فرضِ قدیمی */
+export const isWeakPassword = (pw: string) => pw.length < 8 || /^(cafe1234|12345678|password|admin123?)$/i.test(pw);
+
+/**
+ * رمز مدیر: اگر در تنظیمات هش ذخیره شده باشد از آن، وگرنه ADMIN_PASSWORD (رمزِ زمانِ نصب).
+ * رمزِ پیش‌فرضِ ثابت دیگر وجود ندارد. خروجیِ mustChange: رمزِ نصب ضعیف است و باید همین حالا عوض شود.
+ */
+export function checkAdmin(pw: string): { ok: boolean; mustChange: boolean } {
   const stored = getSetting<string>("admin_pw", "");
-  if (stored) return verifyPassword(pw, stored);
-  const def = process.env.ADMIN_PASSWORD || "cafe1234";
-  return crypto.timingSafeEqual(sha(pw), sha(def));
+  if (stored) {
+    const ok = verifyPassword(pw, stored);
+    // admin_pw_weak: رمزِ منتقل‌شده از نصبِ قدیمی ضعیف بوده ← باید عوض شود
+    return { ok, mustChange: ok && getSetting<boolean>("admin_pw_weak", false) === true };
+  }
+  const env = process.env.ADMIN_PASSWORD || "";
+  if (!env) return { ok: false, mustChange: false };
+  const ok = crypto.timingSafeEqual(sha(pw), sha(env));
+  return { ok, mustChange: ok && isWeakPassword(env) };
 }
 export function setAdminPassword(pw: string) {
+  if (isWeakPassword(pw)) throw new Error("رمزِ پنل حداقل ۸ نویسه باشد و رمزِ ساده/پیش‌فرض نباشد");
+  setSetting("admin_pw_weak", false);
   setSetting("admin_pw", hashPassword(pw));
 }
 
@@ -43,23 +57,27 @@ function secret(): string {
   return process.env.SESSION_SECRET || s;
 }
 
-export function signSession(): string {
-  const payload = Buffer.from(JSON.stringify({ r: "staff", exp: Date.now() + TTL_MS })).toString("base64url");
+export function signSession(mustChange = false): string {
+  const payload = Buffer.from(JSON.stringify({ r: "staff", exp: Date.now() + TTL_MS, ...(mustChange ? { mc: 1 } : {}) })).toString("base64url");
   const sig = crypto.createHmac("sha256", secret()).update(payload).digest("base64url");
   return `${payload}.${sig}`;
 }
-export function verifySessionToken(token: string | undefined): boolean {
-  if (!token || !token.includes(".")) return false;
+/** null = نشستِ نامعتبر؛ mustChange = فقط اجازهٔ عوض‌کردنِ رمز */
+function readSession(token: string | undefined): { mustChange: boolean } | null {
+  if (!token || !token.includes(".")) return null;
   const [payload, sig] = token.split(".");
   const expected = crypto.createHmac("sha256", secret()).update(payload).digest("base64url");
   try {
-    if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected)))
-      return false;
-    const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as { exp: number };
-    return data.exp > Date.now();
+    if (!sig || sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as { exp: number; mc?: number };
+    return data.exp > Date.now() ? { mustChange: !!data.mc } : null;
   } catch {
-    return false;
+    return null;
   }
+}
+export function verifySessionToken(token: string | undefined): boolean {
+  const s = readSession(token);
+  return !!s && !s.mustChange;
 }
 
 /** دادهٔ کوچکِ امضاشده (مثلاً شمارهٔ تأییدشدهٔ مشتری) برای کوکی */
@@ -82,12 +100,14 @@ export function readSigned<T>(token: string | undefined): T | null {
 }
 
 /* helpers used inside Server Actions */
-export async function startSession() {
-  (await cookies()).set(COOKIE, signSession(), {
+export async function startSession(mustChange = false) {
+  const https = (await headers()).get("x-forwarded-proto") === "https";
+  (await cookies()).set(COOKIE, signSession(mustChange), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
     maxAge: TTL_MS / 1000,
+    secure: https, // روی HTTPS کوکی هرگز روی اتصالِ ناامن فرستاده نمی‌شود
   });
 }
 export async function endSession() {
@@ -96,4 +116,8 @@ export async function endSession() {
 export async function isAuthed(): Promise<boolean> {
   const token = (await cookies()).get(COOKIE)?.value;
   return verifySessionToken(token);
+}
+/** نشستی که فقط برای عوض‌کردنِ رمزِ ضعیف باز شده */
+export async function needsPasswordChange(): Promise<boolean> {
+  return !!readSession((await cookies()).get(COOKIE)?.value)?.mustChange;
 }

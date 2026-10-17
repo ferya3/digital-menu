@@ -73,7 +73,7 @@ export function startCampaign(message: string, phones: string[], addCancel: bool
   }
   if (!list.length) throw new Error("گیرندهٔ معتبری نیست (شماره‌های لغوشده یا نامعتبر حذف می‌شوند)");
   if (list.length > MAX_RECIPIENTS) throw new Error(`حداکثر ${MAX_RECIPIENTS} گیرنده در هر ارسال مجاز است`);
-  const id = `sms_${crypto.randomUUID().slice(0, 8)}`;
+  const id = `sms_${crypto.randomBytes(12).toString("base64url")}`; // ۹۶ بیت
   d.prepare("INSERT INTO sms_campaigns (id, message, created_at, total, status) VALUES (?,?,?,?, 'running')").run(id, text, now(), list.length);
   const ins = d.prepare("INSERT INTO sms_outbox (campaign_id, phone) VALUES (?,?)");
   d.exec("BEGIN");

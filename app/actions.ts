@@ -14,6 +14,8 @@ import { saveReceiptWebp, readUpload } from "@/lib/images";
 import { isVerifiedPhone, normalizePhone, requestOtp, verifyOtp } from "@/lib/otp";
 import type { Bill, Order } from "@/lib/types";
 import type { ActionFail } from "@/lib/action-result";
+import { clientIp, myOrderIds, ownsTable, rememberOrder } from "@/lib/security";
+import { hit } from "@/lib/limits";
 
 /** خطا را (با پیامِ فارسی) برمی‌گرداند؛ پرتاب‌شدن در production پیام را پنهان می‌کند */
 async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
@@ -22,6 +24,13 @@ async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
   } catch (e) {
     return { __error: e instanceof Error ? e.message : "خطا" };
   }
+}
+
+/** جلوگیری از سیلِ درخواست: سقف برای هر IP و برای هر میز (روی دیسک، با ری‌استارت پاک نمی‌شود) */
+async function limitCustomer(kind: string, table: string, perIp: number, perTable: number, windowMs: number) {
+  const msg = "درخواست‌ها زیاد است؛ چند دقیقه بعد دوباره امتحان کنید";
+  hit(`${kind}:ip:${await clientIp()}`, perIp, windowMs, msg);
+  hit(`${kind}:t:${table}`, perTable, windowMs, msg);
 }
 
 /** بدون شمارهٔ میز (اسکن نشده) سفارش/درخواست پذیرفته نمی‌شود */
@@ -38,22 +47,30 @@ export async function placeOrderAction(
 ): Promise<Order | ActionFail> {
   return guard(async () => {
   table = needTable(table);
+  await limitCustomer("order", table, 10, 20, 5 * 60_000);
   // شماره فقط اگر قبلاً با کد پیامکی تأیید شده باشد ثبت می‌شود
   const phone = extra?.phone && (await isVerifiedPhone(extra.phone)) ? normalizePhone(extra.phone) : "";
-  return createOrder({ table, items, note: extra?.note, phone });
+  const order = createOrder({ table, items, note: extra?.note, phone });
+  // این مرورگر صاحبِ این سفارش است (کوکیِ امضاشده) — فقط خودش وضعیت/صورتحسابش را می‌بیند
+  await rememberOrder(order.id);
+  return order;
   });
 }
 
+const EMPTY_BILL = (table: string): Bill => ({ table, count: 0, total: 0, payStatus: "none", rejectedReason: "", receipt: "", orders: [] });
+
+/** صورتحسابِ میز — فقط برای مرورگری که روی همین میز سفارش داده */
 export async function billAction(table: string): Promise<Bill> {
-  return getBill(table);
+  return (await ownsTable(table)) ? getBill(table) : EMPTY_BILL(table);
 }
 
 export async function orderAction(id: string): Promise<Order | null> {
-  return getOrder(id);
+  return (await myOrderIds()).includes(id) ? getOrder(id) : null;
 }
 
 export async function ordersAction(ids: string[]): Promise<Order[]> {
-  return ids.map((id) => getOrder(id)).filter(Boolean) as Order[];
+  const mine = new Set(await myOrderIds());
+  return ids.filter((id) => mine.has(id)).map((id) => getOrder(id)).filter(Boolean) as Order[];
 }
 
 export async function uploadReceiptAction(
@@ -62,6 +79,8 @@ export async function uploadReceiptAction(
   return guard(async () => {
   const table = String(formData.get("table") || "").trim();
   if (!table) throw new Error("شماره میز نامعتبر است");
+  if (!(await ownsTable(table))) throw new Error("ابتدا از همین گوشی سفارش ثبت کنید");
+  await limitCustomer("receipt", table, 10, 10, 10 * 60_000);
   const buf = await readUpload(formData);
   if (!buf) throw new Error("تصویر رسید ارسال نشد");
   const { path, hash } = await saveReceiptWebp(buf, table);
@@ -79,6 +98,7 @@ export async function requestAction(
   return guard(async () => {
   // (نوع pos فقط از مسیرِ posRequestAction ساخته می‌شود)
   table = needTable(table);
+  await limitCustomer("request", table, 5, 8, 2 * 60_000);
   createRequest({ table, type, note: String(note || "").trim().slice(0, 200) });
   return { ok: true };
   });
@@ -91,6 +111,9 @@ export async function feedbackAction(input: {
   comment?: string;
 }): Promise<{ ok: boolean } | ActionFail> {
   return guard(async () => {
+  await limitCustomer("feedback", input.table || "-", 5, 10, 10 * 60_000);
+  // نظر فقط به سفارشِ خودِ همین مرورگر وصل می‌شود
+  if (input.orderId && !(await myOrderIds()).includes(input.orderId)) input = { ...input, orderId: undefined };
   createFeedback(input);
   return { ok: true };
   });
@@ -111,6 +134,8 @@ export async function otpVerifyAction(phone: string, code: string, table: string
 /** «کارت‌خوان سر میز»: صندوق فاکتور را چاپ می‌کند و سالن‌دار با کارت‌خوان می‌آید */
 export async function posRequestAction(table: string): Promise<{ ok: boolean } | ActionFail> {
   return guard(async () => {
-  return requestPos(needTable(table));
+  const t = needTable(table);
+  await limitCustomer("request", t, 5, 8, 2 * 60_000);
+  return requestPos(t);
   });
 }

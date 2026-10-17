@@ -21,10 +21,20 @@ if [ -f "$FILE.sha256" ]; then
   echo "   سالم است ✓"
 fi
 STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
-tar -xzf "$FILE" -C "$STAGE" 2>/dev/null || { echo "❌ این فایلِ بک‌آپِ معتبری نیست."; exit 1; }
-[ -f "$STAGE/data/cafe.db" ] || { echo "❌ بک‌آپ دیتابیس ندارد (data/cafe.db)."; exit 1; }
-node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(Object.values(d.prepare("PRAGMA integrity_check").get())[0]==="ok"?0:1)' "$STAGE/data/cafe.db" 2>/dev/null \
-  || { echo "❌ دیتابیسِ داخلِ بک‌آپ سالم نیست."; exit 1; }
+if [[ "$FILE" == *.enc ]]; then
+  # بک‌آپِ رمزدار: رمز از BACKUP_PASSWORD یا پرسیده می‌شود
+  if [ -z "${BACKUP_PASSWORD:-}" ]; then read -r -s -p "رمزِ بک‌آپ: " BACKUP_PASSWORD; echo; export BACKUP_PASSWORD; fi
+  openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSWORD -in "$FILE" 2>/dev/null | tar -xzf - -C "$STAGE" 2>/dev/null \
+    || { echo "❌ رمزِ بک‌آپ اشتباه است یا فایل خراب است."; exit 1; }
+else
+  tar -xzf "$FILE" -C "$STAGE" 2>/dev/null || { echo "❌ این فایلِ بک‌آپِ معتبری نیست."; exit 1; }
+fi
+[ -f "$STAGE/data/cafe.db" ] || [ -f "$STAGE/data/platform.db" ] || { echo "❌ بک‌آپ دیتابیس ندارد."; exit 1; }
+# سلامتِ همهٔ دیتابیس‌های داخلِ بک‌آپ
+find "$STAGE/data" -name '*.db' -not -path '*/uploads/*' | while read -r f; do
+  node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(Object.values(d.prepare("PRAGMA integrity_check").get())[0]==="ok"?0:1)' "$f" 2>/dev/null \
+    || { echo "❌ دیتابیسِ داخلِ بک‌آپ سالم نیست: ${f#$STAGE/}"; exit 1; }
+done
 [ -f "$STAGE/MANIFEST.txt" ] && sed 's/^/   /' "$STAGE/MANIFEST.txt" | sed -n '2,7p'
 
 # ۲) نگه‌داشتنِ دادهٔ فعلی (اگر چیزی هست)
@@ -46,9 +56,20 @@ rm -f data.new/cafe.db-wal data.new/cafe.db-shm
 mkdir -p data.new/uploads
 rm -rf data.old && [ -d data ] && mv data data.old
 mv data.new data && rm -rf data.old
-if [ -f "$STAGE/env/.env.production.local" ] && [ "${KEEP_PASSWORD:-0}" != "1" ]; then
-  # رمزِ اولیهٔ نصبِ سرورِ قبلی (فقط وقتی لازم است که رمز از داخلِ پنل عوض نشده باشد)
-  cp "$STAGE/env/.env.production.local" .env.production.local && chmod 600 .env.production.local
+# کلیدِ اطلاعاتِ رمزشده باید همراهِ دیتابیس برگردد
+KEYF="${DATA_KEY_FILE:-/etc/cafe-menu/data.key}"; [ "$(id -u)" -eq 0 ] || KEYF=".data-key"
+for k in "$STAGE/env/data.key" "$STAGE/env/.data-key"; do
+  [ -f "$k" ] && { mkdir -p "$(dirname "$KEYF")" && chmod 700 "$(dirname "$KEYF")" 2>/dev/null; install -m 600 "$k" "$KEYF"; break; }
+done
+if [ -f "$STAGE/env/.env.production.local" ]; then
+  # تنظیماتِ سرورِ قبلی (رمزِ اولیه، و در حالتِ پلتفرم: دامنهٔ اصلی و رمزِ مدیرِ کل) — کلید به کلید ادغام می‌شود
+  touch .env.production.local
+  while IFS= read -r line; do
+    k="${line%%=*}"; [ -n "$k" ] && [ "$k" != "$line" ] || continue
+    [ "$k" = "ADMIN_PASSWORD" ] && [ "${KEEP_PASSWORD:-0}" = "1" ] && continue
+    grep -v "^$k=" .env.production.local > .env.tmp || true; printf '%s\n' "$line" >> .env.tmp; mv .env.tmp .env.production.local
+  done < "$STAGE/env/.env.production.local"
+  chmod 600 .env.production.local
 fi
 if [ "$RUNNING" = 1 ]; then
   say "شروعِ دوبارهٔ سایت"

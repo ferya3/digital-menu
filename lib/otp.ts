@@ -1,6 +1,7 @@
 import "server-only";
-import crypto from "node:crypto";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
+import { checkCode, hit, issueCode } from "@/lib/limits";
+import { clientIp, cookieOpts } from "@/lib/security";
 import { addCustomer, getSetting } from "@/lib/queries";
 import { readSigned, signData } from "@/lib/auth";
 import { sendAfeSms } from "@/lib/sms-afe";
@@ -12,12 +13,6 @@ export const DEFAULT_SMS: SmsSettings = {
 };
 const COOKIE = "cafe_phone";
 const VERIFIED_TTL = 12 * 3600 * 1000;
-
-// کدهای موقت در حافظه (مثل نسخهٔ قبلی): phone -> { code, exp, attempts, lastSent }
-type Rec = { code: string; exp: number; attempts: number; lastSent: number };
-const g = globalThis as unknown as { __otp?: Map<string, Rec>; __otpIp?: Map<string, { n: number; t: number }> };
-const codes = (g.__otp ??= new Map());
-const ipHits = (g.__otpIp ??= new Map());
 
 /** نرمال‌سازی شماره (ارقام فارسی، +98، 0098 …) به 09xxxxxxxxx */
 export function normalizePhone(raw: string): string {
@@ -68,36 +63,23 @@ async function sendSms(phone: string, code: string): Promise<{ demo: boolean }> 
 }
 
 export async function requestOtp(raw: string): Promise<{ ok: boolean; demoCode?: string }> {
-  const ip = ((await headers()).get("x-forwarded-for") || "x").split(",")[0].trim();
-  const rec = ipHits.get(ip) || { n: 0, t: Date.now() };
-  if (Date.now() - rec.t > 10 * 60_000) { rec.n = 0; rec.t = Date.now(); }
-  if (rec.n >= 6) throw new Error("تعداد درخواست زیاد است؛ کمی بعد دوباره امتحان کنید");
-  rec.n += 1;
-  ipHits.set(ip, rec);
-
   const phone = normalizePhone(raw);
   if (!isValidPhone(phone)) throw new Error("شماره موبایل نامعتبر است");
-  const prev = codes.get(phone);
-  if (prev && Date.now() - prev.lastSent < 60_000) throw new Error("لطفاً یک دقیقه صبر کنید و دوباره تلاش کنید");
-  const code = String(crypto.randomInt(10000, 100000));
-  codes.set(phone, { code, exp: Date.now() + 2 * 60_000, attempts: 0, lastSent: Date.now() });
+  // محدودیت روی دیسک (با ری‌استارت پاک نمی‌شود): هر IP ۶ و هر شماره ۵ درخواست در ۱۰ دقیقه
+  hit(`otp-ip:${await clientIp()}`, 6, 10 * 60_000);
+  hit(`otp-phone:${phone}`, 5, 10 * 60_000);
+  const code = issueCode(`otp:${phone}`, 2 * 60_000);
   const { demo } = await sendSms(phone, code);
   return { ok: true, demoCode: demo ? code : undefined };
 }
 
 export async function verifyOtp(raw: string, input: string, table: string): Promise<{ ok: boolean; phone: string }> {
   const phone = normalizePhone(raw);
-  const rec = codes.get(phone);
-  if (!rec) throw new Error("ابتدا کد تأیید را درخواست کنید");
-  if (Date.now() > rec.exp) { codes.delete(phone); throw new Error("کد منقضی شده؛ دوباره درخواست دهید"); }
-  if (rec.attempts >= 5) { codes.delete(phone); throw new Error("تعداد تلاش زیاد است؛ دوباره درخواست دهید"); }
-  rec.attempts += 1;
-  if (normalizePhone(input) !== rec.code) throw new Error("کد واردشده نادرست است");
-  codes.delete(phone);
+  // جدا از ۵ تلاش برای هر کد: حداکثر ۱۵ تلاشِ اشتباه در ساعت برای هر شماره
+  hit(`otp-verify:${phone}`, 15, 3600_000);
+  checkCode(`otp:${phone}`, normalizePhone(input));
   addCustomer(phone, table);
-  (await cookies()).set(COOKIE, signData({ phone }, VERIFIED_TTL), {
-    httpOnly: true, sameSite: "lax", path: "/", maxAge: VERIFIED_TTL / 1000,
-  });
+  (await cookies()).set(COOKIE, signData({ phone }, VERIFIED_TTL), await cookieOpts(VERIFIED_TTL / 1000));
   return { ok: true, phone };
 }
 

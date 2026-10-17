@@ -40,6 +40,12 @@ say "کپیِ عکس‌ها و فایل‌ها"
 [ -d data/uploads ] && { mkdir -p "$STAGE/data/uploads"; cp -a data/uploads/. "$STAGE/data/uploads/"; rm -rf "$STAGE/data/uploads/.thumbs"; }   # بندانگشتی‌ها خودکار دوباره ساخته می‌شوند
 for f in data/*; do case "$f" in data/cafe.db*|data/uploads) ;; *) [ -e "$f" ] && cp -a "$f" "$STAGE/data/" ;; esac; done
 [ -f .env.production.local ] && { mkdir -p "$STAGE/env"; cp .env.production.local "$STAGE/env/"; }   # رمزِ اولیهٔ نصب
+# کلیدِ رمزگذاری جدا از داده نگه داشته می‌شود: فقط داخلِ بک‌آپِ رمزدار (BACKUP_PASSWORD) یا با INCLUDE_KEY=1
+KEYF="${DATA_KEY_FILE:-/etc/cafe-menu/data.key}"; [ -f "$KEYF" ] || KEYF=".data-key"
+KEY_INCLUDED=0
+if [ -f "$KEYF" ] && { [ -n "${BACKUP_PASSWORD:-}" ] || [ "${INCLUDE_KEY:-0}" = "1" ]; }; then
+  mkdir -p "$STAGE/env"; install -m 600 "$KEYF" "$STAGE/env/data.key"; KEY_INCLUDED=1
+fi
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo ?)"
 cat > "$STAGE/MANIFEST.txt" <<EOF
 cafe-backup
@@ -51,16 +57,30 @@ uploads:  $(find "$STAGE/data/uploads" -type f 2>/dev/null | wc -l) files, $(du 
 EOF
 
 say "ساختِ فایل بک‌آپ"
-tar -czf "$FILE" -C "$STAGE" .
+if [ -n "${BACKUP_PASSWORD:-}" ]; then
+  # بک‌آپِ رمزدار (AES-256): بدونِ این رمز، فایل حتی اگر لو برود خوانا نیست
+  FILE="$FILE.enc"
+  tar -czf - -C "$STAGE" . | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 -pass env:BACKUP_PASSWORD -out "$FILE"
+else
+  tar -czf "$FILE" -C "$STAGE" .
+fi
 chmod 600 "$FILE"
 ( cd "$OUT_DIR" && sha256sum "$(basename "$FILE")" > "$(basename "$FILE").sha256" )
-ls -1t "$OUT_DIR"/data-*.tar.gz | tail -n +21 | while read -r old; do rm -f "$old" "$old.sha256"; done   # فقط ۲۰ بک‌آپِ آخر
+ls -1t "$OUT_DIR"/data-*.tar.gz* 2>/dev/null | grep -v '\.sha256$' | tail -n +21 | while read -r old; do rm -f "$old" "$old.sha256"; done   # فقط ۲۰ بک‌آپِ آخر
 
 echo
 echo "✅ بک‌آپ ساخته شد"
 sed 's/^/   /' "$STAGE/MANIFEST.txt" | sed -n '2,7p'
 echo "   فایل: $FILE  ($(du -h "$FILE" | cut -f1))"
-echo "   ⚠️ این فایل شاملِ رمزها و شمارهٔ مشتری‌هاست؛ جایی عمومی نگذارید."
+if [ -n "${BACKUP_PASSWORD:-}" ]; then
+  echo "   🔒 رمزدار است؛ برای بازیابی همان BACKUP_PASSWORD لازم است (گم شود، بک‌آپ قابلِ استفاده نیست)."
+else
+  echo "   ⚠️ این فایل شاملِ شمارهٔ مشتری‌ها و سفارش‌هاست؛ جایی عمومی نگذارید. (بک‌آپِ رمزدار:  sudo BACKUP_PASSWORD='…' bash backup.sh)"
+fi
+if [ "$KEY_INCLUDED" = "0" ] && [ -f "$KEYF" ]; then
+  echo "   🔑 کلیدِ رمزگذاری ($KEYF) عمداً در این بک‌آپ نیست. برای انتقال به سرورِ دیگر یا بک‌آپِ رمزدار بگیرید،"
+  echo "      یا کلید را جدا (و جای امن) نگه دارید؛ بدونِ آن فقط رمزهای سامانهٔ پیامک/درگاه باید دوباره وارد شوند."
+fi
 
 if [ -n "$DEST" ]; then
   say "ارسال به $DEST"

@@ -222,6 +222,7 @@ export function MenuView({
   const billOpenRef = useRef(false);
   billOpenRef.current = billOpen;
   const myOrdersRef = useRef<Order[]>([]);
+  const soonRef = useRef<() => void>(() => {});
   myOrdersRef.current = myOrders;
   const payFirstRef = useRef(payFirst);
   payFirstRef.current = payFirst;
@@ -257,15 +258,23 @@ export function MenuView({
     const prune = window.setInterval(() => setMyOrders((l) => pruneOrders(l, false)), 60_000);
     let timer: number | undefined;
     const soon = () => { window.clearTimeout(timer); timer = window.setTimeout(refresh, 80); };
+    soonRef.current = soon;
     if (!table) return;
-    const es = new EventSource(`/live?table=${encodeURIComponent(table)}`);
-    es.onmessage = soon;
     const t = window.setInterval(refresh, 30000);
     const onVis = () => document.visibilityState === "visible" && soon();
     document.addEventListener("visibilitychange", onVis);
-    return () => { es.close(); window.clearInterval(t); window.clearInterval(prune); window.clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); };
+    return () => { window.clearInterval(t); window.clearInterval(prune); window.clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table]);
+
+  // کانالِ زنده فقط بعد از ثبتِ سفارش از همین گوشی (سرور هم فقط به صاحبِ سفارشِ همین میز اجازه می‌دهد)
+  const hasOrders = myOrders.length > 0;
+  useEffect(() => {
+    if (!table || !hasOrders) return;
+    const es = new EventSource(`/live?table=${encodeURIComponent(table)}`);
+    es.onmessage = () => soonRef.current();
+    return () => es.close();
+  }, [table, hasOrders]);
 
   async function submitOrder() {
     if (count === 0) return;
@@ -341,8 +350,9 @@ export function MenuView({
       setReqOpen(false);
       if (type === "waiter") setReqNote("");
       flash(type === "waiter" ? "گارسون به‌زودی می‌آید 🙋" : "درخواست فاکتور ارسال شد 🧾");
-    } catch {
-      flash("ارسال نشد؛ دوباره تلاش کنید");
+    } catch (e) {
+      // پیامِ سرور (مثلاً «درخواست‌ها زیاد است…») نشان داده شود
+      flash(e instanceof Error && e.message ? e.message : "ارسال نشد؛ دوباره تلاش کنید");
     } finally {
       setReqSending(null);
     }

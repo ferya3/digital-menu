@@ -1,5 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
+import { SECRET_SETTINGS, seal, unseal } from "@/lib/secret-box";
 import { db } from "@/lib/db";
 import { deleteUpload } from "@/lib/images";
 import { publish } from "@/lib/live";
@@ -13,7 +14,8 @@ import type {
   RequestType,
 } from "@/lib/types";
 
-const id = (p: string) => `${p}_${crypto.randomUUID().slice(0, 8)}`;
+// ۹۶ بیت تصادفی (۱۶ نویسه) — قابلِ حدس‌زدن نیست
+const id = (p: string) => `${p}_${crypto.randomBytes(12).toString("base64url")}`;
 const now = () => new Date().toISOString();
 
 /* ---------- menu ---------- */
@@ -305,14 +307,15 @@ export function getSetting<T = unknown>(key: string, fallback: T): T {
   const r = db().prepare("SELECT value FROM settings WHERE key = ?").get(key) as unknown as { value: string } | undefined;
   if (!r) return fallback;
   try {
-    return JSON.parse(r.value) as unknown as T;
+    return JSON.parse(unseal(r.value)) as unknown as T;
   } catch {
     return fallback;
   }
 }
 export function setSetting(key: string, value: unknown) {
+  const json = JSON.stringify(value);
   db().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(
-    key, JSON.stringify(value)
+    key, SECRET_SETTINGS.has(key) ? seal(json) : json
   );
 }
 

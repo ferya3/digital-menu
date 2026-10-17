@@ -87,7 +87,7 @@ export function PhoneGate({ cafe, table, onVerified }: { cafe: CafeInfo; table: 
               <>
                 <p className="mb-4 mt-1 text-sm text-muted-foreground">کد پیامک‌شده به <b dir="ltr">{toFa(latin(phone))}</b> را وارد کن</p>
                 {demo && <p className="mb-3 rounded-xl bg-amber-500/15 p-2 text-xs text-amber-800 dark:text-amber-300">🔧 حالت آزمایشی (بدون پیامک واقعی): کد شما <b>{toFa(demo)}</b> است</p>}
-                <input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && verify()} inputMode="numeric" autoFocus placeholder="– – – – –" dir="ltr" className="w-full rounded-xl border border-input bg-background py-3 text-center text-2xl tracking-[0.5em] outline-none focus:ring-2 focus:ring-ring" />
+                <input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && verify()} inputMode="numeric" autoFocus placeholder="– – – – – –" dir="ltr" className="w-full rounded-xl border border-input bg-background py-3 text-center text-2xl tracking-[0.5em] outline-none focus:ring-2 focus:ring-ring" />
                 <Button size="lg" className="mt-3 w-full rounded-xl" onClick={verify} disabled={busy}>{busy ? <><Loader2 className="animate-spin" /> در حال بررسی…</> : "تأیید و ورود"}</Button>
                 <button onClick={() => { setStep(1); setErr(""); }} className="mt-2 text-xs text-muted-foreground underline">تغییر شماره</button>
               </>
