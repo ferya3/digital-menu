@@ -4,7 +4,7 @@ import { publicPlatform } from "@/app/platform/public";
 import { onPlatformHost } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "حریمِ خصوصی" };
+export const metadata = { title: "حریمِ خصوصی", alternates: { canonical: "/privacy" } };
 
 /** متنِ این صفحه از پنلِ مدیرِ کل ← محتوای سایت ← قوانین ویرایش می‌شود */
 export default async function LegalPage() {

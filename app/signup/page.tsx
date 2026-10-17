@@ -6,7 +6,7 @@ import { publicPlatform } from "@/app/platform/public";
 import { onPlatformHost } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "ثبت‌نام" };
+export const metadata = { title: "ثبت‌نام و ساختِ منوی رایگان", alternates: { canonical: "/signup" } };
 
 export default async function SignupPage() {
   // فقط روی دامنهٔ اصلیِ پلتفرم؛ روی زیردامنهٔ مجموعه‌ها وجود ندارد

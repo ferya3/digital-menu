@@ -92,10 +92,17 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
 
       <HeroVideoCard video={cafe.heroVideo || ""} onChange={(v) => setS((cur) => (cur ? { ...cur, cafe: { ...cur.cafe, heroVideo: v } } : cur))} flash={flash} />
 
-      <Panel icon={<MapPin className="size-5 text-primary" />} title="آدرس و شبکه‌های اجتماعی">
-        <p className="mb-3 text-xs text-muted-foreground">برای اشتراک‌گذاری محصولات همراه لوکیشن استفاده می‌شود.</p>
+      <Panel icon={<MapPin className="size-5 text-primary" />} title="آدرس، تماس و گوگل">
+        <p className="mb-3 text-xs text-muted-foreground">برای اشتراک‌گذاریِ محصولات و نمایشِ بهترِ منو در گوگل (نام، آدرس، تلفن و منوی شما به‌صورتِ ساختاریافته به گوگل معرفی می‌شود).</p>
         <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="شهر"><input value={cafe.city || ""} onChange={(e) => setCafe({ city: e.target.value })} className={inputCls} placeholder="مثلاً تهران" /></Field>
+            <Field label="تلفن"><input value={cafe.phone || ""} onChange={(e) => setCafe({ phone: e.target.value })} className={inputCls} dir="ltr" placeholder="021…" /></Field>
+          </div>
           <Field label="آدرس"><input value={cafe.address || ""} onChange={(e) => setCafe({ address: e.target.value })} className={inputCls} placeholder="مثلاً تهران، خیابان …" /></Field>
+          <Field label="توضیحِ کوتاه برای گوگل (اختیاری)" hint="حداکثر ۱۶۰ نویسه؛ خالی = خودکار از نام، شهر و دسته‌بندی‌ها">
+            <textarea value={cafe.seoDescription || ""} onChange={(e) => setCafe({ seoDescription: e.target.value.slice(0, 160) })} rows={2} className={inputCls} placeholder="مثلاً کافه رویا — بهترین قهوهٔ تخصصی و کیک‌های خانگی در مرکزِ شیراز" />
+          </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="لینک نقشه (گوگل‌مپ / نشان / بلد)"><input value={cafe.mapUrl || ""} onChange={(e) => setCafe({ mapUrl: e.target.value })} className={inputCls} dir="ltr" placeholder="https://…" /></Field>
             <Field label="پیج اینستاگرام (آیدی یا لینک)"><input value={cafe.instagram || ""} onChange={(e) => setCafe({ instagram: e.target.value })} className={inputCls} dir="ltr" placeholder="@mycafe" /></Field>

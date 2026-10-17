@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getMenu, getSetting } from "@/lib/queries";
 import { formatMoney, thumb } from "@/lib/utils";
 import type { CafeInfo } from "@/lib/types";
 import { ProductShare } from "./share";
+import { JsonLd } from "@/components/json-ld";
+import { menuItemLd, siteOrigin } from "@/lib/seo";
 import { withTenant } from "@/lib/tenant";
 import { tenantPage } from "@/lib/tenant-page";
 
@@ -15,12 +16,12 @@ const DEFAULT_CAFE: CafeInfo = { name: "کافه", logo: "☕", tagline: "", cur
 const isImg = (s: string) => /^https?:|^\/uploads\//.test(s || "");
 
 async function load(id: string) {
-  const h = await headers();
+  // آدرسِ اصلیِ سایت (دامنهٔ اختصاصی اگر دارد)
+  const origin = await siteOrigin();
   return withTenant(() => {
   const menu = getMenu();
   const item = menu.items.find((i) => i.id === id);
   const cafe = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
-  const origin = `${h.get("x-forwarded-proto") || "http"}://${h.get("host")}`;
   return { item, cafe, origin, category: menu.categories.find((c) => c.id === item?.category) };
   }, { active: true });
 }
@@ -36,11 +37,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const title = `${item.name} — ${price} | ${cafe.name}`;
   const description = item.desc || cafe.tagline || `منوی ${cafe.name}`;
   const og = (src: string) => (/^\/uploads\//.test(src) ? `${origin}${src}?w=1080&f=jpg` : src);
-  const image = item.image ? og(item.image) : isImg(cafe.logo) ? og(cafe.logo) : undefined;
+  // بدونِ عکسِ محصول و لوگو: تصویرِ خودکارِ مجموعه (/og.png) تا پیش‌نمایشِ لینک خالی نماند
+  const image = item.image ? og(item.image) : isImg(cafe.logo) ? og(cafe.logo) : `${origin}/og.png`;
   return {
-    title,
+    // عنوانِ کامل (بدونِ الگوی «| نامِ مجموعه» که در layout هست)
+    title: { absolute: title },
     description,
-    openGraph: { title, description, url: `${origin}/p/${id}`, siteName: cafe.name, type: "website", ...(image ? { images: [{ url: image, width: 1080, height: 1080, alt: item.name }] } : {}) },
+    alternates: { canonical: `/p/${encodeURIComponent(decodeURIComponent(id))}` },
+    openGraph: { title, description, url: `${origin}/p/${id}`, siteName: cafe.name, type: "website", locale: "fa_IR", ...(image ? { images: [{ url: image, width: 1080, height: 1080, alt: item.name }] } : {}) },
     twitter: { card: image ? "summary_large_image" : "summary", title, description, ...(image ? { images: [image] } : {}) },
   };
 }
@@ -51,6 +55,20 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const { item, cafe, origin, category } = await load(decodeURIComponent(id));
   if (!item) notFound();
   const money = (n: number) => formatMoney(n, cafe.currency);
+  const ld = {
+    "@context": "https://schema.org",
+    "@graph": [
+      { ...menuItemLd(origin, cafe, item), "@id": `${origin}/p/${encodeURIComponent(item.id)}#item` },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: `منوی ${cafe.name}`, item: `${origin}/` },
+          ...(category ? [{ "@type": "ListItem", position: 2, name: category.name, item: `${origin}/` }] : []),
+          { "@type": "ListItem", position: category ? 3 : 2, name: item.name, item: `${origin}/p/${encodeURIComponent(item.id)}` },
+        ],
+      },
+    ],
+  };
   const onSale = !!item.oldPrice && item.oldPrice > item.price;
   const insta = cafe.instagram
     ? /^https?:/.test(cafe.instagram) ? cafe.instagram : `https://instagram.com/${cafe.instagram.replace(/^@/, "")}`
@@ -65,6 +83,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-4 pb-10 pt-5">
+      <JsonLd data={ld} />
       <header className="mb-4 flex items-center gap-2.5">
         <span className="grid size-11 place-items-center overflow-hidden rounded-2xl bg-muted text-2xl">
           {isImg(cafe.logo) ? (

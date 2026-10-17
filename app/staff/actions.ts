@@ -312,7 +312,10 @@ export async function staffUpdateSettingsAction(input: {
     let logo = input.cafe?.logo ?? cur.logo;
     if (logoBuf) logo = await saveImageWebp(logoBuf, "logo", 512);
     // ویدیوی هیرو فقط از مسیر آپلود خودش عوض می‌شود
-    setSetting("cafe", { ...cur, ...input.cafe, logo, heroVideo: cur.heroVideo, heroPoster: cur.heroPoster });
+    const next = { ...cur, ...input.cafe, logo, heroVideo: cur.heroVideo, heroPoster: cur.heroPoster };
+    // فیلدهای سئو کوتاه بمانند
+    for (const [k, n] of [["city", 40], ["phone", 20], ["seoDescription", 160]] as const) if (next[k]) next[k] = String(next[k]).slice(0, n);
+    setSetting("cafe", next);
   }
   if (input.payment) {
     setSetting("payment", { ...DEFAULT_PAYMENT, ...getSetting<PaymentInfo>("payment", DEFAULT_PAYMENT), ...input.payment });

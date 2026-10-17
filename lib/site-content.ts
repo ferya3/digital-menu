@@ -4,7 +4,7 @@
  */
 export interface FeatureItem { icon: string; title: string; text: string }
 export interface SiteContent {
-  brand: { name: string; logo: string; color: string; seoTitle: string; seoDescription: string };
+  brand: { name: string; logo: string; color: string; seoTitle: string; seoDescription: string; ogImage: string; googleVerification: string };
   announce: { enabled: boolean; text: string; link: string };
   hero: { badge: string; title: string; highlight: string; subtitle: string; ctaPrimary: string; ctaSecondary: string; mockupName: string };
   /** ویژگی‌های کوتاهِ زیرِ دکمه‌های بالای صفحه (تیک‌دار) */
@@ -53,6 +53,8 @@ export const DEFAULT_CONTENT: SiteContent = {
     color: "red",
     seoTitle: "{brand} — منوی QR، سفارش آنلاین و پنل مدیریت",
     seoDescription: "منوی QR، سفارش آنلاین و پنل مدیریت برای کافه، رستوران و فست‌فود. {trialDays} روز رایگان.",
+    ogImage: "",
+    googleVerification: "",
   },
   announce: { enabled: false, text: "🎉 جشنوارهٔ ویژه: ۲۰٪ تخفیف اشتراکِ سالانه", link: "/signup" },
   hero: {

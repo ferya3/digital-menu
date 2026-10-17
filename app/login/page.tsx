@@ -5,7 +5,7 @@ import { publicPlatform } from "@/app/platform/public";
 import { onPlatformHost } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "ورود به پنل" };
+export const metadata = { title: "ورود به پنل", robots: { index: false, follow: true } };
 
 export default async function LoginPage() {
   // فقط روی دامنهٔ اصلیِ پلتفرم؛ روی زیردامنهٔ مجموعه‌ها وجود ندارد

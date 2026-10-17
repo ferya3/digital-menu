@@ -6,6 +6,7 @@ import { tenantState } from "@/lib/platform";
 import { activeAnnouncement } from "@/lib/platform-admin";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "پنل مدیریت", robots: { index: false, follow: false } };
 
 export default async function StaffPage() {
   // پنل حتی با اشتراکِ تمام‌شده باز می‌شود تا مدیر بتواند تمدید کند

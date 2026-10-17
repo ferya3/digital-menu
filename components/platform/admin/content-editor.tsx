@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { unwrap } from "@/lib/action-result";
 import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
-import { adminContentAction, adminSaveContentAction, adminUploadLogoAction } from "@/app/platform/actions";
+import { adminContentAction, adminSaveContentAction, adminUploadLogoAction, adminUploadOgAction } from "@/app/platform/actions";
 import { BRAND_COLORS, DEFAULT_CONTENT, FEATURE_ICONS, type SiteContent } from "@/lib/site-content";
 import { Box, L, Toggle, err, smallField, type Flash } from "./shared";
 
@@ -47,6 +47,7 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
   const [busy, setBusy] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
+  const ogRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { adminContentAction().then((r) => { const v = unwrap(r); setC(v); setSaved(JSON.stringify(v)); }).catch((e) => flash("❌ " + err(e))); }, [flash]);
   if (!c) return <div className="grid h-60 place-items-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
@@ -58,6 +59,11 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
     setBusy(true);
     try { const v = unwrap(await adminSaveContentAction(c!)); setC(v); setSaved(JSON.stringify(v)); flash("✅ محتوای سایت ذخیره شد"); }
     catch (e) { flash("❌ " + err(e)); } finally { setBusy(false); }
+  }
+  async function uploadOg(f: File) {
+    setLogoBusy(true);
+    try { const { url } = unwrap(await adminUploadOgAction(imageForm(await compressImage(f, 1600, 0.88)))); set("brand", { ogImage: url }); }
+    catch (e) { flash("❌ " + err(e)); } finally { setLogoBusy(false); }
   }
   async function uploadLogo(f: File) {
     setLogoBusy(true);
@@ -108,6 +114,16 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
               ))}
             </div>
           </L>
+          <L t="تصویرِ پیش‌نمایشِ لینک (واتساپ، تلگرام، گوگل)" hint="۱۲۰۰×۶۳۰؛ خالی = تصویرِ خودکار با لوگو و رنگِ برند">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={c.brand.ogImage || "/og.png"} alt="" className="h-16 w-[122px] rounded-lg border border-border object-cover" />
+              <input ref={ogRef} type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadOg(f); e.target.value = ""; }} />
+              <Button type="button" size="sm" variant="outline" className="rounded-xl" disabled={logoBusy} onClick={() => ogRef.current?.click()}><ImagePlus className="size-4" /> آپلود</Button>
+              {c.brand.ogImage && <button type="button" onClick={() => set("brand", { ogImage: "" })} className="text-xs text-muted-foreground hover:text-primary">حذف (تصویرِ خودکار)</button>}
+            </div>
+          </L>
+          <L t="کدِ تأییدِ گوگل (Search Console)" hint='از Search Console ← «HTML tag» فقط مقدارِ content را کپی کنید'>{inp(c.brand.googleVerification, (v) => set("brand", { googleVerification: v.replace(/.*content="([^"]+)".*/, "$1").trim() }), "abc123…", true)}</L>
           <L t="عنوانِ صفحه در گوگل و تبِ مرورگر">{inp(c.brand.seoTitle, (v) => set("brand", { seoTitle: v }))}</L>
           <L t="توضیحِ صفحه در نتایجِ گوگل">{area(c.brand.seoDescription, (v) => set("brand", { seoDescription: v }), 2)}</L>
         </Box>

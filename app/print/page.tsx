@@ -7,7 +7,7 @@ import { PrintBar } from "./print-bar";
 import { tenantPage } from "@/lib/tenant-page";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "چاپ فاکتور" };
+export const metadata = { title: "چاپ فاکتور", robots: { index: false, follow: false } };
 
 /** فاکتورِ چاپی: یک سفارش (?order=) / چند سفارش (?orders=a,b) / صورتحسابِ بازِ یک میز (?table=) */
 export default async function PrintPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {

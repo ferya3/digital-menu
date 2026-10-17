@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { onPlatformHost } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "مدیریتِ پلتفرم" };
+export const metadata = { title: "مدیریتِ پلتفرم", robots: { index: false, follow: false } };
 
 /** پنلِ مدیرِ کلِ سامانه (فقط روی دامنهٔ اصلی) */
 export default async function AdminPage() {

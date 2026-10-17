@@ -5,21 +5,50 @@ import { headers } from "next/headers";
 import { saasEnabled } from "@/lib/tenant-context";
 import { classifyHost, requestHost, withTenant } from "@/lib/tenant";
 import { fillContent, siteContent } from "@/lib/platform-admin";
-import { getSetting } from "@/lib/queries";
-import type { CafeInfo } from "@/lib/types";
+import { getMenu } from "@/lib/queries";
+import { NOINDEX, cafeDescription, cafeInfo, isImgSrc, siteOrigin, tenantIndexable } from "@/lib/seo";
 
-/** عنوانِ صفحه: نامِ همان مجموعه (یا نامِ پلتفرم روی دامنهٔ اصلی) */
+/**
+ * سئو: عنوان (با الگو برای زیرصفحه‌ها)، توضیح، تصویرِ اشتراک‌گذاری، آیکون و تأییدِ گوگل.
+ * آدرسِ اصلیِ (canonical) هر صفحه در خودِ صفحه تعیین می‌شود.
+ */
 export async function generateMetadata(): Promise<Metadata> {
   try {
+    const origin = await siteOrigin();
+    const base = { metadataBase: new URL(origin), formatDetection: { telephone: false, address: false, email: false } };
     if (saasEnabled() && classifyHost((await requestHost()).host).kind === "platform") {
-      // عنوان و توضیحِ موتورهای جستجو از «محتوای سایت»
       const c = siteContent();
-      return { title: fillContent(c.brand.seoTitle, c), description: fillContent(c.brand.seoDescription, c) };
+      const title = fillContent(c.brand.seoTitle, c), description = fillContent(c.brand.seoDescription, c);
+      const image = c.brand.ogImage || "/og.png";
+      return {
+        ...base,
+        title: { default: title, template: `%s | ${c.brand.name}` },
+        description,
+        applicationName: c.brand.name,
+        openGraph: { type: "website", locale: "fa_IR", siteName: c.brand.name, title, description, images: [{ url: image, width: 1200, height: 630, alt: c.brand.name }] },
+        twitter: { card: "summary_large_image", title, description, images: [image] },
+        ...(isImgSrc(c.brand.logo) ? { icons: { icon: c.brand.logo, apple: c.brand.logo } } : {}),
+        ...(c.brand.googleVerification ? { verification: { google: c.brand.googleVerification } } : {}),
+      };
     }
-    const cafe = await withTenant(() => getSetting<CafeInfo>("cafe", { name: "منوی دیجیتال", logo: "", tagline: "", currency: "toman" }));
-    return { title: `${cafe.name} — منوی دیجیتال`, description: `منوی دیجیتال، سفارش آنلاین، درخواست گارسون و صورتحساب ${cafe.name}.` };
+    return await withTenant(() => {
+      const cafe = cafeInfo();
+      const title = `منوی ${cafe.name}${cafe.city ? ` ${cafe.city}` : ""} | قیمت‌ها و سفارش آنلاین`;
+      const description = cafeDescription(cafe, getMenu());
+      const image = cafe.heroPoster || "/og.png";
+      return {
+        ...base,
+        title: { default: title, template: `%s | ${cafe.name}` },
+        description,
+        applicationName: cafe.name,
+        openGraph: { type: "website", locale: "fa_IR", siteName: cafe.name, title, description, images: [{ url: image, ...(cafe.heroPoster ? {} : { width: 1200, height: 630 }), alt: cafe.name }] },
+        twitter: { card: "summary_large_image", title, description, images: [image] },
+        ...(isImgSrc(cafe.logo) ? { icons: { icon: `${cafe.logo}?w=160`, apple: `${cafe.logo}?w=320&f=jpg` } } : {}),
+        ...(tenantIndexable() ? {} : NOINDEX),
+      };
+    });
   } catch {
-    return { title: "منوی دیجیتال" };
+    return { title: "منوی دیجیتال", ...NOINDEX };
   }
 }
 

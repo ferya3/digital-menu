@@ -58,6 +58,13 @@ export const fillContent = (text: string, c?: SiteContent) => fill(text, content
 
 /* ---------- لوگوی پلتفرم (data/platform-assets، سرو با /brand/<file>) ---------- */
 export const ASSETS_DIR = path.join(DATA_DIR, "platform-assets");
+/** تصویرِ پیش‌نمایشِ لینک (۱۲۰۰×۶۳۰) */
+export async function savePlatformOgImage(buf: Buffer): Promise<string> {
+  fs.mkdirSync(ASSETS_DIR, { recursive: true });
+  const file = `og-${crypto.randomBytes(6).toString("hex")}.webp`;
+  fs.writeFileSync(path.join(ASSETS_DIR, file), await sharp(buf).rotate().resize(1200, 630, { fit: "cover" }).webp({ quality: 86 }).toBuffer());
+  return "/brand/" + file;
+}
 export async function savePlatformLogo(buf: Buffer): Promise<string> {
   fs.mkdirSync(ASSETS_DIR, { recursive: true });
   const file = `logo-${crypto.randomBytes(6).toString("hex")}.webp`;
