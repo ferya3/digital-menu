@@ -2,17 +2,16 @@ import "server-only";
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
-import { CATEGORIES, DISHES } from "@/lib/data";
+import { seedMenu, type BusinessKind } from "@/lib/seeds";
+import { currentTenant } from "@/lib/tenant-context";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "cafe.db");
+// یک اتصال برای هر مجموعه؛ روی globalThis تا با هات‌ری‌لودِ Next دوباره باز نشود
+const g = globalThis as unknown as { __cafeDbs?: Map<string, DatabaseSync> };
+const dbs = (g.__cafeDbs ??= new Map());
 
-// سینگلتون روی globalThis تا با هات‌ری‌لودِ Next دوباره باز نشود
-const g = globalThis as unknown as { __cafeDb?: DatabaseSync };
-
-function createDb(): DatabaseSync {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const db = new DatabaseSync(DB_PATH);
+function createDb(dir: string, init?: SeedOptions): DatabaseSync {
+  fs.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync(path.join(dir, "cafe.db"));
   db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
   db.exec(`
     CREATE TABLE IF NOT EXISTS categories (
@@ -77,33 +76,65 @@ function createDb(): DatabaseSync {
            WHERE paid = 1 AND (paid_at IS NULL OR paid_at = '')`);
   // ارسالی که با ری‌استارتِ سرور نیمه‌کاره مانده را «قطع‌شده» علامت بزن (از پنل قابل ادامه است)
   db.exec("UPDATE sms_campaigns SET status='interrupted' WHERE status='running'");
-  seed(db);
+  seed(db, init);
   return db;
 }
 
-function seed(db: DatabaseSync) {
-  const count = db.prepare("SELECT COUNT(*) c FROM items").get() as unknown as { c: number };
-  if (count.c > 0) return;
-  const insCat = db.prepare(
-    "INSERT INTO categories (id, name, emoji, sort) VALUES (?, ?, ?, ?)"
-  );
-  CATEGORIES.forEach((c, i) => insCat.run(c.id, c.name, c.emoji, i));
-  const insItem = db.prepare(
-    `INSERT INTO items (id, category_id, name, description, price, old_price, emoji, tag, available, sort)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
-  );
-  DISHES.forEach((d, i) =>
-    insItem.run(
-      d.id, d.category, d.name, d.desc, d.price, d.oldPrice ?? 0, d.emoji, d.tag ?? "", i
-    )
-  );
-  // تنظیمات پیش‌فرض
-  const s = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
-  s.run("cafe", JSON.stringify({ name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" }));
-  s.run("payment", JSON.stringify({ card: "", holder: "", note: "", link: "" }));
+export interface SeedOptions {
+  kind: BusinessKind;
+  name: string;
+  /** منوی نمونه (قابل حذف از پنل) */
+  sample: boolean;
 }
 
+/** فقط یک‌بار (دیتابیسِ تازه): منوی نمونه + تنظیماتِ اولیه. اگر مدیر همهٔ محصولات را پاک کند دوباره پر نمی‌شود. */
+function seed(db: DatabaseSync, init?: SeedOptions) {
+  const done = db.prepare("SELECT 1 FROM settings WHERE key = 'seeded'").get();
+  if (done) return;
+  const count = db.prepare("SELECT COUNT(*) c FROM items").get() as unknown as { c: number };
+  if (count.c === 0) {
+    const kind = init?.kind || "cafe";
+    const { categories, dishes } = seedMenu(kind, init ? init.sample : true);
+    const insCat = db.prepare("INSERT INTO categories (id, name, emoji, sort) VALUES (?, ?, ?, ?)");
+    categories.forEach((c, i) => insCat.run(c.id, c.name, c.emoji, i));
+    const insItem = db.prepare(
+      `INSERT INTO items (id, category_id, name, description, price, old_price, emoji, tag, available, sort)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+    );
+    dishes.forEach((d, i) => insItem.run(d.id, d.category, d.name, d.desc, d.price, d.oldPrice ?? 0, d.emoji, d.tag ?? "", i));
+    // تنظیمات پیش‌فرض
+    const s = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
+    const logo = { cafe: "☕", restaurant: "🍽️", fastfood: "🍔", other: "🍴" }[kind];
+    s.run("cafe", JSON.stringify({ name: init?.name || "کافه آرتاویل", logo, tagline: "", currency: "toman", kind }));
+    s.run("payment", JSON.stringify({ card: "", holder: "", note: "", link: "" }));
+  }
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('seeded', 'true')").run();
+}
+
+/** دیتابیسِ مجموعهٔ همین درخواست */
 export function db(): DatabaseSync {
-  if (!g.__cafeDb) g.__cafeDb = createDb();
-  return g.__cafeDb;
+  const t = currentTenant();
+  let d = dbs.get(t.slug);
+  if (!d) {
+    d = createDb(t.dir);
+    dbs.set(t.slug, d);
+  }
+  return d;
+}
+
+/** ساختِ دیتابیسِ مجموعهٔ تازه با منوی متناسب با نوعِ کسب‌وکار (باید داخلِ runAsTenant صدا زده شود) */
+export function initTenantDb(init: SeedOptions): DatabaseSync {
+  const t = currentTenant();
+  const d = createDb(t.dir, init);
+  dbs.set(t.slug, d);
+  return d;
+}
+
+/** بستنِ اتصال (قبل از جابه‌جایی/حذفِ پوشهٔ مجموعه) */
+export function closeTenantDb(slug: string) {
+  const d = dbs.get(slug);
+  if (d) {
+    try { d.close(); } catch {}
+    dbs.delete(slug);
+  }
 }

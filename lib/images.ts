@@ -3,9 +3,10 @@ import sharp from "sharp";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { currentTenant } from "@/lib/tenant-context";
 
-// آپلودها کنارِ دیتابیس در data/ نگه داشته می‌شوند (بک‌آپ یکجا) و با app/uploads سرو می‌شوند
-export const UPLOADS = path.join(process.cwd(), "data", "uploads");
+// آپلودها کنارِ دیتابیسِ هر مجموعه نگه داشته می‌شوند (بک‌آپ یکجا) و با app/uploads سرو می‌شوند
+export const uploadsDir = () => path.join(currentTenant().dir, "uploads");
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -31,7 +32,7 @@ export async function saveReceiptWebp(
   table: string
 ): Promise<{ path: string; hash: string }> {
   const hash = crypto.createHash("sha256").update(buf).digest("hex");
-  fs.mkdirSync(UPLOADS, { recursive: true });
+  fs.mkdirSync(uploadsDir(), { recursive: true });
   const file = `receipt-t${table}-${Date.now()}.webp`;
 
   const base = sharp(buf).rotate();
@@ -51,31 +52,31 @@ export async function saveReceiptWebp(
     // اگر حک‌کردن شکست خورد، فقط WebP ذخیره می‌شود تا پرداخت بلاک نشود
     out = await img.webp({ quality: 80 }).toBuffer();
   }
-  fs.writeFileSync(path.join(UPLOADS, file), out);
+  fs.writeFileSync(path.join(uploadsDir(), file), out);
   return { path: "/uploads/" + file, hash };
 }
 
 /** عکس محصول/دسته: تبدیل به WebP بهینه */
 export async function saveImageWebp(buf: Buffer, label: string, size = 1000): Promise<string> {
-  fs.mkdirSync(UPLOADS, { recursive: true });
+  fs.mkdirSync(uploadsDir(), { recursive: true });
   const file = `${label}-${Date.now()}.webp`;
   const out = await sharp(buf)
     .rotate()
     .resize(size, size, { fit: "inside", withoutEnlargement: true })
     .webp({ quality: 82 })
     .toBuffer();
-  fs.writeFileSync(path.join(UPLOADS, file), out);
+  fs.writeFileSync(path.join(uploadsDir(), file), out);
   return "/uploads/" + file;
 }
 
 export function deleteUpload(webPath: string) {
   try {
     if (!webPath?.startsWith("/uploads/")) return;
-    const f = path.join(UPLOADS, path.basename(webPath));
-    if (f.startsWith(UPLOADS) && fs.existsSync(f)) fs.unlinkSync(f);
+    const f = path.join(uploadsDir(), path.basename(webPath));
+    if (f.startsWith(uploadsDir()) && fs.existsSync(f)) fs.unlinkSync(f);
     const base = path.basename(f, path.extname(f));
-    if (fs.existsSync(THUMBS))
-      for (const t of fs.readdirSync(THUMBS)) if (t.startsWith(base + "-")) fs.unlinkSync(path.join(THUMBS, t));
+    if (fs.existsSync(thumbsDir()))
+      for (const t of fs.readdirSync(thumbsDir())) if (t.startsWith(base + "-")) fs.unlinkSync(path.join(thumbsDir(), t));
   } catch {
     /* best effort */
   }
@@ -83,19 +84,19 @@ export function deleteUpload(webPath: string) {
 
 /** عرض‌های مجاز برای نسخهٔ کوچک (تا کسی نتواند بی‌نهایت فایل بسازد) */
 const THUMB_WIDTHS = [160, 320, 480, 720, 1080];
-const THUMBS = path.join(UPLOADS, ".thumbs");
+const thumbsDir = () => path.join(uploadsDir(), ".thumbs");
 const pending = new Map<string, Promise<string>>();
 
 /** نسخهٔ کوچکِ WebP از یک عکسِ آپلودی؛ مسیرِ فایلِ کش‌شده را برمی‌گرداند */
 export async function thumbnail(src: string, width: number, format: "webp" | "jpg" = "webp"): Promise<string | null> {
   const w = THUMB_WIDTHS.find((x) => x >= width) ?? THUMB_WIDTHS[THUMB_WIDTHS.length - 1];
-  const out = path.join(THUMBS, `${path.basename(src, path.extname(src))}-${w}.${format}`);
+  const out = path.join(thumbsDir(), `${path.basename(src, path.extname(src))}-${w}.${format}`);
   if (fs.existsSync(out)) return out;
   if (!fs.existsSync(src)) return null;
   let job = pending.get(out);
   if (!job) {
     job = (async () => {
-      fs.mkdirSync(THUMBS, { recursive: true });
+      fs.mkdirSync(thumbsDir(), { recursive: true });
       const img = sharp(src).resize(w, w, { fit: "inside", withoutEnlargement: true });
       // jpg برای پیش‌نمایشِ لینک در واتساپ (WebP را همه‌جا نشان نمی‌دهد)
       const buf = await (format === "jpg" ? img.flatten({ background: "#ffffff" }).jpeg({ quality: 80 }) : img.webp({ quality: 74 })).toBuffer();

@@ -6,6 +6,8 @@ import { getMenu, getSetting } from "@/lib/queries";
 import { formatMoney, thumb } from "@/lib/utils";
 import type { CafeInfo } from "@/lib/types";
 import { ProductShare } from "./share";
+import { withTenant } from "@/lib/tenant";
+import { tenantPage } from "@/lib/tenant-page";
 
 export const dynamic = "force-dynamic";
 
@@ -13,18 +15,22 @@ const DEFAULT_CAFE: CafeInfo = { name: "کافه", logo: "☕", tagline: "", cur
 const isImg = (s: string) => /^https?:|^\/uploads\//.test(s || "");
 
 async function load(id: string) {
+  const h = await headers();
+  return withTenant(() => {
   const menu = getMenu();
   const item = menu.items.find((i) => i.id === id);
   const cafe = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
-  const h = await headers();
-  const origin = `${h.get("x-forwarded-proto") || "http"}://${h.get("x-forwarded-host") || h.get("host")}`;
+  const origin = `${h.get("x-forwarded-proto") || "http"}://${h.get("host")}`;
   return { item, cafe, origin, category: menu.categories.find((c) => c.id === item?.category) };
+  }, { active: true });
 }
 
 /** پیش‌نمایشِ لینک در واتساپ/تلگرام/اینستاگرام: عکس، نام و قیمت محصول */
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const { item, cafe, origin } = await load(decodeURIComponent(id));
+  const loaded = await load(decodeURIComponent(id)).catch(() => null);
+  if (!loaded) return {};
+  const { item, cafe, origin } = loaded;
   if (!item) return { title: cafe.name };
   const price = formatMoney(item.price, cafe.currency);
   const title = `${item.name} — ${price} | ${cafe.name}`;
@@ -41,6 +47,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  return tenantPage(async () => {
   const { item, cafe, origin, category } = await load(decodeURIComponent(id));
   if (!item) notFound();
   const money = (n: number) => formatMoney(n, cafe.currency);
@@ -110,4 +117,5 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       </div>
     </main>
   );
+  }, { active: true });
 }

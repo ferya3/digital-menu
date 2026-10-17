@@ -4,12 +4,12 @@
 #   sudo bash backup.sh                       ← بک‌آپ در /root/cafe-backups
 #   sudo bash backup.sh root@IP-سرور-جدید     ← بک‌آپ + ارسالِ مستقیم به سرورِ جدید (scp)
 #
-# شاملِ همه‌چیز: منو و دسته‌ها، تنظیمات (پرداخت، پیامک، دامنه…)، رمزِ پنل، عکس‌ها و ویدیوی هیرو،
+# شاملِ همه‌چیز (در حالتِ پلتفرم: همهٔ مجموعه‌ها + اشتراک‌ها و پرداخت‌ها): منو و دسته‌ها، تنظیمات (پرداخت، پیامک، دامنه…)، رمزِ پنل، عکس‌ها و ویدیوی هیرو،
 # مشتری‌ها، سفارش‌ها، حسابداری، تاریخچهٔ پیامک‌ها. دیتابیس به‌صورتِ «نسخهٔ یکدست» گرفته می‌شود (حتی وقتی سایت در حال کار است).
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 say(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
-[ -f data/cafe.db ] || { echo "data/cafe.db پیدا نشد؛ از داخلِ پوشهٔ برنامه (مثلاً /opt/cafe-next) اجرا کنید."; exit 1; }
+[ -f data/cafe.db ] || [ -f data/platform.db ] || { echo "دیتابیسی در data/ پیدا نشد؛ از داخلِ پوشهٔ برنامه (مثلاً /opt/cafe-next) اجرا کنید."; exit 1; }
 command -v node >/dev/null 2>&1 || { echo "Node.js لازم است."; exit 1; }
 
 OUT_DIR="${OUT_DIR:-/root/cafe-backups}"
@@ -19,26 +19,39 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 FILE="$OUT_DIR/data-$STAMP.tar.gz"
 STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
 
-say "گرفتنِ نسخهٔ یکدست از دیتابیس"
+say "گرفتنِ نسخهٔ یکدست از دیتابیس‌ها"
 mkdir -p "$STAGE/data"
-SRC="$PWD/data/cafe.db" OUT="$STAGE/data/cafe.db" node -e '
+# همهٔ دیتابیس‌ها: تک‌مجموعه‌ای (data/cafe.db) یا پلتفرم (data/platform.db + data/tenants/*/cafe.db)
+INFO="$(SRC="$PWD/data" OUT="$STAGE/data" node -e '
 const { DatabaseSync } = require("node:sqlite");
-const src = new DatabaseSync(process.env.SRC, { readOnly: true });
-const out = process.env.OUT.replace(/\x27/g, "\x27\x27");
-src.exec("VACUUM INTO \x27" + out + "\x27");   // نسخهٔ سالم و فشرده، بدونِ قفل‌کردنِ سایت
-src.close();
-const chk = new DatabaseSync(process.env.OUT, { readOnly: true });
-const ok = chk.prepare("PRAGMA integrity_check").get();
-if (Object.values(ok)[0] !== "ok") { console.error("دیتابیسِ نسخه‌برداری‌شده سالم نیست!"); process.exit(2); }
-const n = (t) => { try { return chk.prepare("SELECT COUNT(*) c FROM " + t).get().c; } catch { return 0; } };
-require("fs").writeFileSync(process.env.OUT + ".info", JSON.stringify({ orders: n("orders"), customers: n("customers"), items: n("items"), categories: n("categories"), campaigns: n("sms_campaigns") }));
-' 2>&1 | grep -v -i "experimental\|trace-warnings" || true
-[ -s "$STAGE/data/cafe.db" ] || { echo "ساختِ نسخهٔ دیتابیس ناموفق بود."; exit 1; }
-INFO="$(cat "$STAGE/data/cafe.db.info")"; rm -f "$STAGE/data/cafe.db.info"
+const fs = require("fs"), path = require("path");
+const src = process.env.SRC, out = process.env.OUT;
+const files = [];
+(function walk(d) { for (const f of fs.readdirSync(d, { withFileTypes: true })) {
+  const p = path.join(d, f.name);
+  if (f.isDirectory()) { if (f.name !== "uploads") walk(p); } else if (f.name.endsWith(".db")) files.push(p);
+} })(src);
+const counts = { databases: 0, tenants: 0, orders: 0, customers: 0, items: 0 };
+for (const f of files) {
+  const dst = path.join(out, path.relative(src, f));
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  const db = new DatabaseSync(f, { readOnly: true });
+  db.exec("VACUUM INTO \x27" + dst.replace(/\x27/g, "\x27\x27") + "\x27");   // نسخهٔ سالم، بدونِ قفل‌کردنِ سایت
+  db.close();
+  const chk = new DatabaseSync(dst, { readOnly: true });
+  if (Object.values(chk.prepare("PRAGMA integrity_check").get())[0] !== "ok") { console.error("دیتابیسِ نسخه‌برداری‌شده سالم نیست: " + f); process.exit(2); }
+  const n = (t) => { try { return chk.prepare("SELECT COUNT(*) c FROM " + t).get().c; } catch { return 0; } };
+  counts.databases++;
+  if (path.basename(f) === "platform.db") counts.tenants = n("tenants");
+  else { counts.orders += n("orders"); counts.customers += n("customers"); counts.items += n("items"); }
+  chk.close();
+}
+console.log(JSON.stringify(counts));
+' 2>/dev/null)" || { echo "ساختِ نسخهٔ دیتابیس ناموفق بود."; exit 1; }
 
 say "کپیِ عکس‌ها و فایل‌ها"
-[ -d data/uploads ] && { mkdir -p "$STAGE/data/uploads"; cp -a data/uploads/. "$STAGE/data/uploads/"; rm -rf "$STAGE/data/uploads/.thumbs"; }   # بندانگشتی‌ها خودکار دوباره ساخته می‌شوند
-for f in data/*; do case "$f" in data/cafe.db*|data/uploads) ;; *) [ -e "$f" ] && cp -a "$f" "$STAGE/data/" ;; esac; done
+# همهٔ فایل‌های دیگر (عکس‌ها، ویدیوها، لاگ‌ها) — دیتابیس‌ها بالا جدا گرفته شدند؛ بندانگشتی‌ها خودکار دوباره ساخته می‌شوند
+tar -C data --exclude='*.db' --exclude='*.db-wal' --exclude='*.db-shm' --exclude='.thumbs' -cf - . | tar -C "$STAGE/data" -xf -
 [ -f .env.production.local ] && { mkdir -p "$STAGE/env"; cp .env.production.local "$STAGE/env/"; }   # رمزِ اولیهٔ نصب
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo ?)"
 cat > "$STAGE/MANIFEST.txt" <<EOF
@@ -47,7 +60,7 @@ created:  $(date -Is)
 host:     $(hostname)
 commit:   $COMMIT
 counts:   $INFO
-uploads:  $(find "$STAGE/data/uploads" -type f 2>/dev/null | wc -l) files, $(du -sh "$STAGE/data/uploads" 2>/dev/null | cut -f1)
+uploads:  $(find "$STAGE/data" -path '*/uploads/*' -type f 2>/dev/null | wc -l) files, $(du -sh "$STAGE/data" 2>/dev/null | cut -f1) total
 EOF
 
 say "ساختِ فایل بک‌آپ"

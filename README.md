@@ -119,6 +119,41 @@ cd /opt/cafe-next && sudo bash restore.sh /root/data-XXXX.tar.gz
 - اتصالِ دامنه + HTTPS بعد از نصب:  `sudo DOMAIN=artavilstar.com bash set-domain.sh`
   (گواهی رایگانِ Let's Encrypt با تمدیدِ خودکار، HTTP/2، و هدایتِ IP/http/www به `https://دامنه` با حفظِ `?table=` — QRهای قدیمی خراب نمی‌شوند)
 
+## پلتفرمِ اشتراکی (چند مجموعه روی یک سرور) — شاخهٔ `saas`
+
+هر کافه/رستوران/فست‌فود ثبت‌نام می‌کند، اشتراک می‌خرد و منو و پنلِ **کاملاً جدا** روی زیردامنهٔ خودش می‌گیرد:
+
+| آدرس | چیست |
+|---|---|
+| `https://artavilstar.com` | سایتِ معرفی، تعرفه‌ها، ثبت‌نام و «ورود به پنل» |
+| `https://artavilstar.com/admin` | پنلِ مدیرِ کل: مجموعه‌ها، تمدید/تعلیق/حذف، ورود به پنلِ هر مجموعه، رمزِ جدید، دامنهٔ اختصاصی، تأییدِ فیش‌ها، طرح‌ها و قیمت‌ها، زرین‌پال، کارت، پیامکِ ثبت‌نام |
+| `https://roya.artavilstar.com` | منوی مشتریِ مجموعهٔ «roya» (QRِ میزها) |
+| `https://roya.artavilstar.com/staff` | پنلِ مدیریتِ همان مجموعه + بخشِ «اشتراک» برای تمدید |
+
+- **جداسازی:** هر مجموعه دیتابیس (`data/tenants/<آدرس>/cafe.db`)، پوشهٔ عکس‌ها، رمزِ پنل، کانالِ زنده، تنظیماتِ پرداخت/پیامک و ظاهرِ خودش را دارد. نشستِ یک مجموعه روی مجموعهٔ دیگر معتبر نیست.
+- **ثبت‌نام:** نام، نوعِ کسب‌وکار (کافه، رستوران، فست‌فود، سایر — منوی نمونه و عنوان‌ها متناسب با آن)، آدرس، موبایل (با کدِ پیامکی اگر پیامکِ پلتفرم تنظیم شده) و رمز ← دورهٔ آزمایشیِ رایگان (پیش‌فرض ۱۴ روز) ← ورودِ خودکار به پنل.
+- **اشتراک:** طرح‌ها از پنلِ مدیرِ کل؛ پرداختِ آنلاین با **زرین‌پال** (تمدیدِ فوری) یا **کارت‌به‌کارت** با فیش (تمدید بعد از تأیید). اشتراکِ تمام‌شده/تعلیق‌شده: منوی مشتری «موقتاً در دسترس نیست» می‌شود ولی هیچ داده‌ای پاک نمی‌شود؛ پنل باز می‌ماند تا مدیر تمدید کند.
+- **HTTPS خودکار:** برای هر زیردامنه/دامنهٔ اختصاصیِ تازه گواهیِ Let's Encrypt گرفته و خودکار تمدید می‌شود.
+
+### راه‌اندازی روی سروری که الان منوی آرتاویل را دارد
+
+۱) در پنلِ دامنه سه رکوردِ A روی IPِ سرور: `artavilstar.com`، `www` و **`*`** (همهٔ زیردامنه‌ها).
+۲) کد را به شاخهٔ `saas` ببرید و فعال کنید:
+```bash
+cd /opt/cafe-next && sudo bash backup.sh && sudo git fetch origin saas:refs/remotes/origin/saas && sudo git checkout -B saas origin/saas && sudo bash update.sh
+sudo ROOT_DOMAIN=artavilstar.com EMAIL=you@mail.com PLATFORM_ADMIN_PASSWORD='رمز-قوی-مدیر-کل' LEGACY_TENANT=artavil bash set-saas.sh
+```
+- `LEGACY_TENANT=artavil`: منو، سفارش‌ها، مشتری‌ها و رمزِ فعلی به مجموعهٔ `artavil` (آدرسِ `artavil.artavilstar.com`، بدونِ انقضا) منتقل می‌شود و **QRهای چاپ‌شدهٔ قدیمی** (`artavilstar.com/?table=…`) خودکار به آن هدایت می‌شوند.
+- اگر می‌خواهید آرتاویل روی همان `artavilstar.com` بماند، پلتفرم را روی دامنهٔ دیگری بیاورید (`ROOT_DOMAIN=دامنهٔ-جدید`) و از پنلِ مدیرِ کل برای مجموعهٔ آرتاویل «دامنهٔ اختصاصی» = `artavilstar.com` بگذارید.
+
+### نصبِ تازهٔ پلتفرم با یک خط
+```bash
+sudo apt-get update && sudo apt-get install -y git && sudo git clone -b saas https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo ROOT_DOMAIN=example.com EMAIL=you@mail.com PLATFORM_ADMIN_PASSWORD='رمز-قوی' bash install.sh
+```
+بک‌آپ/بازیابی (`backup.sh` / `restore.sh` / `RESTORE=` در نصب) همهٔ مجموعه‌ها و دیتابیسِ پلتفرم را با هم جابه‌جا می‌کند؛ بعد از بازیابی روی سرورِ جدید یک‌بار `sudo bash set-saas.sh`.
+
+**بدونِ `ROOT_DOMAIN` برنامه دقیقاً مثلِ قبل تک‌مجموعه‌ای است.**
+
 ## نقشهٔ راه (فازهای بعد)
 
 - **فاز ۲ — بک‌اند**: ✅ انجام شد (`node:sqlite` + Server Actions + scrypt + sharp→WebP).

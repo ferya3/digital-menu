@@ -20,7 +20,7 @@ if [ -d data ]; then
 fi
 
 say "دریافت آخرین کد ($BRANCH)"
-git fetch origin "$BRANCH"
+git fetch origin "$BRANCH:refs/remotes/origin/$BRANCH"
 git reset --hard "origin/$BRANCH"
 
 # ffmpeg برای سبک‌سازیِ خودکارِ ویدیوی صفحهٔ اول

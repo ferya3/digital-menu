@@ -2,9 +2,10 @@ import "server-only";
 import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { getSetting } from "@/lib/queries";
-import { sendAfeSms } from "@/lib/sms-afe";
+import { sendSmsWith } from "@/lib/sms-send";
 import { DEFAULT_SMS, isValidPhone, normalizePhone } from "@/lib/otp";
 import type { SmsSettings } from "@/lib/types";
+import { currentTenant } from "@/lib/tenant-context";
 
 const MAX_RECIPIENTS = 3000;
 const MAX_CHARS = 600;
@@ -16,24 +17,9 @@ const running = (g.__smsRunning ??= new Set());
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
 
-/** ارسالِ یک پیامکِ متنی با سامانهٔ تنظیم‌شده؛ در خطا Error با پیامِ فارسی پرتاب می‌کند */
+/** ارسالِ یک پیامکِ متنی با سامانهٔ تنظیم‌شدهٔ همین مجموعه؛ در خطا Error با پیامِ فارسی پرتاب می‌کند */
 export async function sendSmsText(phone: string, text: string): Promise<string> {
-  const sms = { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) };
-  if (sms.provider === "wide") {
-    return sendAfeSms({ username: sms.username || "", password: sms.password || "", sender: sms.sender || "", domain: sms.domain }, phone, text);
-  }
-  if (sms.provider === "kavenegar") {
-    if (!sms.apiKey) throw new Error("کلید API کاوه‌نگار ثبت نشده است");
-    const body = new URLSearchParams({ receptor: phone, message: text });
-    if (sms.sender) body.set("sender", sms.sender);
-    const res = await fetch(`https://api.kavenegar.com/v1/${encodeURIComponent(sms.apiKey)}/sms/send.json`, {
-      method: "POST", body, cache: "no-store", signal: AbortSignal.timeout(15000),
-    });
-    const data = (await res.json().catch(() => ({}))) as { return?: { status?: number; message?: string } };
-    if (data?.return?.status !== 200) throw new Error(data?.return?.message || "ارسال با کاوه‌نگار انجام نشد");
-    return "ارسال شد";
-  }
-  throw new Error("سامانهٔ پیامک انتخاب نشده — از تنظیمات ← سامانهٔ پیامک، «وایدی» یا «کاوه‌نگار» را انتخاب کنید");
+  return sendSmsWith({ ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) }, phone, text);
 }
 
 export interface Campaign {
@@ -84,8 +70,9 @@ export function startCampaign(message: string, phones: string[], addCancel: bool
 
 /** حلقهٔ ارسال: تک‌تک، با فاصلهٔ کوتاه؛ اگر پنل پشت‌سرهم ۳ بار خطا داد (مثلاً نبودِ اعتبار) متوقف می‌شود */
 async function run(id: string) {
-  if (running.has(id)) return;
-  running.add(id);
+  const key = `${currentTenant().slug}:${id}`;
+  if (running.has(key)) return;
+  running.add(key);
   const d = db();
   try {
     const camp = d.prepare("SELECT message FROM sms_campaigns WHERE id=?").get(id) as unknown as { message: string } | undefined;
@@ -115,7 +102,7 @@ async function run(id: string) {
   } catch (e) {
     d.prepare("UPDATE sms_campaigns SET status='failed', note=? WHERE id=?").run(String(e instanceof Error ? e.message : e).slice(0, 200), id);
   } finally {
-    running.delete(id);
+    running.delete(key);
   }
 }
 
@@ -126,7 +113,7 @@ export function controlCampaign(id: string, action: "resume" | "retry" | "cancel
     d.prepare("UPDATE sms_campaigns SET status='cancelled', note='لغو شد' WHERE id=? AND status IN ('running','interrupted','failed')").run(id);
     return { ok: true };
   }
-  if (running.has(id)) throw new Error("این ارسال هم‌اکنون در حال اجراست");
+  if (running.has(`${currentTenant().slug}:${id}`)) throw new Error("این ارسال هم‌اکنون در حال اجراست");
   if (action === "retry") d.prepare("UPDATE sms_outbox SET status='queued', detail='' WHERE campaign_id=? AND status='failed'").run(id);
   if (!counts(id).queued) throw new Error("موردِ باقی‌مانده‌ای برای ارسال نیست");
   void run(id);

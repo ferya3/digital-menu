@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useUI } from "@/store/ui";
 import { cn, toFa } from "@/lib/utils";
 import type { CafeInfo } from "@/lib/types";
+import { picksTitle } from "@/lib/seeds";
 
 // صحنهٔ سه‌بعدی جدا لود می‌شود (Three.js سنگین است) و فقط وقتی پاپ‌آپ باز است
 const Hero3D = dynamic(() => import("@/components/fx/hero-3d").then((m) => m.Hero3D), { ssr: false });
@@ -38,7 +39,8 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
   }, [setSplash]);
 
   useEffect(() => {
-    if (!ready || !open || cafe.heroVideo) return;
+    // صحنهٔ سه‌بعدی (فنجانِ قهوه) فقط برای کافه‌ها؛ بقیه نسخهٔ سبک را می‌بینند
+    if (!ready || !open || cafe.heroVideo || (cafe.kind && cafe.kind !== "cafe")) return;
     const nav = navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string }; deviceMemory?: number };
     const lite =
       nav.connection?.saveData ||
@@ -185,7 +187,7 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
                   video ? "border-white/30 bg-white/10 text-white" : "border-border bg-card/70 text-primary"
                 )}
               >
-                <Sparkles className="size-3.5" /> {cafe.tagline || "قهوهٔ تازه، تجربهٔ متفاوت"}
+                <Sparkles className="size-3.5" /> {cafe.tagline || (!cafe.kind || cafe.kind === "cafe" ? "قهوهٔ تازه، تجربهٔ متفاوت" : "طعمی که به یاد می‌ماند")}
               </div>
               <h2 style={{ animationDelay: "200ms" }} className={cn("rise", "text-balance text-3xl font-black leading-snug sm:text-5xl", video && "drop-shadow-[0_3px_14px_rgba(0,0,0,.5)]")}
               >
@@ -206,7 +208,7 @@ export function HeroSplash({ cafe, table }: { cafe: CafeInfo; table: string }) {
                   className={cn("rounded-full px-7", video && "border-white/40 bg-white/10 text-white backdrop-blur hover:bg-white/20 hover:text-white")}
                   onClick={() => close(() => setPicks(true))}
                 >
-                  <Sparkles className="size-4" /> منتخب باریستا
+                  <Sparkles className="size-4" /> {picksTitle(cafe.kind)}
                 </Button>
               </div>
             </div>

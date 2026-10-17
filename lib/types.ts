@@ -76,6 +76,8 @@ export interface CafeInfo {
   address?: string;
   mapUrl?: string;
   instagram?: string;
+  /** نوعِ کسب‌وکار (cafe/restaurant/fastfood/other) — عنوان‌ها و صحنهٔ خوش‌آمد بر اساسِ آن */
+  kind?: string;
 }
 
 /** نمایش کد سفارش: عدد ترتیبی (#۱۲) یا شناسهٔ کامل */

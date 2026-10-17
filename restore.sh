@@ -22,9 +22,12 @@ if [ -f "$FILE.sha256" ]; then
 fi
 STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
 tar -xzf "$FILE" -C "$STAGE" 2>/dev/null || { echo "❌ این فایلِ بک‌آپِ معتبری نیست."; exit 1; }
-[ -f "$STAGE/data/cafe.db" ] || { echo "❌ بک‌آپ دیتابیس ندارد (data/cafe.db)."; exit 1; }
-node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(Object.values(d.prepare("PRAGMA integrity_check").get())[0]==="ok"?0:1)' "$STAGE/data/cafe.db" 2>/dev/null \
-  || { echo "❌ دیتابیسِ داخلِ بک‌آپ سالم نیست."; exit 1; }
+[ -f "$STAGE/data/cafe.db" ] || [ -f "$STAGE/data/platform.db" ] || { echo "❌ بک‌آپ دیتابیس ندارد."; exit 1; }
+# سلامتِ همهٔ دیتابیس‌های داخلِ بک‌آپ
+find "$STAGE/data" -name '*.db' -not -path '*/uploads/*' | while read -r f; do
+  node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(Object.values(d.prepare("PRAGMA integrity_check").get())[0]==="ok"?0:1)' "$f" 2>/dev/null \
+    || { echo "❌ دیتابیسِ داخلِ بک‌آپ سالم نیست: ${f#$STAGE/}"; exit 1; }
+done
 [ -f "$STAGE/MANIFEST.txt" ] && sed 's/^/   /' "$STAGE/MANIFEST.txt" | sed -n '2,7p'
 
 # ۲) نگه‌داشتنِ دادهٔ فعلی (اگر چیزی هست)
@@ -42,13 +45,20 @@ fi
 say "بازیابی"
 rm -rf data.new && mkdir -p data.new
 cp -a "$STAGE/data/." data.new/
-rm -f data.new/cafe.db-wal data.new/cafe.db-shm
+find data.new -name '*.db-wal' -delete; find data.new -name '*.db-shm' -delete
 mkdir -p data.new/uploads
 rm -rf data.old && [ -d data ] && mv data data.old
 mv data.new data && rm -rf data.old
-if [ -f "$STAGE/env/.env.production.local" ] && [ "${KEEP_PASSWORD:-0}" != "1" ]; then
-  # رمزِ اولیهٔ نصبِ سرورِ قبلی (فقط وقتی لازم است که رمز از داخلِ پنل عوض نشده باشد)
-  cp "$STAGE/env/.env.production.local" .env.production.local && chmod 600 .env.production.local
+if [ -f "$STAGE/env/.env.production.local" ]; then
+  # تنظیماتِ سرورِ قبلی (رمزِ اولیه، و در حالتِ پلتفرم: دامنهٔ اصلی و رمزِ مدیرِ کل) — کلید به کلید ادغام می‌شود
+  touch .env.production.local
+  while IFS= read -r line; do
+    k="${line%%=*}"; [ -n "$k" ] && [ "$k" != "$line" ] || continue
+    [ "$k" = "ADMIN_PASSWORD" ] && [ "${KEEP_PASSWORD:-0}" = "1" ] && continue
+    grep -v "^$k=" .env.production.local > .env.tmp || true; printf '%s\n' "$line" >> .env.tmp; mv .env.tmp .env.production.local
+  done < "$STAGE/env/.env.production.local"
+  chmod 600 .env.production.local
+  grep -q '^ROOT_DOMAIN=' .env.production.local && echo "   حالتِ پلتفرم: بعد از بازیابی یک‌بار  sudo bash set-saas.sh  را اجرا کنید (Nginx و گواهی‌ها)."
 fi
 if [ "$RUNNING" = 1 ]; then
   say "شروعِ دوبارهٔ سایت"

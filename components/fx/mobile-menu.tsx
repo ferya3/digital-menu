@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X, Home, Sparkles, UtensilsCrossed, Coffee, LogOut, QrCode } from "lucide-react";
 import { useUI } from "@/store/ui";
 import { scrollToId } from "@/components/fx/smooth-scroll";
+import { picksTitle } from "@/lib/seeds";
 
 const LINKS = [
   { id: "splash", label: "صفحهٔ خوش‌آمد", icon: Home },
@@ -22,7 +23,8 @@ function leaveTable(table: string) {
   window.location.href = "/";
 }
 
-export function MobileMenu({ cafeName, table = "" }: { cafeName: string; table?: string }) {
+export function MobileMenu({ cafeName, table = "", kind }: { cafeName: string; table?: string; kind?: string }) {
+  const links = LINKS.map((l) => (l.id === "picks" ? { ...l, label: picksTitle(kind) } : l));
   const { menuOpen, setMenu, setPicks, setSplash } = useUI();
   const go = (id: string) => {
     setMenu(false);
@@ -58,7 +60,7 @@ export function MobileMenu({ cafeName, table = "" }: { cafeName: string; table?:
               </button>
             </div>
             <nav className="space-y-1">
-              {LINKS.filter((l) => table || l.id !== "splash").map((l) => (
+              {links.filter((l) => table || l.id !== "splash").map((l) => (
                 <button
                   key={l.id}
                   onClick={() => go(l.id)}

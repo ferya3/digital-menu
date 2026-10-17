@@ -5,6 +5,7 @@ import { addCustomer, getSetting } from "@/lib/queries";
 import { readSigned, signData } from "@/lib/auth";
 import { sendAfeSms } from "@/lib/sms-afe";
 import type { CafeInfo, SmsSettings } from "@/lib/types";
+import { currentTenant } from "@/lib/tenant-context";
 
 export const DEFAULT_SMS: SmsSettings = {
   provider: "none", apiKey: "", template: "verify", otpEnabled: false,
@@ -77,23 +78,25 @@ export async function requestOtp(raw: string): Promise<{ ok: boolean; demoCode?:
 
   const phone = normalizePhone(raw);
   if (!isValidPhone(phone)) throw new Error("شماره موبایل نامعتبر است");
-  const prev = codes.get(phone);
+  const key = `${currentTenant().slug}:${phone}`;
+  const prev = codes.get(key);
   if (prev && Date.now() - prev.lastSent < 60_000) throw new Error("لطفاً یک دقیقه صبر کنید و دوباره تلاش کنید");
   const code = String(crypto.randomInt(10000, 100000));
-  codes.set(phone, { code, exp: Date.now() + 2 * 60_000, attempts: 0, lastSent: Date.now() });
+  codes.set(key, { code, exp: Date.now() + 2 * 60_000, attempts: 0, lastSent: Date.now() });
   const { demo } = await sendSms(phone, code);
   return { ok: true, demoCode: demo ? code : undefined };
 }
 
 export async function verifyOtp(raw: string, input: string, table: string): Promise<{ ok: boolean; phone: string }> {
   const phone = normalizePhone(raw);
-  const rec = codes.get(phone);
+  const key = `${currentTenant().slug}:${phone}`;
+  const rec = codes.get(key);
   if (!rec) throw new Error("ابتدا کد تأیید را درخواست کنید");
-  if (Date.now() > rec.exp) { codes.delete(phone); throw new Error("کد منقضی شده؛ دوباره درخواست دهید"); }
-  if (rec.attempts >= 5) { codes.delete(phone); throw new Error("تعداد تلاش زیاد است؛ دوباره درخواست دهید"); }
+  if (Date.now() > rec.exp) { codes.delete(key); throw new Error("کد منقضی شده؛ دوباره درخواست دهید"); }
+  if (rec.attempts >= 5) { codes.delete(key); throw new Error("تعداد تلاش زیاد است؛ دوباره درخواست دهید"); }
   rec.attempts += 1;
   if (normalizePhone(input) !== rec.code) throw new Error("کد واردشده نادرست است");
-  codes.delete(phone);
+  codes.delete(key);
   addCustomer(phone, table);
   (await cookies()).set(COOKIE, signData({ phone }, VERIFIED_TTL), {
     httpOnly: true, sameSite: "lax", path: "/", maxAge: VERIFIED_TTL / 1000,

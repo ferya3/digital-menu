@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Coffee, LogOut, Loader2, ClipboardList, BellRing, LayoutGrid, CreditCard, Users,
-  Settings as SettingsIcon, QrCode, Calculator, ExternalLink, Menu as MenuIcon, X, Volume2, VolumeX, Lock,
+  Settings as SettingsIcon, QrCode, Calculator, ExternalLink, Menu as MenuIcon, X, Volume2, VolumeX, Lock, Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatMoney, toFa } from "@/lib/utils";
@@ -21,11 +21,12 @@ import { CashierSection } from "@/components/staff/sections/cashier";
 import { CustomersSection } from "@/components/staff/sections/customers";
 import { QrSection } from "@/components/staff/sections/qr";
 import { AccountingSection } from "@/components/staff/sections/accounting";
+import { BillingSection } from "@/components/staff/sections/billing";
 import { MenuManager } from "@/components/staff/menu-manager";
 import { SettingsPanel } from "@/components/staff/settings-panel";
 import { unwrap } from "@/lib/action-result";
 
-type Section = "orders" | "requests" | "products" | "cashier" | "accounting" | "customers" | "settings" | "qr";
+type Section = "orders" | "requests" | "products" | "cashier" | "accounting" | "customers" | "settings" | "qr" | "billing";
 
 // همان ترتیبِ منوی کناریِ پنل قبلی
 const NAV: { id: Section; label: string; title: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -39,10 +40,18 @@ const NAV: { id: Section; label: string; title: string; icon: React.ComponentTyp
   { id: "qr", label: "کدهای QR", title: "کدهای QR میزها", icon: QrCode },
 ];
 
-export function StaffApp({ initialAuthed }: { initialAuthed: boolean }) {
+export interface SubscriptionInfo {
+  state: "trial" | "active" | "expired" | "suspended";
+  active: boolean;
+  daysLeft: number;
+  expiresAt: string;
+  slug: string;
+}
+
+export function StaffApp({ initialAuthed, subscription = null }: { initialAuthed: boolean; subscription?: SubscriptionInfo | null }) {
   const [authed, setAuthed] = useState(initialAuthed);
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
-  return <Dashboard onLogout={() => setAuthed(false)} />;
+  return <Dashboard onLogout={() => setAuthed(false)} subscription={subscription} />;
 }
 
 /* ===================== ورود ===================== */
@@ -72,10 +81,12 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ===================== داشبورد ===================== */
-function Dashboard({ onLogout }: { onLogout: () => void }) {
+function Dashboard({ onLogout, subscription }: { onLogout: () => void; subscription: SubscriptionInfo | null }) {
   const logoutRef = useRef(onLogout);
   logoutRef.current = onLogout;
-  const [section, setSection] = useState<Section>("orders");
+  // اشتراکِ تمام‌شده: پنل مستقیم روی «اشتراک» باز می‌شود
+  const [section, setSection] = useState<Section>(subscription && !subscription.active ? "billing" : "orders");
+  const nav = useMemo(() => (subscription ? [...NAV, { id: "billing" as Section, label: "اشتراک", title: "اشتراک و تمدید", icon: Crown }] : NAV), [subscription]);
   const [sideOpen, setSideOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [requests, setRequests] = useState<StaffRequest[]>([]);
@@ -99,6 +110,22 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     setToasts((t) => [...t.slice(-2), { id, text }]);
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4500);
   }, []);
+
+  // پیام‌های برگشت از درگاه/ثبت‌نام (?billing=ok …)
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const b = sp.get("billing");
+    const msg = sp.get("welcome") ? "🎉 خوش آمدید! منوی نمونه آماده است؛ از «محصولات» و «تنظیمات» شخصی‌سازی کنید"
+      : sp.get("enter") ? "لینکِ ورود منقضی شده؛ با رمزِ پنل وارد شوید"
+      : b === "ok" ? "✅ پرداخت موفق بود و اشتراک تمدید شد"
+      : b === "cancel" ? "پرداخت لغو شد"
+      : b ? "❌ پرداخت تأیید نشد؛ اگر مبلغ کم شده، تا ۷۲ ساعت به حساب‌تان برمی‌گردد" : "";
+    if (!msg) return;
+    if (b) setSection("billing");
+    flash(msg);
+    window.history.replaceState(null, "", "/staff");
+    if (b === "ok") window.setTimeout(() => window.location.reload(), 1800);
+  }, [flash]);
 
   /* ---- صدای اعلان (مثل پنل قبلی: بوقِ کوتاه) ---- */
   const audio = useRef<AudioContext | null>(null);
@@ -250,7 +277,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   const upsertOrder = useCallback((o: Order | null) => { if (o) setOrders((l) => l.map((x) => (x.id === o.id ? o : x))); }, []);
   const go = (s: Section) => { setSection(s); setSideOpen(false); window.scrollTo({ top: 0 }); };
-  const current = NAV.find((n) => n.id === section)!;
+  const current = nav.find((n) => n.id === section)!;
 
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -267,7 +294,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </div>
       <nav className="flex-1 space-y-1">
-        {NAV.map((n) => {
+        {nav.map((n) => {
           const c = counts[n.id] || 0;
           return (
             <button
@@ -332,6 +359,15 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         </header>
 
+        {subscription && section !== "billing" && !subscription.expiresAt.startsWith("2099") && (!subscription.active || subscription.daysLeft <= 7) && (
+          <button onClick={() => go("billing")} className={cn("flex w-full items-center justify-center gap-2 px-4 py-2 text-center text-sm font-bold print:hidden", subscription.active ? "bg-amber-500/15 text-amber-800 dark:text-amber-300" : "bg-primary text-primary-foreground")}>
+            <Crown className="size-4" />
+            {subscription.state === "suspended" ? "این مجموعه تعلیق شده است — با پشتیبانی تماس بگیرید"
+              : !subscription.active ? "اشتراک تمام شده و منوی مشتری‌ها غیرفعال است — برای تمدید بزنید"
+              : `${subscription.state === "trial" ? "دورهٔ آزمایشی" : "اشتراک"} ${toFa(subscription.daysLeft)} روزِ دیگر تمام می‌شود — تمدید`}
+          </button>
+        )}
+
         <main className="mx-auto max-w-6xl px-4 py-5">
           {section === "orders" && <OrdersSection orders={orders} feedback={feedback} onChange={upsertOrder} payFirst={payFirst} onCashier={() => go("cashier")} />}
           {section === "requests" && <RequestsSection requests={requests} onChange={setRequests} />}
@@ -341,6 +377,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           {section === "customers" && <CustomersSection items={customers} onChange={setCustomers} />}
           {section === "settings" && <SettingsPanel onSaved={loadMeta} />}
           {section === "qr" && <QrSection />}
+          {section === "billing" && <BillingSection />}
         </main>
       </div>
 

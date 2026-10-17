@@ -1,12 +1,25 @@
 import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/vazirmatn";
 import "./globals.css";
+import { saasEnabled } from "@/lib/tenant-context";
+import { classifyHost, requestHost, withTenant } from "@/lib/tenant";
+import { platformSettings } from "@/lib/platform";
+import { getSetting } from "@/lib/queries";
+import type { CafeInfo } from "@/lib/types";
 
-export const metadata: Metadata = {
-  title: "کافه آرتاویل — منوی دیجیتال",
-  description:
-    "منوی دیجیتال، سفارش آنلاین، درخواست گارسون و صورتحساب کافه آرتاویل.",
-};
+/** عنوانِ صفحه: نامِ همان مجموعه (یا نامِ پلتفرم روی دامنهٔ اصلی) */
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    if (saasEnabled() && classifyHost((await requestHost()).host).kind === "platform") {
+      const p = platformSettings();
+      return { title: `${p.brand} — ${p.tagline}`, description: p.tagline };
+    }
+    const cafe = await withTenant(() => getSetting<CafeInfo>("cafe", { name: "منوی دیجیتال", logo: "", tagline: "", currency: "toman" }));
+    return { title: `${cafe.name} — منوی دیجیتال`, description: `منوی دیجیتال، سفارش آنلاین، درخواست گارسون و صورتحساب ${cafe.name}.` };
+  } catch {
+    return { title: "منوی دیجیتال" };
+  }
+}
 
 export const viewport: Viewport = {
   themeColor: "#1a1210",

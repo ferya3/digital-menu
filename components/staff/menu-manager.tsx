@@ -223,7 +223,7 @@ function ProductForm({ item, categories, unit, toDisplay, fromInput, onCancel, o
             </div>
           </Field>
         ) : (
-          <Field label="برچسب (اختیاری)" hint="مثل «محبوب» — برچسب‌دارها در «منتخب باریستا» می‌آیند"><input value={tag} onChange={(e) => setTag(e.target.value)} className={inputCls} placeholder="محبوب" /></Field>
+          <Field label="برچسب (اختیاری)" hint="مثل «محبوب» — برچسب‌دارها در بخشِ «منتخب‌ها» می‌آیند"><input value={tag} onChange={(e) => setTag(e.target.value)} className={inputCls} placeholder="محبوب" /></Field>
         )}
         <Field label={`قیمت (${unit})`}><input type="number" min={0} step={1000} value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} placeholder="0" dir="ltr" /></Field>
         <Field label={`قیمت قبل از تخفیف (${unit} — اختیاری)`}><input type="number" min={0} step={1000} value={oldPrice} onChange={(e) => setOldPrice(e.target.value)} className={inputCls} placeholder="خالی = بدون تخفیف" dir="ltr" /></Field>

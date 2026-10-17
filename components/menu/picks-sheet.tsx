@@ -27,6 +27,7 @@ export function PicksSheet({
   total,
   onCart,
   onMenu,
+  title = "منتخب باریستا",
 }: {
   open: boolean;
   onClose: () => void;
@@ -40,6 +41,7 @@ export function PicksSheet({
   total: number;
   onCart: () => void;
   onMenu: () => void;
+  title?: string;
 }) {
   // اسکرولِ صفحهٔ پشت (Lenis) تا وقتی پنل باز است متوقف می‌شود
   useEffect(() => {
@@ -61,7 +63,7 @@ export function PicksSheet({
           data-lenis-prevent
           role="dialog"
           aria-modal="true"
-          aria-label="منتخب باریستا"
+          aria-label={title}
           className="fixed inset-0 z-[60] flex flex-col overflow-y-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -71,6 +73,7 @@ export function PicksSheet({
           <div aria-hidden className="cf-stage fixed inset-0 -z-10 !rounded-none !shadow-none" />
           <div aria-hidden className="cf-dots fixed inset-0 -z-10" />
           <PicksBody
+            title={title}
             items={items}
             money={money}
             qtyOf={qtyOf}
@@ -108,6 +111,7 @@ export function PicksSheet({
 }
 
 function PicksBody({
+  title,
   items,
   money,
   qtyOf,
@@ -117,6 +121,7 @@ function PicksBody({
   onClose,
   onMenu,
 }: {
+  title: string;
   items: MenuItem[];
   money: (n: number) => string;
   qtyOf: (id: string) => number;
@@ -153,7 +158,7 @@ function PicksBody({
         <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1 text-xs font-bold text-primary backdrop-blur">
           <Sparkles className="size-3.5" /> امضای ما
         </span>
-        <h2 className="text-4xl font-black sm:text-5xl">منتخبِ باریستا</h2>
+        <h2 className="text-4xl font-black sm:text-5xl">{title}</h2>
         <p className="mx-auto mt-3 max-w-md text-muted-foreground">چند انتخابِ محبوب که عاشقشان می‌شوی — همین‌جا به سبد اضافه کن.</p>
       </header>
 

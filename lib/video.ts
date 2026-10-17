@@ -4,8 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import { getSetting, setSetting } from "@/lib/queries";
-import { UPLOADS, deleteUpload } from "@/lib/images";
+import { uploadsDir, deleteUpload } from "@/lib/images";
 import type { CafeInfo } from "@/lib/types";
+import { currentTenant, runAsTenant } from "@/lib/tenant-context";
 
 let hasFfmpeg: boolean | null = null;
 export function ffmpegAvailable(): boolean {
@@ -34,15 +35,18 @@ const running = new Set<string>();
  * faststart برای شروعِ فوریِ پخش + یک عکسِ کاور (poster). ویدیوی اصلی بعد از موفقیت حذف می‌شود.
  */
 export function optimizeHeroVideo(webPath: string) {
-  if (!ffmpegAvailable() || running.has(webPath)) return false;
-  const src = path.join(UPLOADS, path.basename(webPath));
+  const { slug } = currentTenant();
+  const key = `${slug}:${webPath}`;
+  if (!ffmpegAvailable() || running.has(key)) return false;
+  const src = path.join(uploadsDir(), path.basename(webPath));
   if (!fs.existsSync(src)) return false;
-  running.add(webPath);
+  running.add(key);
   const base = `hero-${Date.now()}`;
-  const outVideo = path.join(UPLOADS, `${base}-web.mp4`);
-  const tmpPoster = path.join(UPLOADS, `${base}-poster.jpg`);
-  const outPoster = path.join(UPLOADS, `${base}-poster.webp`);
-  (async () => {
+  const outVideo = path.join(uploadsDir(), `${base}-web.mp4`);
+  const tmpPoster = path.join(uploadsDir(), `${base}-poster.jpg`);
+  const outPoster = path.join(uploadsDir(), `${base}-poster.webp`);
+  // کارِ پس‌زمینه صراحتاً در زمینهٔ همان مجموعه اجرا می‌شود
+  runAsTenant(slug, () => (async () => {
     try {
       await run([
         "-y", "-i", src, "-t", "20", "-an",
@@ -72,8 +76,8 @@ export function optimizeHeroVideo(webPath: string) {
       fs.rmSync(tmpPoster, { force: true });
       console.error("[hero-video] بهینه‌سازی انجام نشد:", e instanceof Error ? e.message : e);
     } finally {
-      running.delete(webPath);
+      running.delete(key);
     }
-  })();
+  })());
   return true;
 }

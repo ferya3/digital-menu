@@ -60,7 +60,7 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 pb-4">
-      <Panel icon={<Store className="size-5 text-primary" />} title="مشخصات کافه">
+      <Panel icon={<Store className="size-5 text-primary" />} title="مشخصات مجموعه">
         <div className="flex items-center gap-3">
           <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted text-3xl">
             {isImgSrc(logoPreview) ? (
@@ -68,7 +68,7 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
               <img src={logoPreview} alt="" className="size-full object-cover" />
             ) : logoPreview || "☕"}
           </span>
-          <Field label="نام کافه" className="flex-1"><input value={cafe.name} onChange={(e) => setCafe({ name: e.target.value })} className={inputCls} /></Field>
+          <Field label="نام مجموعه" className="flex-1"><input value={cafe.name} onChange={(e) => setCafe({ name: e.target.value })} className={inputCls} /></Field>
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label="لوگو (ایموجی مثل ☕ یا عکس)">
@@ -95,7 +95,7 @@ export function SettingsPanel({ onSaved }: { onSaved: () => void }) {
       <Panel icon={<MapPin className="size-5 text-primary" />} title="آدرس و شبکه‌های اجتماعی">
         <p className="mb-3 text-xs text-muted-foreground">برای اشتراک‌گذاری محصولات همراه لوکیشن استفاده می‌شود.</p>
         <div className="grid gap-3">
-          <Field label="آدرس کافه"><input value={cafe.address || ""} onChange={(e) => setCafe({ address: e.target.value })} className={inputCls} placeholder="مثلاً تهران، خیابان …" /></Field>
+          <Field label="آدرس"><input value={cafe.address || ""} onChange={(e) => setCafe({ address: e.target.value })} className={inputCls} placeholder="مثلاً تهران، خیابان …" /></Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="لینک نقشه (گوگل‌مپ / نشان / بلد)"><input value={cafe.mapUrl || ""} onChange={(e) => setCafe({ mapUrl: e.target.value })} className={inputCls} dir="ltr" placeholder="https://…" /></Field>
             <Field label="پیج اینستاگرام (آیدی یا لینک)"><input value={cafe.instagram || ""} onChange={(e) => setCafe({ instagram: e.target.value })} className={inputCls} dir="ltr" placeholder="@mycafe" /></Field>

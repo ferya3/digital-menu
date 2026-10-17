@@ -23,6 +23,7 @@ import {
   requestAction, feedbackAction,
 } from "@/app/actions";
 import { unwrap } from "@/lib/action-result";
+import { picksTitle } from "@/lib/seeds";
 
 /** گزینه‌های سریعِ درخواست از گارسون (مثل نسخهٔ قبلی) */
 const QUICK_REQUESTS = [
@@ -471,6 +472,7 @@ export function MenuView({
       {otp && !viewOnly && <PhoneGate cafe={cafe} table={table} onVerified={setPhone} />}
 
       <PicksSheet
+        title={picksTitle(cafe.kind)}
         open={picksOpen}
         onClose={closePicks}
         items={featured}

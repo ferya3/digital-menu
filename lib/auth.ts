@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { getSetting, setSetting } from "@/lib/queries";
+import { currentTenant, saasEnabled } from "@/lib/tenant-context";
 
 const COOKIE = "cafe_session";
 const TTL_MS = 12 * 3600 * 1000;
@@ -27,6 +28,8 @@ const sha = (s: string) => crypto.createHash("sha256").update(s).digest();
 export function checkAdmin(pw: string): boolean {
   const stored = getSetting<string>("admin_pw", "");
   if (stored) return verifyPassword(pw, stored);
+  // در حالتِ چندمستاجری هر مجموعه رمزِ خودش را دارد؛ رمزِ پیش‌فرض/محیطی پذیرفته نمی‌شود
+  if (saasEnabled()) return false;
   const def = process.env.ADMIN_PASSWORD || "cafe1234";
   return crypto.timingSafeEqual(sha(pw), sha(def));
 }
@@ -40,7 +43,9 @@ function secret(): string {
     s = crypto.randomBytes(32).toString("hex");
     setSetting("session_secret", s);
   }
-  return process.env.SESSION_SECRET || s;
+  // کلید به نامِ مجموعه گره خورده: توکنِ یک مجموعه روی مجموعهٔ دیگر معتبر نیست
+  const base = process.env.SESSION_SECRET || s;
+  return crypto.createHmac("sha256", base).update("tenant:" + currentTenant().slug).digest("hex");
 }
 
 export function signSession(): string {

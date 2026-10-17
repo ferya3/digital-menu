@@ -38,3 +38,7 @@ export const orderCode = (o: { id: string; number: number }, mode: "number" | "i
 /** آدرسِ نسخهٔ کوچکِ عکسِ آپلودی (برای عکس‌های خارجی همان آدرس) */
 export const thumb = (src: string | undefined, w: number) =>
   src && /^\/uploads\/[^?]+\.(webp|jpe?g|png)$/i.test(src) ? `${src}?w=${w}` : src || "";
+export const faDate = (iso: string) => {
+  const d = new Date(iso);
+  return isNaN(+d) ? "—" : d.toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric" });
+};

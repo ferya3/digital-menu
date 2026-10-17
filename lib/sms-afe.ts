@@ -1,6 +1,7 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
+import { DATA_DIR, tenantOrNull } from "@/lib/tenant-context";
 
 /**
  * ارسالِ پیامک با «ارسال با لینک»ِ عصر فرا ارتباط و نمایندگی‌هایش (wide.ir، afe.ir، …).
@@ -21,7 +22,8 @@ export interface AfeConfig {
 }
 
 const TIMEOUT_MS = 15_000;
-const LOG = path.join(process.cwd(), "data", "sms-errors.log");
+// لاگِ خطا کنارِ دادهٔ همان مجموعه (پیامک‌های خودِ پلتفرم در data/)
+const logFile = () => path.join(tenantOrNull()?.dir || DATA_DIR, "sms-errors.log");
 
 /** آدرسِ ارسال از دامنهٔ واردشده (فقط نامِ دامنه؛ برای جلوگیری از درخواست به آدرس‌های دلخواه) */
 function sendUrl(domain: string): string | null {
@@ -81,9 +83,9 @@ async function requestTo(base: string, c: AfeConfig, phone: string, text: string
 
 function logFailure(host: string, code: number, body: string, phone: string) {
   try {
-    fs.mkdirSync(path.dirname(LOG), { recursive: true });
+    fs.mkdirSync(path.dirname(logFile()), { recursive: true });
     const clean = body.replace(/\s+/g, " ").trim().slice(0, 400);
-    fs.appendFileSync(LOG, `[${new Date().toISOString()}] host=${host} http=${code} to=${phone}\n  ${clean}\n`);
+    fs.appendFileSync(logFile(), `[${new Date().toISOString()}] host=${host} http=${code} to=${phone}\n  ${clean}\n`);
   } catch {}
 }
 

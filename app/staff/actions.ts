@@ -37,6 +37,7 @@ import { DEFAULT_SMS, isValidPhone, normalizePhone, sendTestSms } from "@/lib/ot
 import { getAccounting, type Accounting } from "@/lib/accounting";
 import { startCampaign, listCampaigns, controlCampaign, sendSmsText, CANCEL_FOOTER, type Campaign } from "@/lib/bulk-sms";
 import type { ActionFail } from "@/lib/action-result";
+import { withTenant } from "@/lib/tenant";
 import type { CafeInfo, Gateway, Menu, Order, OrderCodeMode, OrderStatus, PaymentInfo, SmsSettings } from "@/lib/types";
 
 const DEFAULT_CAFE: CafeInfo = { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" };
@@ -57,7 +58,8 @@ function mergeGateways(saved: Gateway[] | undefined): Gateway[] {
 /** خطا را (با پیامِ فارسی) برمی‌گرداند؛ پرتاب‌شدن در production پیام را پنهان می‌کند */
 async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
   try {
-    return await fn();
+    // هر اکشن در زمینهٔ مجموعهٔ همین درخواست (زیردامنه) اجرا می‌شود
+    return await withTenant(fn);
   } catch (e) {
     return { __error: e instanceof Error ? e.message : "خطا" };
   }
@@ -76,14 +78,18 @@ export async function loginAction(password: string): Promise<{ ok: boolean } | A
   });
 }
 export async function logoutAction(): Promise<{ ok: boolean }> {
-  await endSession();
-  return { ok: true };
+  return withTenant(async () => {
+    await endSession();
+    return { ok: true };
+  });
 }
 
 /* ---------- orders / cashier ---------- */
 export async function staffOrdersAction(): Promise<Order[]> {
-  await gate();
-  return listOrders();
+  return withTenant(async () => {
+    await gate();
+    return listOrders();
+  });
 }
 export async function staffSetStatusAction(id: string, status: OrderStatus): Promise<Order | null | ActionFail> {
   return guard(async () => {
@@ -92,51 +98,71 @@ export async function staffSetStatusAction(id: string, status: OrderStatus): Pro
   });
 }
 export async function staffConfirmPayAction(id: string): Promise<Order | null> {
-  await gate();
-  return setPayStatus(id, "confirmed");
+  return withTenant(async () => {
+    await gate();
+    return setPayStatus(id, "confirmed");
+  });
 }
 export async function staffRejectPayAction(id: string, reason: string): Promise<Order | null> {
-  await gate();
-  return setPayStatus(id, "rejected", reason);
+  return withTenant(async () => {
+    await gate();
+    return setPayStatus(id, "rejected", reason);
+  });
 }
 /** «پرداخت شد» دستی روی یک سفارش */
 export async function staffSetPaidAction(id: string, paid: boolean): Promise<Order | null> {
-  await gate();
-  return setPaid(id, paid);
+  return withTenant(async () => {
+    await gate();
+    return setPaid(id, paid);
+  });
 }
 /** تسویهٔ کل صورتحسابِ میز با کارت‌خوان/نقدی */
 export async function staffSettleTableAction(table: string): Promise<{ count: number }> {
-  await gate();
-  return { count: settleTable(table) };
+  return withTenant(async () => {
+    await gate();
+    return { count: settleTable(table) };
+  });
 }
 /** صندوق: تأیید یا ردِ فیشِ کل صورتحسابِ یک میز */
 export async function staffTablePayAction(table: string, pay: "confirmed" | "rejected", reason = ""): Promise<{ count: number }> {
-  await gate();
-  return { count: setTablePayStatus(table, pay, reason) };
+  return withTenant(async () => {
+    await gate();
+    return { count: setTablePayStatus(table, pay, reason) };
+  });
 }
 
 /* ---------- requests / feedback / customers ---------- */
 export async function staffRequestsAction(): Promise<StaffRequest[]> {
-  await gate();
-  return listRequests();
+  return withTenant(async () => {
+    await gate();
+    return listRequests();
+  });
 }
 export async function staffDoneRequestAction(id: string): Promise<{ ok: boolean }> {
-  await gate();
-  return markRequestDone(id);
+  return withTenant(async () => {
+    await gate();
+    return markRequestDone(id);
+  });
 }
 export async function staffFeedbackAction(): Promise<StaffFeedback[]> {
-  await gate();
-  return listFeedback();
+  return withTenant(async () => {
+    await gate();
+    return listFeedback();
+  });
 }
 export async function staffCustomersAction(): Promise<StaffCustomer[]> {
-  await gate();
-  return listCustomers();
+  return withTenant(async () => {
+    await gate();
+    return listCustomers();
+  });
 }
 
 /* ---------- menu management ---------- */
 export async function staffMenuAction(): Promise<Menu> {
-  await gate();
-  return getMenu();
+  return withTenant(async () => {
+    await gate();
+    return getMenu();
+  });
 }
 /** افزودن/ویرایش دسته؛ آیکون می‌تواند ایموجی یا عکسِ آپلودی باشد */
 export async function staffSaveCategoryAction(input: { id?: string; name: string; emoji?: string }, iconForm?: FormData | null) {
@@ -207,12 +233,16 @@ export async function staffSaveItemAction(input: {
 }
 /** ویرایش سریع قیمت از داخل لیست */
 export async function staffQuickPriceAction(id: string, price: number) {
-  await gate();
-  return updateItem(id, { price });
+  return withTenant(async () => {
+    await gate();
+    return updateItem(id, { price });
+  });
 }
 export async function staffDeleteItemAction(id: string) {
-  await gate();
-  return deleteItem(id);
+  return withTenant(async () => {
+    await gate();
+    return deleteItem(id);
+  });
 }
 
 /* ---------- settings ---------- */
@@ -227,16 +257,18 @@ export interface AdminSettings {
   hasPassword: boolean;
 }
 export async function staffSettingsAction(): Promise<AdminSettings> {
-  await gate();
-  return {
-    cafe: { address: "", mapUrl: "", instagram: "", ...getSetting<CafeInfo>("cafe", DEFAULT_CAFE) },
-    payment: { ...DEFAULT_PAYMENT, ...getSetting<PaymentInfo>("payment", DEFAULT_PAYMENT) },
-    orderCode: getSetting<OrderCodeMode>("orderCode", "number"),
-    sms: { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) },
-    gateways: mergeGateways(getSetting<Gateway[]>("gateways", [])),
-    payFirst: getSetting<boolean>("payFirst", true) !== false,
-    hasPassword: !!getSetting<string>("admin_pw", ""),
-  };
+  return withTenant(async () => {
+    await gate();
+    return {
+      cafe: { address: "", mapUrl: "", instagram: "", ...getSetting<CafeInfo>("cafe", DEFAULT_CAFE) },
+      payment: { ...DEFAULT_PAYMENT, ...getSetting<PaymentInfo>("payment", DEFAULT_PAYMENT) },
+      orderCode: getSetting<OrderCodeMode>("orderCode", "number"),
+      sms: { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) },
+      gateways: mergeGateways(getSetting<Gateway[]>("gateways", [])),
+      payFirst: getSetting<boolean>("payFirst", true) !== false,
+      hasPassword: !!getSetting<string>("admin_pw", ""),
+    };
+  });
 }
 export async function staffUpdateSettingsAction(input: {
   cafe?: Partial<CafeInfo>;
@@ -279,12 +311,14 @@ export async function staffUpdateSettingsAction(input: {
 
 /** ارسالِ پیامکِ آزمایشی (بعد از ذخیرهٔ تنظیمات) */
 export async function staffTestSmsAction(phone: string): Promise<{ ok: boolean; detail: string }> {
-  await gate();
-  try {
-    return { ok: true, detail: await sendTestSms(phone) };
-  } catch (e) {
-    return { ok: false, detail: e instanceof Error ? e.message : "خطا" };
-  }
+  return withTenant(async () => {
+    await gate();
+    try {
+      return { ok: true, detail: await sendTestSms(phone) };
+    } catch (e) {
+      return { ok: false, detail: e instanceof Error ? e.message : "خطا" };
+    }
+  });
 }
 
 /* ---------- پیامک گروهی ---------- */
@@ -296,8 +330,10 @@ export async function staffStartSmsCampaignAction(input: { message: string; phon
   return guard(async () => { await gate(); return startCampaign(input.message, input.phones, input.addCancel); });
 }
 export async function staffSmsCampaignsAction(): Promise<Campaign[]> {
-  await gate();
-  return listCampaigns();
+  return withTenant(async () => {
+    await gate();
+    return listCampaigns();
+  });
 }
 export async function staffSmsControlAction(id: string, action: "resume" | "retry" | "cancel") {
   return guard(async () => { await gate(); return controlCampaign(id, action); });
@@ -316,11 +352,15 @@ export async function staffSmsPreviewAction(rawPhone: string, message: string, a
 
 /* ---------- حسابداری ---------- */
 export async function staffAccountingAction(month?: string): Promise<Accounting> {
-  await gate();
-  return getAccounting(month);
+  return withTenant(async () => {
+    await gate();
+    return getAccounting(month);
+  });
 }
 
 /* ---------- QR ---------- */
 export async function staffTableUrlAction(table: number): Promise<string> {
-  return `/?table=${table}`;
+  return withTenant(async () => {
+    return `/?table=${table}`;
+  });
 }

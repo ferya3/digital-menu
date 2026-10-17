@@ -34,7 +34,7 @@ export function Landing({
 
   return (
     <SmoothScroll>
-      <MobileMenu cafeName={cafe.name} table={table} />
+      <MobileMenu cafeName={cafe.name} table={table} kind={cafe.kind} />
 
       {table ? (
         // هیرو (سه‌بعدی یا ویدیو) به‌صورت پاپ‌آپِ خوش‌آمد — فقط بار اولِ هر نشست

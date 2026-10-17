@@ -8,6 +8,8 @@
 #    EMAIL           ایمیل برای گواهی SSL رایگان (فقط همراه با DOMAIN)
 #    ADMIN_PASSWORD  رمز اولیهٔ پنل کارکنان (پیش‌فرض cafe1234 — از پنل قابل تغییر)
 #    APP_PORT        پورت داخلی برنامه (پیش‌فرض 3000)
+#    ROOT_DOMAIN     حالتِ «پلتفرمِ اشتراکی»: سایتِ ثبت‌نام روی این دامنه و هر مجموعه روی <آدرس>.ROOT_DOMAIN
+#                    (همراه با PLATFORM_ADMIN_PASSWORD؛ جزئیات در set-saas.sh)
 #    RESTORE         مسیر فایلِ بک‌آپِ سرور قبلی (data-*.tar.gz از backup.sh) برای انتقالِ منو، عکس‌ها،
 #                    تنظیمات، مشتری‌ها و سفارش‌ها؛ رمز پنل هم از همان بک‌آپ می‌آید (مگر ADMIN_PASSWORD بدهید)
 #
@@ -131,7 +133,14 @@ fi
 
 # ---------- SSL ----------
 PROTO="http"
-if [ -n "$DOMAIN" ]; then
+if [ -n "${ROOT_DOMAIN:-}" ]; then
+  # پلتفرمِ اشتراکی: Nginx برای همهٔ زیردامنه‌ها + گواهیِ خودکارِ هر مجموعه
+  if ROOT_DOMAIN="$ROOT_DOMAIN" EMAIL="${EMAIL:-}" APP_PORT="$APP_PORT" PLATFORM_ADMIN_PASSWORD="${PLATFORM_ADMIN_PASSWORD:-}" LEGACY_TENANT="${LEGACY_TENANT:-}" bash ./set-saas.sh; then
+    PROTO="https"; DOMAIN="$ROOT_DOMAIN"
+  else
+    echo "⚠️  set-saas.sh کامل نشد؛ بعد از تنظیمِ DNS دوباره اجرا کنید:  sudo bash set-saas.sh"
+  fi
+elif [ -n "$DOMAIN" ]; then
   # دامنه + HTTPS با set-domain.sh (QRهای IP هم به دامنه هدایت می‌شوند)
   if DOMAIN="$DOMAIN" EMAIL="${EMAIL:-}" APP_PORT="$APP_PORT" bash ./set-domain.sh; then
     PROTO="https"
@@ -145,8 +154,14 @@ sleep 3
 CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$APP_PORT/" || true)"
 HOST="${DOMAIN:-$(curl -s --max-time 5 https://api.ipify.org || hostname -I | awk '{print $1}')}"
 say "تمام شد ✅  (پاسخ برنامه: $CODE)"
-echo "  منوی مشتری:   $PROTO://$HOST/?table=1"
-echo "  پنل کارکنان:  $PROTO://$HOST/staff"
+if [ -n "${ROOT_DOMAIN:-}" ]; then
+  echo "  سایتِ پلتفرم و ثبت‌نام:  $PROTO://$ROOT_DOMAIN"
+  echo "  پنلِ مدیرِ کل:          $PROTO://$ROOT_DOMAIN/admin"
+  [ -n "${LEGACY_TENANT:-}" ] && echo "  منوی قبلی:              $PROTO://$LEGACY_TENANT.$ROOT_DOMAIN/staff"
+else
+  echo "  منوی مشتری:   $PROTO://$HOST/?table=1"
+  echo "  پنل کارکنان:  $PROTO://$HOST/staff"
+fi
 if [ "$PW_RESTORED" = "1" ]; then
   echo "  رمز پنل:      همان رمزِ سرورِ قبلی (از بک‌آپ بازیابی شد)"
 else

@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { isAuthed } from "@/lib/auth";
 import { getSetting, setSetting } from "@/lib/queries";
-import { UPLOADS, deleteUpload } from "@/lib/images";
+import { uploadsDir, deleteUpload } from "@/lib/images";
+import { tenantRoute } from "@/lib/tenant";
 import { optimizeHeroVideo } from "@/lib/video";
 import type { CafeInfo } from "@/lib/types";
 
@@ -23,66 +24,72 @@ function json(body: unknown, status = 200) {
 
 /** آپلود ویدیوی هیرو: بدنهٔ درخواست خودِ فایل است (Content-Type = نوع ویدیو) */
 export async function POST(req: Request) {
-  if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
-  const type = (req.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-  const ext = EXT[type];
-  if (!ext) return json({ ok: false, error: "فقط ویدیوی MP4 یا WebM مجاز است" }, 415);
-  const declared = Number(req.headers.get("content-length") || 0);
-  if (declared > MAX_BYTES) return json({ ok: false, error: "حجم ویدیو بیش از ۱۰۰ مگابایت است" }, 413);
-  if (!req.body) return json({ ok: false, error: "فایلی ارسال نشد" }, 400);
+  return tenantRoute(async () => {
+    if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
+    const type = (req.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    const ext = EXT[type];
+    if (!ext) return json({ ok: false, error: "فقط ویدیوی MP4 یا WebM مجاز است" }, 415);
+    const declared = Number(req.headers.get("content-length") || 0);
+    if (declared > MAX_BYTES) return json({ ok: false, error: "حجم ویدیو بیش از ۱۰۰ مگابایت است" }, 413);
+    if (!req.body) return json({ ok: false, error: "فایلی ارسال نشد" }, 400);
 
-  fs.mkdirSync(UPLOADS, { recursive: true });
-  const file = `hero-${Date.now()}${ext}`;
-  const full = path.join(UPLOADS, file);
-  const out = fs.createWriteStream(full);
-  let size = 0;
-  try {
-    const reader = req.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > MAX_BYTES) {
-        await reader.cancel();
-        throw new Error("حجم ویدیو بیش از ۱۰۰ مگابایت است");
+    fs.mkdirSync(uploadsDir(), { recursive: true });
+    const file = `hero-${Date.now()}${ext}`;
+    const full = path.join(uploadsDir(), file);
+    const out = fs.createWriteStream(full);
+    let size = 0;
+    try {
+      const reader = req.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > MAX_BYTES) {
+          await reader.cancel();
+          throw new Error("حجم ویدیو بیش از ۱۰۰ مگابایت است");
+        }
+        if (!out.write(value)) await new Promise<void>((r) => out.once("drain", () => r()));
       }
-      if (!out.write(value)) await new Promise<void>((r) => out.once("drain", () => r()));
+      await new Promise<void>((res, rej) => out.end((e?: Error | null) => (e ? rej(e) : res())));
+      if (size === 0) throw new Error("فایل خالی است");
+    } catch (e) {
+      out.destroy();
+      fs.rmSync(full, { force: true });
+      return json({ ok: false, error: e instanceof Error ? e.message : "خطا در آپلود" }, 400);
     }
-    await new Promise<void>((res, rej) => out.end((e?: Error | null) => (e ? rej(e) : res())));
-    if (size === 0) throw new Error("فایل خالی است");
-  } catch (e) {
-    out.destroy();
-    fs.rmSync(full, { force: true });
-    return json({ ok: false, error: e instanceof Error ? e.message : "خطا در آپلود" }, 400);
-  }
 
-  const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
-  if (cur.heroVideo) deleteUpload(cur.heroVideo);
-  if (cur.heroPoster) deleteUpload(cur.heroPoster);
-  const heroVideo = "/uploads/" + file;
-  setSetting("cafe", { ...cur, heroVideo, heroPoster: "" });
-  // سبک‌سازی در پس‌زمینه (اگر ffmpeg روی سرور باشد)
-  const optimizing = optimizeHeroVideo(heroVideo);
-  return json({ ok: true, heroVideo, optimizing });
+    const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
+    if (cur.heroVideo) deleteUpload(cur.heroVideo);
+    if (cur.heroPoster) deleteUpload(cur.heroPoster);
+    const heroVideo = "/uploads/" + file;
+    setSetting("cafe", { ...cur, heroVideo, heroPoster: "" });
+    // سبک‌سازی در پس‌زمینه (اگر ffmpeg روی سرور باشد)
+    const optimizing = optimizeHeroVideo(heroVideo);
+    return json({ ok: true, heroVideo, optimizing });
+  });
 }
 
 /** حذف ویدیو → هیرو به صحنهٔ سه‌بعدی برمی‌گردد */
 export async function DELETE() {
-  if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
-  const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
-  if (cur.heroVideo) deleteUpload(cur.heroVideo);
-  if (cur.heroPoster) deleteUpload(cur.heroPoster);
-  setSetting("cafe", { ...cur, heroVideo: "", heroPoster: "" });
-  return json({ ok: true });
+  return tenantRoute(async () => {
+    if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
+    const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
+    if (cur.heroVideo) deleteUpload(cur.heroVideo);
+    if (cur.heroPoster) deleteUpload(cur.heroPoster);
+    setSetting("cafe", { ...cur, heroVideo: "", heroPoster: "" });
+    return json({ ok: true });
+  });
 }
 
 /** سبک‌سازیِ ویدیوی فعلی (برای ویدیوهایی که قبل از این قابلیت آپلود شده‌اند) */
 export async function PATCH() {
-  if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
-  const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
-  if (!cur.heroVideo) return json({ ok: false, error: "ویدیویی نیست" }, 400);
-  if (/-web\.mp4$/.test(cur.heroVideo)) return json({ ok: true, optimizing: false, already: true });
-  const optimizing = optimizeHeroVideo(cur.heroVideo);
-  if (!optimizing) return json({ ok: false, error: "ffmpeg روی سرور نصب نیست — یک بار update.sh را اجرا کنید" }, 400);
-  return json({ ok: true, optimizing });
+  return tenantRoute(async () => {
+    if (!(await isAuthed())) return json({ ok: false, error: "ابتدا وارد شوید" }, 401);
+    const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
+    if (!cur.heroVideo) return json({ ok: false, error: "ویدیویی نیست" }, 400);
+    if (/-web\.mp4$/.test(cur.heroVideo)) return json({ ok: true, optimizing: false, already: true });
+    const optimizing = optimizeHeroVideo(cur.heroVideo);
+    if (!optimizing) return json({ ok: false, error: "ffmpeg روی سرور نصب نیست — یک بار update.sh را اجرا کنید" }, 400);
+    return json({ ok: true, optimizing });
+  });
 }

@@ -14,11 +14,13 @@ import { saveReceiptWebp, readUpload } from "@/lib/images";
 import { isVerifiedPhone, normalizePhone, requestOtp, verifyOtp } from "@/lib/otp";
 import type { Bill, Order } from "@/lib/types";
 import type { ActionFail } from "@/lib/action-result";
+import { withTenant } from "@/lib/tenant";
 
 /** خطا را (با پیامِ فارسی) برمی‌گرداند؛ پرتاب‌شدن در production پیام را پنهان می‌کند */
 async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
   try {
-    return await fn();
+    // هر اکشن در زمینهٔ مجموعهٔ همین درخواست (زیردامنه) اجرا می‌شود
+    return await withTenant(fn, { active: true });
   } catch (e) {
     return { __error: e instanceof Error ? e.message : "خطا" };
   }
@@ -45,15 +47,21 @@ export async function placeOrderAction(
 }
 
 export async function billAction(table: string): Promise<Bill> {
-  return getBill(table);
+  return withTenant(async () => {
+    return getBill(table);
+  }, { active: true });
 }
 
 export async function orderAction(id: string): Promise<Order | null> {
-  return getOrder(id);
+  return withTenant(async () => {
+    return getOrder(id);
+  }, { active: true });
 }
 
 export async function ordersAction(ids: string[]): Promise<Order[]> {
-  return ids.map((id) => getOrder(id)).filter(Boolean) as Order[];
+  return withTenant(async () => {
+    return ids.map((id) => getOrder(id)).filter(Boolean) as Order[];
+  }, { active: true });
 }
 
 export async function uploadReceiptAction(

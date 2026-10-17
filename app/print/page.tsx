@@ -4,14 +4,16 @@ import { getOrder, getSetting, openBillOrders } from "@/lib/queries";
 import { formatMoney, faDateTime, orderCode, toFa } from "@/lib/utils";
 import type { CafeInfo, Order, OrderCodeMode } from "@/lib/types";
 import { PrintBar } from "./print-bar";
+import { tenantPage } from "@/lib/tenant-page";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "چاپ فاکتور" };
 
 /** فاکتورِ چاپی: یک سفارش (?order=) / چند سفارش (?orders=a,b) / صورتحسابِ بازِ یک میز (?table=) */
 export default async function PrintPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  if (!(await isAuthed())) redirect("/staff");
   const sp = await searchParams;
+  return tenantPage(async () => {
+  if (!(await isAuthed())) redirect("/staff");
   const cafe = getSetting<CafeInfo>("cafe", { name: "کافه", logo: "☕", tagline: "", currency: "toman" });
   const mode = getSetting<OrderCodeMode>("orderCode", "number");
   const money = (n: number) => formatMoney(n, cafe.currency);
@@ -71,6 +73,7 @@ export default async function PrintPage({ searchParams }: { searchParams: Promis
       </div>
     </div>
   );
+  });
 }
 
 function Row({ k, v }: { k: string; v: string }) {

@@ -1,6 +1,7 @@
 import { Landing } from "@/components/landing";
 import { getMenu, getSetting } from "@/lib/queries";
 import type { CafeInfo, PaymentInfo, SmsSettings } from "@/lib/types";
+import { tenantPage } from "@/lib/tenant-page";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export default async function Home({
   const sp = await searchParams;
   // بدون شماره میز (مثلاً بازکردنِ آدرسِ خالیِ سایت) = صفحهٔ «QR میز را اسکن کنید»؛ دیگر پیش‌فرضِ میز ۱ نداریم
   const table = String(sp.table || "").trim().slice(0, 20);
+  // منوی مجموعهٔ همین زیردامنه؛ اشتراکِ تمام‌شده = صفحهٔ «موقتاً در دسترس نیست»
+  return tenantPage(() => {
   const menu = getMenu();
   const cafe = getSetting<CafeInfo>("cafe", {
     name: "کافه آرتاویل",
@@ -30,4 +33,5 @@ export default async function Home({
   const payFirst = getSetting<boolean>("payFirst", true) !== false;
 
   return <Landing menu={menu} table={table} cafe={cafe} payment={payment} otp={otp} payFirst={payFirst} />;
+  }, { active: true });
 }
