@@ -2,30 +2,41 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Ban, CalendarPlus, Check, CircleDollarSign, ExternalLink, Globe, KeyRound, Loader2, LogIn, LogOut, Plus, Receipt,
-  Search, Settings, Store, Trash2, X,
+  Ban, CalendarPlus, Check, CircleDollarSign, Download, ExternalLink, FileText, Globe, History, KeyRound, LayoutDashboard,
+  Loader2, LogIn, LogOut, Megaphone, Menu as MenuIcon, MessageSquareText, Pencil, Percent, Plus, Receipt, Search, Settings, Store, Trash2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn, faDate, faDateTime, money, toFa } from "@/lib/utils";
 import { unwrap } from "@/lib/action-result";
 import {
   adminCreateTenantAction, adminDataAction, adminDeleteTenantAction, adminEnterAction, adminExtendAction, adminLoginAction,
-  adminLogoutAction, adminPaymentAction, adminResetPasswordAction, adminSaveSettingsAction, adminSetPasswordAction,
-  adminStatusAction, adminTestSmsAction, adminUpdateTenantAction, type AdminData, type AdminTenant,
+  adminLogoutAction, adminOwnerSmsAction, adminPaymentAction, adminResetPasswordAction, adminSaveSettingsAction,
+  adminSetPasswordAction, adminStatusAction, adminTestSmsAction, adminUpdateTenantAction, type AdminData, type AdminTenant,
 } from "@/app/platform/actions";
 import { KIND_LABEL, type BusinessKind } from "@/lib/seeds";
 import type { PlatformSettings } from "@/lib/platform";
-import { fieldCls } from "@/components/platform/signup-form";
+import { Box, L, Modal, STATE, Toggle, downloadCsv, err, fieldCls, smallField, type Flash } from "@/components/platform/admin/shared";
+import { Dashboard } from "@/components/platform/admin/dashboard";
+import { ContentEditor } from "@/components/platform/admin/content-editor";
+import { Coupons } from "@/components/platform/admin/coupons";
+import { Notify } from "@/components/platform/admin/notify";
+import { AuditLog } from "@/components/platform/admin/audit";
 
-const err = (e: unknown) => (e instanceof Error ? e.message : "خطا");
-const STATE: Record<string, { label: string; cls: string }> = {
-  trial: { label: "آزمایشی", cls: "bg-blue-600/10 text-blue-700 dark:text-blue-400" },
-  active: { label: "فعال", cls: "bg-green-600/10 text-green-700 dark:text-green-400" },
-  expired: { label: "منقضی", cls: "bg-primary/10 text-primary" },
-  suspended: { label: "تعلیق", cls: "bg-muted text-muted-foreground" },
-};
 const PAY: Record<string, string> = { pending: "در انتظار", paid: "پرداخت‌شده", failed: "ناموفق", rejected: "ردشده" };
 const METHOD: Record<string, string> = { zarinpal: "زرین‌پال", card: "کارت‌به‌کارت", manual: "دستی" };
+
+type Section = "dashboard" | "tenants" | "payments" | "coupons" | "content" | "notify" | "audit" | "settings";
+const NAV: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "dashboard", label: "داشبورد", icon: LayoutDashboard },
+  { id: "tenants", label: "مجموعه‌ها", icon: Store },
+  { id: "payments", label: "پرداخت‌ها", icon: CircleDollarSign },
+  { id: "coupons", label: "کدهای تخفیف", icon: Percent },
+  { id: "content", label: "محتوای سایت", icon: FileText },
+  { id: "notify", label: "اطلاع‌رسانی", icon: Megaphone },
+  { id: "audit", label: "گزارشِ فعالیت", icon: History },
+  { id: "settings", label: "تنظیمات", icon: Settings },
+];
 
 export function AdminApp() {
   const [status, setStatus] = useState<{ authed: boolean; configured: boolean } | null>(null);
@@ -61,7 +72,9 @@ function AdminLogin({ configured, onDone }: { configured: boolean; onDone: () =>
 
 function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const [data, setData] = useState<AdminData | null>(null);
-  const [tab, setTab] = useState<"tenants" | "payments" | "settings">("tenants");
+  const [section, setSection] = useState<Section>("dashboard");
+  const [openSlug, setOpenSlug] = useState<string | null>(null);
+  const [side, setSide] = useState(false);
   const [toast, setToast] = useState("");
   const flash = useCallback((t: string) => { setToast(t); window.setTimeout(() => setToast(""), 4000); }, []);
   const load = useCallback(() => {
@@ -70,27 +83,58 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   useEffect(load, [load]);
 
   const pending = data?.payments.filter((p) => p.status === "pending" && p.method === "card").length || 0;
+  // با هر بارِ رفتن به یک بخش، داده تازه می‌شود (پرداخت/ثبت‌نامِ جدید بدونِ رفرشِ صفحه دیده شود)
+  const go = (s: Section) => { setSection(s); setSide(false); window.scrollTo({ top: 0 }); load(); };
+  const openTenant = (slug: string) => { setOpenSlug(slug); go("tenants"); };
+  const siteUrl = data ? `${window.location.protocol}//${window.location.host}/` : "/";
+
+  const nav = (
+    <nav className="space-y-1">
+      {NAV.map((n) => (
+        <button key={n.id} onClick={() => go(n.id)}
+          className={cn("flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-right text-sm font-semibold transition", section === n.id ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+          <n.icon className="size-[18px] shrink-0" />
+          <span className="flex-1">{n.label}</span>
+          {n.id === "payments" && pending > 0 && <span className={cn("grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold", section === n.id ? "bg-white text-primary" : "bg-primary text-primary-foreground")}>{toFa(pending)}</span>}
+        </button>
+      ))}
+    </nav>
+  );
+  const brand = (
+    <div className="mb-5 flex items-center gap-2.5 px-2">
+      <span className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground"><Store className="size-5" /></span>
+      <div className="leading-tight"><b className="block">مدیریتِ پلتفرم</b><a href="/" target="_blank" className="text-[11px] text-muted-foreground hover:text-primary">مشاهدهٔ سایت ↗</a></div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background lg:pr-60">
+      <aside className="fixed inset-y-0 right-0 z-30 hidden w-60 border-l border-border bg-card p-4 lg:block">{brand}{nav}</aside>
+      {side && (
+        <div className="fixed inset-0 z-50 bg-black/50 lg:hidden" onClick={() => setSide(false)}>
+          <aside className="absolute inset-y-0 right-0 w-72 max-w-[84vw] bg-card p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setSide(false)} aria-label="بستن" className="absolute left-3 top-3 grid size-9 place-items-center rounded-full bg-muted"><X className="size-5" /></button>
+            {brand}{nav}
+          </aside>
+        </div>
+      )}
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3">
-          <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground"><Store className="size-5" /></span>
-          <b className="hidden sm:block">مدیریتِ پلتفرم</b>
-          <nav className="ms-auto flex rounded-full bg-muted p-1 text-sm font-semibold">
-            {([["tenants", "مجموعه‌ها"], ["payments", "پرداخت‌ها"], ["settings", "تنظیمات"]] as const).map(([id, l]) => (
-              <button key={id} onClick={() => setTab(id)} className={cn("relative rounded-full px-3 py-1.5 transition sm:px-4", tab === id ? "bg-card shadow" : "text-muted-foreground")}>
-                {l}
-                {id === "payments" && pending > 0 && <span className="absolute -top-1 -left-1 grid size-5 place-items-center rounded-full bg-primary text-[11px] text-primary-foreground">{toFa(pending)}</span>}
-              </button>
-            ))}
-          </nav>
-          <Button variant="ghost" size="icon" aria-label="خروج" onClick={async () => { await adminLogoutAction(); onLogout(); }}><LogOut /></Button>
+        <div className="flex items-center gap-2 px-4 py-3">
+          <Button variant="ghost" size="icon" className="lg:hidden" aria-label="منو" onClick={() => setSide(true)}><MenuIcon /></Button>
+          <h1 className="flex-1 truncate text-lg font-extrabold">{NAV.find((n) => n.id === section)!.label}</h1>
+          <ThemeToggle />
+          <Button variant="ghost" size="icon" aria-label="خروج" title="خروج" onClick={async () => { await adminLogoutAction(); onLogout(); }}><LogOut /></Button>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-5">
         {!data ? <div className="grid h-60 place-items-center"><Loader2 className="animate-spin text-muted-foreground" /></div>
-          : tab === "tenants" ? <Tenants data={data} reload={load} flash={flash} />
-          : tab === "payments" ? <Payments data={data} reload={load} flash={flash} />
+          : section === "dashboard" ? <Dashboard flash={flash} onOpenTenant={openTenant} />
+          : section === "tenants" ? <Tenants data={data} reload={load} flash={flash} openSlug={openSlug} setOpenSlug={setOpenSlug} />
+          : section === "payments" ? <Payments data={data} reload={load} flash={flash} />
+          : section === "coupons" ? <Coupons flash={flash} plans={data.settings.plans} />
+          : section === "content" ? <ContentEditor flash={flash} siteUrl={siteUrl} />
+          : section === "notify" ? <Notify flash={flash} />
+          : section === "audit" ? <AuditLog flash={flash} />
           : <PlatformSettingsForm initial={data.settings} reload={load} flash={flash} />}
       </main>
       {toast && <div className="fixed inset-x-0 top-3 z-[80] mx-auto w-fit max-w-[92vw] rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background shadow-lg">{toast}</div>}
@@ -98,31 +142,32 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-type Tools = { data: AdminData; reload: () => void; flash: (t: string) => void };
+type Tools = { data: AdminData; reload: () => void; flash: Flash };
 
 /* ============================ مجموعه‌ها ============================ */
-function Tenants({ data, reload, flash }: Tools) {
+function Tenants({ data, reload, flash, openSlug, setOpenSlug }: Tools & { openSlug: string | null; setOpenSlug: (s: string | null) => void }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "trial" | "active" | "expired" | "suspended">("all");
-  const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const list = useMemo(() => data.tenants.filter((t) =>
     (filter === "all" || t.state === filter) &&
     (!q || [t.name, t.slug, t.ownerPhone, t.ownerName, t.domain].some((x) => x.toLowerCase().includes(q.toLowerCase())))
   ), [data.tenants, q, filter]);
-  const monthStart = new Date(); monthStart.setDate(monthStart.getDate() - 30);
-  const revenue = data.payments.filter((p) => p.status === "paid" && new Date(p.paidAt) >= monthStart).reduce((s, p) => s + p.amount, 0);
   const count = (s: string) => data.tenants.filter((t) => t.state === s).length;
-  const sel = data.tenants.find((t) => t.slug === open);
+  const sel = data.tenants.find((t) => t.slug === openSlug);
+
+  function exportCsv() {
+    downloadCsv("tenants.csv", [
+      ["نام", "آدرس", "نوع", "صاحب", "موبایل", "وضعیت", "اعتبار تا", "ثبت‌نام", "سفارش‌ها", "محصولات", "مشتری‌ها", "فروش ۳۰ روز", "دامنهٔ اختصاصی", "یادداشت"],
+      ...list.map((t) => [t.name, t.slug, KIND_LABEL[t.kind], t.ownerName, t.ownerPhone, STATE[t.state].label, t.expiresAt.slice(0, 10), t.createdAt.slice(0, 10), t.stats.orders, t.stats.items, t.stats.customers, t.stats.revenue30, t.domain, t.note]),
+    ]);
+  }
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {[
-          ["کلِ مجموعه‌ها", toFa(data.tenants.length)], ["فعال", toFa(count("active"))], ["آزمایشی", toFa(count("trial"))],
-          ["منقضی / تعلیق", toFa(count("expired") + count("suspended"))], ["درآمد ۳۰ روز", money(revenue)],
-        ].map(([k, v]) => (
-          <div key={k} className="rounded-3xl border border-border bg-card p-4"><div className="text-xs text-muted-foreground">{k}</div><b className="mt-1 block text-lg">{v}</b></div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[["کلِ مجموعه‌ها", data.tenants.length], ["فعال", count("active")], ["آزمایشی", count("trial")], ["منقضی / تعلیق", count("expired") + count("suspended")]].map(([k, v]) => (
+          <div key={k} className="rounded-3xl border border-border bg-card p-4"><div className="text-xs text-muted-foreground">{k}</div><b className="mt-1 block text-lg">{toFa(v)}</b></div>
         ))}
       </div>
 
@@ -134,13 +179,14 @@ function Tenants({ data, reload, flash }: Tools) {
         <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} className={cn(fieldCls, "w-auto py-2.5")}>
           <option value="all">همه</option><option value="active">فعال</option><option value="trial">آزمایشی</option><option value="expired">منقضی</option><option value="suspended">تعلیق</option>
         </select>
+        <Button variant="outline" className="rounded-2xl" onClick={exportCsv} disabled={!list.length}><Download className="size-4" /> اکسل</Button>
         <Button className="rounded-2xl" onClick={() => setCreating(true)}><Plus className="size-4" /> مجموعهٔ جدید</Button>
       </div>
 
       {list.length === 0 ? <p className="rounded-3xl border border-dashed border-border p-10 text-center text-muted-foreground">مجموعه‌ای نیست</p> : (
         <div className="grid gap-3 md:grid-cols-2">
           {list.map((t) => (
-            <button key={t.slug} onClick={() => setOpen(t.slug)} className="rounded-3xl border border-border bg-card p-4 text-right shadow-sm transition hover:border-primary/40">
+            <button key={t.slug} onClick={() => setOpenSlug(t.slug)} className="rounded-3xl border border-border bg-card p-4 text-right shadow-sm transition hover:border-primary/40">
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <b className="block truncate">{t.name}</b>
@@ -160,54 +206,59 @@ function Tenants({ data, reload, flash }: Tools) {
         </div>
       )}
 
-      {sel && <TenantDrawer t={sel} data={data} onClose={() => setOpen(null)} reload={reload} flash={flash} />}
+      {sel && <TenantDrawer t={sel} data={data} onClose={() => setOpenSlug(null)} reload={reload} flash={flash} />}
       {creating && <CreateTenant root={data.root} trial={data.settings.trialDays} onClose={() => setCreating(false)} reload={reload} flash={flash} />}
-    </div>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-card p-5 shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="text-lg font-black">{title}</h2>
-          <button onClick={onClose} aria-label="بستن" className="grid size-9 place-items-center rounded-full bg-muted"><X className="size-5" /></button>
-        </div>
-        {children}
-      </div>
     </div>
   );
 }
 
 function TenantDrawer({ t, data, onClose, reload, flash }: { t: AdminTenant; onClose: () => void } & Tools) {
   const [busy, setBusy] = useState("");
+  const [info, setInfo] = useState({ name: t.name, ownerName: t.ownerName, ownerPhone: t.ownerPhone, kind: t.kind });
+  const [editing, setEditing] = useState(false);
   const [domain, setDomain] = useState(t.domain);
   const [note, setNote] = useState(t.note);
   const [until, setUntil] = useState("");
+  const [amount, setAmount] = useState("");
   const [pw, setPw] = useState("");
+  const [sms, setSms] = useState("");
   const run = async (key: string, fn: () => Promise<unknown>, ok?: string) => {
     setBusy(key);
     try { await fn(); if (ok) flash(ok); reload(); } catch (e) { flash("❌ " + err(e)); } finally { setBusy(""); }
   };
-  const extend = (o: { months?: number; days?: number; until?: string }, label: string) =>
+  const extend = (o: { months?: number; days?: number; until?: string; amount?: number }, label: string) =>
     run("ext", async () => unwrap(await adminExtendAction(t.slug, o)), `✅ ${label}`);
   const payments = data.payments.filter((p) => p.slug === t.slug).slice(0, 8);
 
   return (
-    <Modal title={t.name} onClose={onClose}>
+    <Modal title={t.name} onClose={onClose} wide>
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", STATE[t.state].cls)}>{STATE[t.state].label}</span>
         <a href={t.url} target="_blank" rel="noopener" className="flex items-center gap-1 font-semibold text-primary" dir="ltr">{t.domain || `${t.slug}.${data.root}`} <ExternalLink className="size-3.5" /></a>
+        <button onClick={() => setEditing((v) => !v)} className="ms-auto flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"><Pencil className="size-3.5" /> ویرایشِ مشخصات</button>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-2xl bg-muted/50 p-3 text-sm">
-        <dt className="text-muted-foreground">صاحب</dt><dd>{t.ownerName || "—"} <span dir="ltr">{t.ownerPhone ? toFa(t.ownerPhone) : ""}</span></dd>
-        <dt className="text-muted-foreground">نوع</dt><dd>{KIND_LABEL[t.kind]}</dd>
-        <dt className="text-muted-foreground">ثبت‌نام</dt><dd>{faDate(t.createdAt)}</dd>
-        <dt className="text-muted-foreground">اعتبار تا</dt><dd>{t.expiresAt.startsWith("2099") ? "بدونِ انقضا" : `${faDate(t.expiresAt)} (${t.daysLeft > 0 ? `${toFa(t.daysLeft)} روز` : "تمام‌شده"})`}</dd>
-        <dt className="text-muted-foreground">آخرین فعالیت</dt><dd>{t.lastSeen ? faDateTime(t.lastSeen) : "—"}</dd>
-        <dt className="text-muted-foreground">آمار</dt><dd>{toFa(t.stats.orders)} سفارش · {toFa(t.stats.customers)} مشتری · فروشِ ۳۰ روز {money(t.stats.revenue30)}</dd>
-      </dl>
+
+      {editing ? (
+        <div className="mb-3 grid gap-2 rounded-2xl bg-muted/50 p-3 sm:grid-cols-2">
+          <L t="نامِ مجموعه"><input value={info.name} onChange={(e) => setInfo({ ...info, name: e.target.value })} className={smallField} /></L>
+          <L t="نوع"><select value={info.kind} onChange={(e) => setInfo({ ...info, kind: e.target.value as BusinessKind })} className={smallField}>{(Object.keys(KIND_LABEL) as BusinessKind[]).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}</select></L>
+          <L t="نامِ صاحب"><input value={info.ownerName} onChange={(e) => setInfo({ ...info, ownerName: e.target.value })} className={smallField} /></L>
+          <L t="موبایلِ صاحب"><input value={info.ownerPhone} onChange={(e) => setInfo({ ...info, ownerPhone: e.target.value })} dir="ltr" className={smallField} /></L>
+          <div className="flex gap-2 sm:col-span-2">
+            <Button size="sm" className="rounded-xl" disabled={!!busy} onClick={() => run("info", async () => { unwrap(await adminUpdateTenantAction(t.slug, info)); setEditing(false); }, "✅ مشخصات ذخیره شد")}>ذخیره</Button>
+            <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => setEditing(false)}>انصراف</Button>
+          </div>
+        </div>
+      ) : (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-2xl bg-muted/50 p-3 text-sm">
+          <dt className="text-muted-foreground">صاحب</dt><dd>{t.ownerName || "—"} <span dir="ltr">{t.ownerPhone ? toFa(t.ownerPhone) : ""}</span></dd>
+          <dt className="text-muted-foreground">نوع</dt><dd>{KIND_LABEL[t.kind]}</dd>
+          <dt className="text-muted-foreground">ثبت‌نام</dt><dd>{faDate(t.createdAt)}</dd>
+          <dt className="text-muted-foreground">اعتبار تا</dt><dd>{t.expiresAt.startsWith("2099") ? "بدونِ انقضا" : `${faDate(t.expiresAt)} (${t.daysLeft > 0 ? `${toFa(t.daysLeft)} روز` : "تمام‌شده"})`}</dd>
+          <dt className="text-muted-foreground">آخرین فعالیت</dt><dd>{t.lastSeen ? faDateTime(t.lastSeen) : "—"}</dd>
+          <dt className="text-muted-foreground">آمار</dt><dd>{toFa(t.stats.orders)} سفارش · {toFa(t.stats.customers)} مشتری · فروشِ ۳۰ روز {money(t.stats.revenue30)}</dd>
+        </dl>
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Button className="rounded-xl" disabled={!!busy} onClick={() => run("enter", async () => { const r = unwrap(await adminEnterAction(t.slug)); window.open(r.url, "_blank"); })}>
@@ -222,14 +273,27 @@ function TenantDrawer({ t, data, onClose, reload, flash }: { t: AdminTenant; onC
       <h3 className="mb-2 mt-5 flex items-center gap-1.5 font-extrabold"><CalendarPlus className="size-4 text-primary" /> تمدید / تغییرِ اعتبار</h3>
       <div className="flex flex-wrap gap-2">
         {[[1, "۱ ماه"], [3, "۳ ماه"], [6, "۶ ماه"], [12, "۱ سال"]].map(([m, l]) => (
-          <Button key={m} size="sm" variant="outline" className="rounded-xl" disabled={!!busy} onClick={() => extend({ months: Number(m) }, `${l} تمدید شد`)}>+{l}</Button>
+          <Button key={m} size="sm" variant="outline" className="rounded-xl" disabled={!!busy} onClick={() => extend({ months: Number(m), amount: Number(amount) || 0 }, `${l} تمدید شد`)}>+{l}</Button>
         ))}
         <Button size="sm" variant="outline" className="rounded-xl" disabled={!!busy} onClick={() => extend({ days: 7 }, "۷ روز اضافه شد")}>+۷ روز</Button>
       </div>
+      <L t="مبلغِ دریافتیِ حضوری (اختیاری، تومان)" hint="اگر پول را حضوری/کارت‌به‌کارت گرفته‌اید، قبل از زدنِ دکمه‌های تمدید وارد کنید تا در درآمد حساب شود">
+        <input type="number" min={0} step={1000} value={amount} onChange={(e) => setAmount(e.target.value)} className={cn(smallField, "max-w-48")} />
+      </L>
       <div className="mt-2 flex gap-2">
         <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} className={cn(fieldCls, "py-2")} />
         <Button size="sm" variant="outline" className="h-auto shrink-0 rounded-xl" disabled={!until || !!busy} onClick={() => extend({ until }, "تاریخ تنظیم شد")}>تعیینِ تاریخ</Button>
       </div>
+
+      {t.ownerPhone && (
+        <>
+          <h3 className="mb-2 mt-5 flex items-center gap-1.5 font-extrabold"><MessageSquareText className="size-4 text-primary" /> پیامک به صاحبِ مجموعه</h3>
+          <div className="flex gap-2">
+            <textarea value={sms} onChange={(e) => setSms(e.target.value)} rows={2} placeholder="متنِ پیامک ({name}، {days}، {link} قابلِ استفاده است)" className={cn(smallField, "resize-y")} />
+            <Button size="sm" className="h-auto shrink-0 rounded-xl" disabled={!sms.trim() || !!busy} onClick={() => run("sms", async () => { unwrap(await adminOwnerSmsAction(sms, "all", t.slug)); setSms(""); }, "✅ پیامک فرستاده شد")}>ارسال</Button>
+          </div>
+        </>
+      )}
 
       <h3 className="mb-2 mt-5 flex items-center gap-1.5 font-extrabold"><Globe className="size-4 text-primary" /> دامنهٔ اختصاصی (اختیاری)</h3>
       <div className="flex gap-2">
@@ -250,7 +314,7 @@ function TenantDrawer({ t, data, onClose, reload, flash }: { t: AdminTenant; onC
         <>
           <h3 className="mb-2 mt-5 font-extrabold">پرداخت‌ها</h3>
           <div className="space-y-1 text-xs">
-            {payments.map((p) => <div key={p.id} className="flex justify-between rounded-xl bg-muted/50 px-3 py-2"><span>{faDate(p.createdAt)} · {toFa(p.months)} ماه · {METHOD[p.method]}</span><span>{p.amount ? money(p.amount) : "—"} · {PAY[p.status]}</span></div>)}
+            {payments.map((p) => <div key={p.id} className="flex justify-between rounded-xl bg-muted/50 px-3 py-2"><span>{faDate(p.createdAt)} · {toFa(p.months)} ماه · {METHOD[p.method]}{p.coupon ? ` · کد ${p.coupon}` : ""}</span><span>{p.amount ? money(p.amount) : "—"} · {PAY[p.status]}</span></div>)}
           </div>
         </>
       )}
@@ -272,7 +336,7 @@ function TenantDrawer({ t, data, onClose, reload, flash }: { t: AdminTenant; onC
   );
 }
 
-function CreateTenant({ root, trial, onClose, reload, flash }: { root: string; trial: number; onClose: () => void; reload: () => void; flash: (t: string) => void }) {
+function CreateTenant({ root, trial, onClose, reload, flash }: { root: string; trial: number; onClose: () => void; reload: () => void; flash: Flash }) {
   const [f, setF] = useState({ name: "", slug: "", kind: "cafe" as BusinessKind, ownerName: "", phone: "", password: "", months: 0, sample: true });
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
@@ -309,6 +373,8 @@ function CreateTenant({ root, trial, onClose, reload, flash }: { root: string; t
 /* ============================ پرداخت‌ها ============================ */
 function Payments({ data, reload, flash }: Tools) {
   const [busy, setBusy] = useState("");
+  const [status, setStatus] = useState<"all" | "paid" | "pending" | "failed" | "rejected">("all");
+  const [method, setMethod] = useState<"all" | "zarinpal" | "card" | "manual">("all");
   const decide = async (id: string, approve: boolean) => {
     let note = "";
     if (!approve) { const r = prompt("دلیلِ رد (به مجموعه نمایش داده می‌شود):", "مبلغ واریزی پیدا نشد"); if (r === null) return; note = r; }
@@ -317,10 +383,11 @@ function Payments({ data, reload, flash }: Tools) {
     catch (e) { flash("❌ " + err(e)); } finally { setBusy(""); }
   };
   const pending = data.payments.filter((p) => p.status === "pending" && p.method === "card");
+  const list = data.payments.filter((p) => (status === "all" || p.status === status) && (method === "all" || p.method === method));
+  const total = list.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   return (
     <div className="space-y-4">
-      <section className="rounded-3xl border border-border bg-card p-4">
-        <h2 className="mb-3 flex items-center gap-2 font-extrabold"><Receipt className="size-5 text-primary" /> فیش‌های در انتظارِ بررسی</h2>
+      <Box title="فیش‌های در انتظارِ بررسی" action={<Receipt className="size-5 text-primary" />}>
         {pending.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">فیشی در انتظار نیست</p> : (
           <div className="grid gap-3 md:grid-cols-2">
             {pending.map((p) => (
@@ -334,7 +401,7 @@ function Payments({ data, reload, flash }: Tools) {
                 <div className="min-w-0 flex-1 text-sm">
                   <b className="block">{p.tenantName}</b>
                   <span className="block text-xs text-muted-foreground">{faDateTime(p.createdAt)}</span>
-                  <span className="mt-1 block">{toFa(p.months)} ماه · <b>{money(p.amount)}</b></span>
+                  <span className="mt-1 block">{toFa(p.months)} ماه · <b>{money(p.amount)}</b>{p.coupon ? <span className="text-xs text-muted-foreground"> (کد {p.coupon}: −{money(p.discount)})</span> : null}</span>
                   {p.note && <span className="block text-xs text-muted-foreground">«{p.note}»</span>}
                   <div className="mt-2 flex gap-2">
                     <Button size="sm" className="h-8 rounded-xl" disabled={!!busy} onClick={() => decide(p.id, true)}>{busy === p.id ? <Loader2 className="animate-spin" /> : <><Check className="size-4" /> تأیید</>}</Button>
@@ -345,21 +412,34 @@ function Payments({ data, reload, flash }: Tools) {
             ))}
           </div>
         )}
-      </section>
-      <section className="rounded-3xl border border-border bg-card p-4">
-        <h2 className="mb-3 flex items-center gap-2 font-extrabold"><CircleDollarSign className="size-5 text-primary" /> همهٔ پرداخت‌ها</h2>
+      </Box>
+      <Box title="همهٔ پرداخت‌ها" action={
+        <Button size="sm" variant="outline" className="rounded-xl" disabled={!list.length} onClick={() => downloadCsv("payments.csv", [
+          ["تاریخ", "مجموعه", "مدت (ماه)", "مبلغ", "کدِ تخفیف", "تخفیف", "روش", "وضعیت", "پیگیری", "توضیح"],
+          ...list.map((p) => [p.createdAt, p.tenantName, p.months, p.amount, p.coupon, p.discount, METHOD[p.method], PAY[p.status], p.refId, p.note]),
+        ])}><Download className="size-4" /> اکسل</Button>
+      }>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={cn(smallField, "w-auto")}>
+            <option value="all">همهٔ وضعیت‌ها</option>{Object.entries(PAY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <select value={method} onChange={(e) => setMethod(e.target.value as typeof method)} className={cn(smallField, "w-auto")}>
+            <option value="all">همهٔ روش‌ها</option>{Object.entries(METHOD).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <span className="ms-auto text-sm">جمعِ پرداخت‌شده: <b>{money(total)}</b></span>
+        </div>
         <div className="overflow-x-auto rounded-2xl border border-border">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-muted/60 text-xs text-muted-foreground">
               <tr>{["تاریخ", "مجموعه", "مدت", "مبلغ", "روش", "وضعیت", "پیگیری / توضیح"].map((h) => <th key={h} className="p-2.5 text-right font-semibold">{h}</th>)}</tr>
             </thead>
             <tbody>
-              {data.payments.map((p) => (
+              {list.map((p) => (
                 <tr key={p.id} className="border-t border-border">
                   <td className="p-2.5 text-muted-foreground">{faDateTime(p.createdAt)}</td>
                   <td className="p-2.5">{p.tenantName}</td>
                   <td className="p-2.5">{toFa(p.months)} ماه</td>
-                  <td className="p-2.5">{p.amount ? money(p.amount) : "—"}</td>
+                  <td className="p-2.5">{p.amount ? money(p.amount) : "—"}{p.coupon && <span className="block text-[11px] text-muted-foreground">کد {p.coupon}</span>}</td>
                   <td className="p-2.5">{METHOD[p.method]}</td>
                   <td className={cn("p-2.5 font-semibold", p.status === "paid" ? "text-green-700 dark:text-green-400" : p.status === "pending" ? "text-amber-700" : "text-primary")}>{PAY[p.status]}</td>
                   <td className="p-2.5 text-xs text-muted-foreground">{p.refId ? <span dir="ltr">{p.refId}</span> : p.note || "—"}</td>
@@ -368,20 +448,13 @@ function Payments({ data, reload, flash }: Tools) {
             </tbody>
           </table>
         </div>
-      </section>
+      </Box>
     </div>
   );
 }
 
 /* ============================ تنظیمات ============================ */
-// بیرون از کامپوننت تعریف شده‌اند تا با هر تایپ دوباره ساخته نشوند (فوکوسِ ورودی‌ها حفظ شود)
-function Box({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="rounded-3xl border border-border bg-card p-4"><h2 className="mb-3 font-extrabold">{title}</h2><div className="space-y-3">{children}</div></section>;
-}
-function L({ t, children, hint }: { t: string; children: React.ReactNode; hint?: string }) {
-  return <label className="block"><span className="mb-1 block text-xs font-semibold text-muted-foreground">{t}</span>{children}{hint && <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span>}</label>;
-}
-function PlatformSettingsForm({ initial, reload, flash }: { initial: PlatformSettings; reload: () => void; flash: (t: string) => void }) {
+function PlatformSettingsForm({ initial, reload, flash }: { initial: PlatformSettings; reload: () => void; flash: Flash }) {
   const [s, setS] = useState<PlatformSettings>(initial);
   const [busy, setBusy] = useState(false);
   const [testPhone, setTestPhone] = useState("");
@@ -393,14 +466,10 @@ function PlatformSettingsForm({ initial, reload, flash }: { initial: PlatformSet
   };
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Box title="معرفیِ پلتفرم">
-        <L t="نامِ برند"><input value={s.brand} onChange={(e) => set({ brand: e.target.value })} className={fieldCls} /></L>
-        <L t="شعار"><input value={s.tagline} onChange={(e) => set({ tagline: e.target.value })} className={fieldCls} /></L>
-        <L t="تلفنِ پشتیبانی"><input value={s.support} onChange={(e) => set({ support: e.target.value })} dir="ltr" className={fieldCls} /></L>
-        <div className="grid grid-cols-2 gap-2">
-          <L t="روزهای آزمایشیِ رایگان"><input type="number" min={0} max={90} value={s.trialDays} onChange={(e) => set({ trialDays: Number(e.target.value) })} className={fieldCls} /></L>
-          <label className="flex items-end gap-2 pb-3 text-sm"><input type="checkbox" className="size-4 accent-primary" checked={s.allowSignup} onChange={(e) => set({ allowSignup: e.target.checked })} /> ثبت‌نامِ آنلاین باز است</label>
-        </div>
+      <Box title="ثبت‌نام و دورهٔ آزمایشی">
+        <p className="text-xs text-muted-foreground">نام، لوگو، رنگ و همهٔ متن‌های سایت از بخشِ «محتوای سایت» ویرایش می‌شوند.</p>
+        <L t="روزهای آزمایشیِ رایگان"><input type="number" min={0} max={90} value={s.trialDays} onChange={(e) => set({ trialDays: Number(e.target.value) })} className={fieldCls} /></L>
+        <Toggle checked={s.allowSignup} onChange={(v) => set({ allowSignup: v })} label="ثبت‌نامِ آنلاین باز است" />
       </Box>
 
       <Box title="طرح‌های اشتراک (تومان)">
@@ -419,7 +488,7 @@ function PlatformSettingsForm({ initial, reload, flash }: { initial: PlatformSet
 
       <Box title="دریافتِ حق‌اشتراک">
         <L t="مرچنت‌کدِ زرین‌پال" hint="خالی = پرداختِ آنلاین غیرفعال"><input value={s.zarinpal.merchant} onChange={(e) => set({ zarinpal: { ...s.zarinpal, merchant: e.target.value.trim() } })} dir="ltr" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className={fieldCls} /></L>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="size-4 accent-primary" checked={s.zarinpal.sandbox} onChange={(e) => set({ zarinpal: { ...s.zarinpal, sandbox: e.target.checked } })} /> حالتِ آزمایشیِ زرین‌پال (sandbox)</label>
+        <Toggle checked={s.zarinpal.sandbox} onChange={(v) => set({ zarinpal: { ...s.zarinpal, sandbox: v } })} label="حالتِ آزمایشیِ زرین‌پال (sandbox)" />
         <L t="کارت‌به‌کارت — شمارهٔ کارت" hint="خالی = کارت‌به‌کارت غیرفعال"><input value={s.card.number} onChange={(e) => set({ card: { ...s.card, number: e.target.value } })} dir="ltr" className={fieldCls} /></L>
         <div className="grid grid-cols-2 gap-2">
           <L t="به نامِ"><input value={s.card.holder} onChange={(e) => set({ card: { ...s.card, holder: e.target.value } })} className={fieldCls} /></L>
@@ -427,7 +496,7 @@ function PlatformSettingsForm({ initial, reload, flash }: { initial: PlatformSet
         </div>
       </Box>
 
-      <Box title="پیامکِ پلتفرم (کدِ تأییدِ ثبت‌نام)">
+      <Box title="پیامکِ پلتفرم (کدِ ثبت‌نام، یادآوری، پیامک به صاحبان)">
         <select value={s.sms.provider} onChange={(e) => set({ sms: { ...s.sms, provider: e.target.value as PlatformSettings["sms"]["provider"] } })} className={fieldCls}>
           <option value="none">بدونِ پیامک (ثبت‌نام بدونِ تأییدِ موبایل)</option>
           <option value="wide">وایدی / عصر فرا ارتباط (wide.ir)</option>

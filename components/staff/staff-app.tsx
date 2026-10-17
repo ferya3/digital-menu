@@ -48,10 +48,12 @@ export interface SubscriptionInfo {
   slug: string;
 }
 
-export function StaffApp({ initialAuthed, subscription = null }: { initialAuthed: boolean; subscription?: SubscriptionInfo | null }) {
+export interface PanelAnnouncement { text: string; level: "info" | "warning" }
+
+export function StaffApp({ initialAuthed, subscription = null, announcement = null }: { initialAuthed: boolean; subscription?: SubscriptionInfo | null; announcement?: PanelAnnouncement | null }) {
   const [authed, setAuthed] = useState(initialAuthed);
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
-  return <Dashboard onLogout={() => setAuthed(false)} subscription={subscription} />;
+  return <Dashboard onLogout={() => setAuthed(false)} subscription={subscription} announcement={announcement} />;
 }
 
 /* ===================== ورود ===================== */
@@ -96,7 +98,11 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ===================== داشبورد ===================== */
-function Dashboard({ onLogout, subscription }: { onLogout: () => void; subscription: SubscriptionInfo | null }) {
+function Dashboard({ onLogout, subscription, announcement }: { onLogout: () => void; subscription: SubscriptionInfo | null; announcement: PanelAnnouncement | null }) {
+  // اعلان تا وقتی متنش عوض نشده، با «بستن» دیگر نشان داده نمی‌شود
+  const annKey = announcement ? "ann:" + announcement.text.slice(0, 120) : "";
+  const [annHidden, setAnnHidden] = useState(true);
+  useEffect(() => { try { setAnnHidden(!!annKey && localStorage.getItem("cafe_ann_closed") === annKey); } catch { setAnnHidden(false); } }, [annKey]);
   const logoutRef = useRef(onLogout);
   logoutRef.current = onLogout;
   // اشتراکِ تمام‌شده: پنل مستقیم روی «اشتراک» باز می‌شود
@@ -381,6 +387,13 @@ function Dashboard({ onLogout, subscription }: { onLogout: () => void; subscript
               : !subscription.active ? "اشتراک تمام شده و منوی مشتری‌ها غیرفعال است — برای تمدید بزنید"
               : `${subscription.state === "trial" ? "دورهٔ آزمایشی" : "اشتراک"} ${toFa(subscription.daysLeft)} روزِ دیگر تمام می‌شود — تمدید`}
           </button>
+        )}
+
+        {announcement && !annHidden && (
+          <div className={cn("flex items-start gap-2 px-4 py-2.5 text-sm font-semibold print:hidden", announcement.level === "warning" ? "bg-amber-500/15 text-amber-900 dark:text-amber-200" : "bg-blue-600/10 text-blue-900 dark:text-blue-200")}>
+            <span className="flex-1 whitespace-pre-line">📢 {announcement.text}</span>
+            <button aria-label="بستن" className="shrink-0 opacity-70 hover:opacity-100" onClick={() => { setAnnHidden(true); try { localStorage.setItem("cafe_ann_closed", annKey); } catch {} }}><X className="size-4" /></button>
+          </div>
         )}
 
         <main className="mx-auto max-w-6xl px-4 py-5">

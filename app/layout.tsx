@@ -4,7 +4,7 @@ import "./globals.css";
 import { headers } from "next/headers";
 import { saasEnabled } from "@/lib/tenant-context";
 import { classifyHost, requestHost, withTenant } from "@/lib/tenant";
-import { platformSettings } from "@/lib/platform";
+import { fillContent, siteContent } from "@/lib/platform-admin";
 import { getSetting } from "@/lib/queries";
 import type { CafeInfo } from "@/lib/types";
 
@@ -12,8 +12,9 @@ import type { CafeInfo } from "@/lib/types";
 export async function generateMetadata(): Promise<Metadata> {
   try {
     if (saasEnabled() && classifyHost((await requestHost()).host).kind === "platform") {
-      const p = platformSettings();
-      return { title: `${p.brand} — ${p.tagline}`, description: p.tagline };
+      // عنوان و توضیحِ موتورهای جستجو از «محتوای سایت»
+      const c = siteContent();
+      return { title: fillContent(c.brand.seoTitle, c), description: fillContent(c.brand.seoDescription, c) };
     }
     const cafe = await withTenant(() => getSetting<CafeInfo>("cafe", { name: "منوی دیجیتال", logo: "", tagline: "", currency: "toman" }));
     return { title: `${cafe.name} — منوی دیجیتال`, description: `منوی دیجیتال، سفارش آنلاین، درخواست گارسون و صورتحساب ${cafe.name}.` };

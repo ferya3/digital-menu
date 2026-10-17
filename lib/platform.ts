@@ -40,7 +40,22 @@ export function pdb(): DatabaseSync {
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
     CREATE INDEX IF NOT EXISTS idx_pay_slug ON payments(slug);
     CREATE INDEX IF NOT EXISTS idx_pay_auth ON payments(authority);
+    -- گزارشِ فعالیت (کارهای مدیرِ کل، ثبت‌نام‌ها، پرداخت‌ها)
+    CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, actor TEXT, action TEXT, target TEXT DEFAULT '', detail TEXT DEFAULT '', ip TEXT DEFAULT '');
+    CREATE INDEX IF NOT EXISTS idx_audit_at ON audit(at);
+    -- کدهای تخفیفِ اشتراک
+    CREATE TABLE IF NOT EXISTS coupons (
+      code TEXT PRIMARY KEY, kind TEXT DEFAULT 'percent', value INTEGER, max_uses INTEGER DEFAULT 0, used INTEGER DEFAULT 0,
+      expires_at TEXT DEFAULT '', plans TEXT DEFAULT '', active INTEGER DEFAULT 1, note TEXT DEFAULT '', created_at TEXT
+    );
+    -- یادآوری‌های پیامکیِ ارسال‌شده (هر یادآوری برای هر دورهٔ اشتراک فقط یک‌بار)
+    CREATE TABLE IF NOT EXISTS reminders (key TEXT PRIMARY KEY, slug TEXT, kind TEXT, at TEXT, status TEXT, detail TEXT DEFAULT '');
+    -- پیامکِ گروهی به صاحبانِ مجموعه‌ها
+    CREATE TABLE IF NOT EXISTS owner_sms (id TEXT PRIMARY KEY, at TEXT, message TEXT, audience TEXT, total INTEGER, sent INTEGER DEFAULT 0, failed INTEGER DEFAULT 0, status TEXT DEFAULT 'running');
   `);
+  for (const sql of ["ALTER TABLE payments ADD COLUMN coupon TEXT DEFAULT ''", "ALTER TABLE payments ADD COLUMN discount INTEGER DEFAULT 0", "ALTER TABLE payments ADD COLUMN list_price INTEGER DEFAULT 0"]) {
+    try { d.exec(sql); } catch { /* ستون از قبل هست */ }
+  }
   g.__platformDb = d;
   sealExisting(d);
   migrateLegacy(d);
@@ -84,12 +99,12 @@ export const DEFAULT_PLATFORM: PlatformSettings = {
   sms: { ...DEFAULT_SMS },
 };
 
-function rawGet<T>(key: string, fallback: T): T {
+export function rawGet<T>(key: string, fallback: T): T {
   const r = pdb().prepare("SELECT value FROM settings WHERE key = ?").get(key) as unknown as { value: string } | undefined;
   if (!r) return fallback;
   try { return JSON.parse(unseal(r.value)) as T; } catch { return fallback; }
 }
-function rawSet(key: string, value: unknown) {
+export function rawSet(key: string, value: unknown) {
   const json = JSON.stringify(value);
   pdb().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, SECRET_SETTINGS.has(key) ? seal(json) : json);
 }
@@ -226,7 +241,7 @@ export function createTenant(input: NewTenant): Tenant {
   return getTenant(slug)!;
 }
 
-export function updateTenant(slug: string, patch: Partial<Pick<Tenant, "name" | "ownerName" | "ownerPhone" | "status" | "domain" | "note" | "expiresAt" | "plan">>) {
+export function updateTenant(slug: string, patch: Partial<Pick<Tenant, "name" | "ownerName" | "ownerPhone" | "status" | "domain" | "note" | "expiresAt" | "plan" | "kind">>) {
   const t = getTenant(slug);
   if (!t) throw new Error("مجموعه پیدا نشد");
   if (patch.domain !== undefined) {
@@ -239,8 +254,9 @@ export function updateTenant(slug: string, patch: Partial<Pick<Tenant, "name" | 
   }
   const n = { ...t, ...patch };
   pdb().prepare(
-    "UPDATE tenants SET name=?, owner_name=?, owner_phone=?, status=?, domain=?, note=?, expires_at=?, plan=? WHERE slug=?"
-  ).run(n.name, n.ownerName, n.ownerPhone, n.status, n.domain, n.note, n.expiresAt, n.plan, slug);
+    "UPDATE tenants SET name=?, owner_name=?, owner_phone=?, status=?, domain=?, note=?, expires_at=?, plan=?, kind=? WHERE slug=?"
+  ).run(String(n.name).trim().slice(0, 60) || t.name, String(n.ownerName).slice(0, 60), n.ownerPhone, n.status, n.domain, String(n.note).slice(0, 500), n.expiresAt, n.plan,
+    (["cafe", "restaurant", "fastfood", "other"] as const).includes(n.kind) ? n.kind : t.kind, slug);
   return getTenant(slug)!;
 }
 
@@ -302,18 +318,20 @@ export interface Payment {
   id: string; slug: string; plan: string; months: number; amount: number;
   method: "zarinpal" | "card" | "manual"; status: "pending" | "paid" | "failed" | "rejected";
   authority: string; refId: string; receipt: string; note: string; createdAt: string; paidAt: string;
+  coupon: string; discount: number;
 }
-type PRow = { id: string; slug: string; plan: string; months: number; amount: number; method: string; status: string; authority: string; ref_id: string; receipt: string; note: string; created_at: string; paid_at: string };
+type PRow = { id: string; slug: string; plan: string; months: number; amount: number; method: string; status: string; authority: string; ref_id: string; receipt: string; note: string; created_at: string; paid_at: string; coupon: string; discount: number };
 const toPayment = (r: PRow): Payment => ({
   id: r.id, slug: r.slug, plan: r.plan, months: r.months, amount: r.amount, method: r.method as Payment["method"],
   status: r.status as Payment["status"], authority: r.authority, refId: r.ref_id, receipt: r.receipt, note: r.note,
-  createdAt: r.created_at, paidAt: r.paid_at,
+  createdAt: r.created_at, paidAt: r.paid_at, coupon: r.coupon || "", discount: r.discount || 0,
 });
-export function createPayment(p: { slug: string; plan: Plan; method: Payment["method"]; receipt?: string; note?: string }): Payment {
+export function createPayment(p: { slug: string; plan: Plan; method: Payment["method"]; receipt?: string; note?: string; amount?: number; coupon?: string; discount?: number }): Payment {
   const id = `pay_${crypto.randomBytes(12).toString("base64url")}`; // ۹۶ بیت
   pdb().prepare(
-    "INSERT INTO payments (id, slug, plan, months, amount, method, status, receipt, note, created_at) VALUES (?,?,?,?,?,?, 'pending', ?, ?, ?)"
-  ).run(id, p.slug, p.plan.id, p.plan.months, p.plan.price, p.method, p.receipt || "", p.note || "", new Date().toISOString());
+    "INSERT INTO payments (id, slug, plan, months, amount, method, status, receipt, note, created_at, coupon, discount, list_price) VALUES (?,?,?,?,?,?, 'pending', ?, ?, ?, ?, ?, ?)"
+  ).run(id, p.slug, p.plan.id, p.plan.months, p.amount ?? p.plan.price, p.method, p.receipt || "", p.note || "", new Date().toISOString(),
+    p.coupon || "", p.discount || 0, p.plan.price);
   return getPayment(id)!;
 }
 export function getPayment(id: string): Payment | null {
@@ -340,7 +358,11 @@ export function markPaymentPaid(id: string, refId = "", note = ""): Payment {
     .run(refId, new Date().toISOString(), note, note, id);
   const p = getPayment(id);
   if (!p) throw new Error("پرداخت پیدا نشد");
-  if (Number(res.changes) > 0) extendTenant(p.slug, p.months, p.plan);
+  if (Number(res.changes) > 0) {
+    extendTenant(p.slug, p.months, p.plan);
+    // مصرفِ کدِ تخفیف فقط وقتی پرداخت واقعاً انجام شد
+    if (p.coupon) d.prepare("UPDATE coupons SET used = used + 1 WHERE code = ?").run(p.coupon);
+  }
   return p;
 }
 export function markPaymentFailed(id: string, status: "failed" | "rejected", note = "") {

@@ -23,7 +23,8 @@ function Label({ text, hint, children }: { text: string; hint?: React.ReactNode;
 
 const toLatinDigits = (s: string) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
 
-export function SignupForm({ root, trialDays, otp, kinds }: { root: string; trialDays: number; otp: boolean; kinds: Record<BusinessKind, string> }) {
+export function SignupForm({ root, otp, kinds, texts }: { root: string; otp: boolean; kinds: Record<BusinessKind, string>; texts: { title: string; subtitle: string; button: string; requireTerms: boolean } }) {
+  const [accepted, setAccepted] = useState(false);
   const [f, setF] = useState({ name: "", kind: "cafe" as BusinessKind, slug: "", ownerName: "", phone: "", password: "", code: "", sample: true, website: "" });
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   const [slugState, setSlugState] = useState<{ ok: boolean; message: string } | null>(null);
@@ -72,8 +73,8 @@ export function SignupForm({ root, trialDays, otp, kinds }: { root: string; tria
 
   return (
     <form onSubmit={submit} className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
-      <h1 className="text-2xl font-black">ساختِ منوی دیجیتال</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{trialDays > 0 ? `${toFa(trialDays)} روزِ اول رایگان است؛ بدونِ نیاز به کارت بانکی.` : "در کمتر از یک دقیقه آماده است."}</p>
+      <h1 className="text-2xl font-black">{texts.title}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{texts.subtitle}</p>
 
       <div className="mt-6 space-y-4">
         <Label text="نامِ مجموعه">
@@ -115,6 +116,12 @@ export function SignupForm({ root, trialDays, otp, kinds }: { root: string; tria
           <input type="checkbox" className="size-4 accent-primary" checked={f.sample} onChange={(e) => set({ sample: e.target.checked })} />
           با منوی نمونه شروع کن (بعداً قابل حذف است)
         </label>
+        {texts.requireTerms && (
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" required className="size-4 accent-primary" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+            <span><a href="/terms" target="_blank" className="font-semibold text-primary underline">قوانین</a> و <a href="/privacy" target="_blank" className="font-semibold text-primary underline">حریمِ خصوصی</a> را می‌پذیرم</span>
+          </label>
+        )}
         {otp && codeSent && (
           <Label text="کدِ تأییدِ پیامک‌شده" hint={<button type="button" onClick={sendCode} className="font-semibold text-primary underline">ارسالِ دوبارهٔ کد</button>}>
             <input required value={f.code} onChange={(e) => set({ code: e.target.value })} inputMode="numeric" dir="ltr" placeholder="12345" className={fieldCls} autoFocus />
@@ -124,7 +131,7 @@ export function SignupForm({ root, trialDays, otp, kinds }: { root: string; tria
 
       {err && <p className="mt-4 rounded-2xl bg-primary/10 p-3 text-sm font-semibold text-primary">{err}</p>}
       <Button type="submit" size="lg" className="mt-6 h-12 w-full rounded-2xl text-base" disabled={busy || (slugState !== null && !slugState.ok)}>
-        {busy ? <Loader2 className="animate-spin" /> : otp && !codeSent ? "دریافتِ کدِ تأیید" : <><Rocket className="size-5" /> ساختِ منو</>}
+        {busy ? <Loader2 className="animate-spin" /> : otp && !codeSent ? "دریافتِ کدِ تأیید" : <><Rocket className="size-5" /> {texts.button}</>}
       </Button>
     </form>
   );

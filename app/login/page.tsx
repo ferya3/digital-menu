@@ -1,8 +1,7 @@
-import { PlatformFooter, PlatformNav } from "@/components/platform/home";
+import { notFound } from "next/navigation";
+import { PlatformShell } from "@/components/platform/home";
 import { FindPanel } from "@/components/platform/find-panel";
 import { publicPlatform } from "@/app/platform/public";
-
-import { notFound } from "next/navigation";
 import { onPlatformHost } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
@@ -13,12 +12,10 @@ export default async function LoginPage() {
   if (!(await onPlatformHost())) notFound();
   const p = publicPlatform();
   return (
-    <div className="min-h-screen bg-background">
-      <PlatformNav p={p} />
+    <PlatformShell p={p}>
       <main className="mx-auto max-w-md px-4 py-14">
-        <FindPanel root={p.root} support={p.support} />
+        <FindPanel root={p.root} texts={p.c.login} support={p.c.footer.phone} />
       </main>
-      <PlatformFooter p={p} />
-    </div>
+    </PlatformShell>
   );
 }

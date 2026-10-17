@@ -6,6 +6,8 @@ import { withTenant, currentTenantRecord, tenantUrl } from "@/lib/tenant";
 import { createPayment, listPayments, platformSettings, setPaymentAuthority, tenantState, markPaymentFailed, type Payment, type Plan } from "@/lib/platform";
 import { readUpload, saveImageWebp } from "@/lib/images";
 import { startPayUrl, zarinpalRequest } from "@/lib/zarinpal";
+import { applyCoupon, audit } from "@/lib/platform-admin";
+import { markPaymentPaid } from "@/lib/platform";
 import type { ActionFail } from "@/lib/action-result";
 
 /** اشتراکِ همین مجموعه — فقط برای مدیرِ واردشده */
@@ -44,17 +46,32 @@ function findPlan(id: string): Plan {
   return p;
 }
 
+/** پیش‌نمایشِ کدِ تخفیف روی یک طرح */
+export async function staffBillingCouponAction(planId: string, code: string) {
+  return billingGuard(() => applyCoupon(code, findPlan(planId)));
+}
+
+/** کدِ ۱۰۰٪: بدونِ پرداخت، مستقیم تمدید */
+function freeWithCoupon(slug: string, plan: Plan, c: { code: string; discount: number }) {
+  const pay = createPayment({ slug, plan, method: "manual", amount: 0, coupon: c.code, discount: c.discount, note: `کدِ تخفیفِ ${c.code}` });
+  markPaymentPaid(pay.id, "", `کدِ تخفیفِ ${c.code}`);
+  audit(slug, "تمدید با کدِ تخفیفِ ۱۰۰٪", slug, c.code);
+  return { url: "/staff?billing=ok" };
+}
+
 /** پرداختِ آنلاین: ساختِ تراکنش در زرین‌پال و برگرداندنِ آدرسِ درگاه */
-export async function staffBillingPayAction(planId: string) {
+export async function staffBillingPayAction(planId: string, couponCode = "") {
   return billingGuard(async () => {
     const t = currentTenantRecord()!;
     const ps = platformSettings();
-    if (!ps.zarinpal.merchant) throw new Error("پرداختِ آنلاین فعال نیست؛ از کارت‌به‌کارت استفاده کنید");
     const plan = findPlan(planId);
-    const pay = createPayment({ slug: t.slug, plan, method: "zarinpal" });
+    const c = applyCoupon(couponCode, plan);
+    if (c.code && c.amount === 0) return freeWithCoupon(t.slug, plan, c);
+    if (!ps.zarinpal.merchant) throw new Error("پرداختِ آنلاین فعال نیست؛ از کارت‌به‌کارت استفاده کنید");
+    const pay = createPayment({ slug: t.slug, plan, method: "zarinpal", amount: c.amount, coupon: c.code, discount: c.discount });
     try {
       const authority = await zarinpalRequest({
-        merchant: ps.zarinpal.merchant, sandbox: ps.zarinpal.sandbox, amountRial: plan.price * 10,
+        merchant: ps.zarinpal.merchant, sandbox: ps.zarinpal.sandbox, amountRial: c.amount * 10,
         callback: await tenantUrl(t, `/billing/callback?pay=${pay.id}`),
         description: `اشتراک ${plan.title} — ${t.name} (${t.slug})`, mobile: t.ownerPhone || undefined,
       });
@@ -73,6 +90,8 @@ export async function staffBillingReceiptAction(planId: string, fd: FormData) {
     const t = currentTenantRecord()!;
     if (!platformSettings().card.number) throw new Error("کارت‌به‌کارت فعال نیست");
     const plan = findPlan(planId);
+    const c = applyCoupon(String(fd.get("coupon") || ""), plan);
+    if (c.code && c.amount === 0) return freeWithCoupon(t.slug, plan, c);
     if (listPayments(t.slug, 50).some((p) => p.method === "card" && p.status === "pending")) {
       throw new Error("یک فیشِ قبلی هنوز در انتظارِ بررسی است");
     }
@@ -80,7 +99,8 @@ export async function staffBillingReceiptAction(planId: string, fd: FormData) {
     if (!buf) throw new Error("عکسِ فیش را انتخاب کنید");
     const receipt = await saveImageWebp(buf, `sub-receipt-${crypto.randomBytes(6).toString("hex")}`, 1400);
     const note = String(fd.get("note") || "").slice(0, 200);
-    createPayment({ slug: t.slug, plan, method: "card", receipt, note });
-    return { ok: true };
+    createPayment({ slug: t.slug, plan, method: "card", receipt, note, amount: c.amount, coupon: c.code, discount: c.discount });
+    audit(t.slug, "ارسالِ فیشِ اشتراک", t.slug, `${c.amount} تومان${c.code ? ` · کد ${c.code}` : ""}`);
+    return { ok: true, url: "" };
   });
 }

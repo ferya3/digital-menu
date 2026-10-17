@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn, faDate, faDateTime, money, toFa } from "@/lib/utils";
 import { unwrap } from "@/lib/action-result";
 import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
-import { staffBillingAction, staffBillingPayAction, staffBillingReceiptAction, type BillingInfo } from "@/app/staff/billing-actions";
+import { staffBillingAction, staffBillingCouponAction, staffBillingPayAction, staffBillingReceiptAction, type BillingInfo } from "@/app/staff/billing-actions";
 import { Empty, Panel, inputCls, useStaff } from "@/components/staff/kit";
 
 const STATE: Record<string, { label: string; cls: string }> = {
@@ -26,6 +26,10 @@ export function BillingSection() {
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState("");
+  // کدِ تخفیف: بعد از «اعمال» مبلغِ نهایی نشان داده می‌شود
+  const [coupon, setCoupon] = useState("");
+  const [applied, setApplied] = useState<{ code: string; discount: number; amount: number; plan: string } | null>(null);
+  const [couponErr, setCouponErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
@@ -41,11 +45,19 @@ export function BillingSection() {
   const st = STATE[info.state] || STATE.active;
   const chosen = info.plans.find((p) => p.id === plan);
   const pending = info.payments.some((p) => p.status === "pending" && p.method === "card");
+  const ap = applied && applied.plan === plan ? applied : null;
+  const finalPrice = ap ? ap.amount : chosen?.price || 0;
+
+  async function applyCoupon() {
+    setCouponErr("");
+    try { setApplied({ ...unwrap(await staffBillingCouponAction(plan, coupon)), plan }); }
+    catch (e) { setApplied(null); setCouponErr(e instanceof Error ? e.message : "خطا"); }
+  }
 
   async function payOnline() {
     setBusy(true);
     try {
-      const { url } = unwrap(await staffBillingPayAction(plan));
+      const { url } = unwrap(await staffBillingPayAction(plan, ap?.code || ""));
       window.location.href = url;
     } catch (e) { flash("❌ " + (e instanceof Error ? e.message : "خطا")); setBusy(false); }
   }
@@ -54,7 +66,8 @@ export function BillingSection() {
     setBusy(true);
     try {
       const blob = await compressImage(file, 1600, 0.85);
-      unwrap(await staffBillingReceiptAction(plan, imageForm(blob, { note })));
+      const r = unwrap(await staffBillingReceiptAction(plan, imageForm(blob, { note, coupon: ap?.code || "" })));
+      if ("url" in r && r.url) { window.location.href = r.url; return; }
       flash("✅ فیش ارسال شد؛ بعد از تأیید، اشتراک خودکار تمدید می‌شود");
       setFile(null); setNote("");
       load();
@@ -105,20 +118,30 @@ export function BillingSection() {
             ))}
           </div>
 
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <input value={coupon} onChange={(e) => { setCoupon(e.target.value.toUpperCase()); setApplied(null); setCouponErr(""); }} dir="ltr" placeholder="کدِ تخفیف" className={cn(inputCls, "max-w-48 py-2")} />
+            <Button variant="outline" className="h-10 rounded-xl" disabled={!coupon.trim()} onClick={applyCoupon}>اعمالِ کد</Button>
+            {ap && <span className="text-sm font-semibold text-green-700 dark:text-green-400">✓ {money(ap.discount)} تخفیف — مبلغِ نهایی: {money(ap.amount)}</span>}
+            {couponErr && <span className="text-sm font-semibold text-primary">{couponErr}</span>}
+          </div>
+          {ap && ap.amount === 0 && (
+            <Button className="mt-3 h-11 rounded-xl" disabled={busy} onClick={payOnline}>{busy ? <Loader2 className="animate-spin" /> : "فعال‌سازی رایگان با این کد"}</Button>
+          )}
+
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {info.online && (
               <div className="rounded-2xl bg-muted/50 p-4">
                 <div className="mb-1 flex items-center gap-2 font-bold"><CreditCard className="size-5 text-primary" /> پرداخت آنلاین</div>
                 <p className="mb-3 text-xs text-muted-foreground">با همهٔ کارت‌های عضو شتاب؛ اشتراک بلافاصله تمدید می‌شود.</p>
                 <Button className="h-11 w-full rounded-xl" disabled={busy || !chosen} onClick={payOnline}>
-                  {busy ? <Loader2 className="animate-spin" /> : <>پرداخت {chosen ? money(chosen.price) : ""}</>}
+                  {busy ? <Loader2 className="animate-spin" /> : finalPrice === 0 && ap ? <>فعال‌سازی با کدِ تخفیف</> : <>پرداخت {chosen ? money(finalPrice) : ""}</>}
                 </Button>
               </div>
             )}
             {info.card && (
               <div className="rounded-2xl bg-muted/50 p-4">
                 <div className="mb-1 flex items-center gap-2 font-bold"><Receipt className="size-5 text-primary" /> کارت‌به‌کارت</div>
-                <p className="text-xs text-muted-foreground">مبلغ را به کارتِ زیر واریز کنید و عکسِ فیش را بفرستید:</p>
+                <p className="text-xs text-muted-foreground">مبلغِ {chosen ? <b>{money(finalPrice)}</b> : ""} را به کارتِ زیر واریز کنید و عکسِ فیش را بفرستید:</p>
                 <div className="my-2 rounded-xl bg-card p-3 text-center">
                   <b dir="ltr" className="block text-lg tracking-widest">{toFa(info.card.number.replace(/\D/g, "").replace(/(\d{4})(?=\d)/g, "$1 "))}</b>
                   <span className="text-xs text-muted-foreground">{info.card.holder}{info.card.bank ? ` · ${info.card.bank}` : ""}</span>

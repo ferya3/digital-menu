@@ -2,6 +2,7 @@ import { currentTenant } from "@/lib/tenant-context";
 import { tenantRoute } from "@/lib/tenant";
 import { getPayment, markPaymentFailed, markPaymentPaid, platformSettings } from "@/lib/platform";
 import { zarinpalVerify } from "@/lib/zarinpal";
+import { audit } from "@/lib/platform-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function GET(req: Request) {
       return back("fail");
     }
     markPaymentPaid(pay.id, v.refId);
+    audit(pay.slug, "پرداختِ آنلاینِ اشتراک", pay.slug, `${pay.amount} تومان · پیگیری ${v.refId}`);
     return back("ok");
   });
 }
