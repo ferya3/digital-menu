@@ -132,7 +132,7 @@ export function setPlatformAdminPassword(pw: string) {
 
 /** توکنِ امضاشده با کلیدِ پلتفرم (ورودِ خودکار به پنلِ یک مجموعه، نشستِ مدیرِ کل) */
 export function signPlatform(data: Record<string, unknown>, ttlMs: number): string {
-  const payload = Buffer.from(JSON.stringify({ ...data, exp: Date.now() + ttlMs, n: crypto.randomBytes(6).toString("hex") })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ ...data, exp: Date.now() + ttlMs, n: crypto.randomBytes(16).toString("hex") })).toString("base64url");
   const sig = crypto.createHmac("sha256", platformSecret()).update(payload).digest("base64url");
   return `${payload}.${sig}`;
 }

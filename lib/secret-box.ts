@@ -55,7 +55,8 @@ export function unseal(v: string): string {
 }
 
 /** کلیدهای تنظیماتی که رمزشده ذخیره می‌شوند */
-export const SECRET_SETTINGS = new Set(["sms", "gateways", "session_secret", "platform", "secret"]);
+// admin_pw هم (هشِ scrypt): با لو رفتنِ فقط دیتابیس، حتی حدسِ آفلاینِ رمز ممکن نیست
+export const SECRET_SETTINGS = new Set(["sms", "gateways", "session_secret", "platform", "secret", "admin_pw"]);
 
 /** یک‌بار: مقدارهای حساسِ قدیمیِ رمزنشده را رمز می‌کند */
 export function sealExisting(db: DatabaseSync) {

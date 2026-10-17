@@ -15,7 +15,9 @@ import { isVerifiedPhone, normalizePhone, requestOtp, verifyOtp } from "@/lib/ot
 import type { Bill, Order } from "@/lib/types";
 import type { ActionFail } from "@/lib/action-result";
 import { withTenant } from "@/lib/tenant";
-import { myOrderIds, rememberOrder } from "@/lib/security";
+import { clientIp, myOrderIds, ownsTable, rememberOrder } from "@/lib/security";
+import { hit } from "@/lib/limits";
+import { currentTenant } from "@/lib/tenant-context";
 
 /** خطا را (با پیامِ فارسی) برمی‌گرداند؛ پرتاب‌شدن در production پیام را پنهان می‌کند */
 async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
@@ -25,6 +27,14 @@ async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
   } catch (e) {
     return { __error: e instanceof Error ? e.message : "خطا" };
   }
+}
+
+/** جلوگیری از سیلِ درخواست: سقف برای هر IP و برای هر میز (روی دیسک، با ری‌استارت پاک نمی‌شود) */
+async function limitCustomer(kind: string, table: string, perIp: number, perTable: number, windowMs: number) {
+  const slug = currentTenant().slug;
+  const msg = "درخواست‌ها زیاد است؛ چند دقیقه بعد دوباره امتحان کنید";
+  hit(`${kind}:${slug}:ip:${await clientIp()}`, perIp, windowMs, msg);
+  hit(`${kind}:${slug}:t:${table}`, perTable, windowMs, msg);
 }
 
 /** بدون شمارهٔ میز (اسکن نشده) سفارش/درخواست پذیرفته نمی‌شود */
@@ -41,6 +51,7 @@ export async function placeOrderAction(
 ): Promise<Order | ActionFail> {
   return guard(async () => {
   table = needTable(table);
+  await limitCustomer("order", table, 10, 20, 5 * 60_000);
   // شماره فقط اگر قبلاً با کد پیامکی تأیید شده باشد ثبت می‌شود
   const phone = extra?.phone && (await isVerifiedPhone(extra.phone)) ? normalizePhone(extra.phone) : "";
   const order = createOrder({ table, items, note: extra?.note, phone });
@@ -50,13 +61,6 @@ export async function placeOrderAction(
   });
 }
 
-/** آیا این مرورگر روی این میز سفارشی ثبت کرده؟ (شرطِ دیدنِ صورتحساب/ارسالِ فیشِ میز) */
-async function ownsTable(table: string): Promise<boolean> {
-  const t = String(table || "").trim();
-  if (!t) return false;
-  for (const id of await myOrderIds()) if (getOrder(id)?.table === t) return true;
-  return false;
-}
 const EMPTY_BILL = (table: string): Bill => ({ table, count: 0, total: 0, payStatus: "none", rejectedReason: "", receipt: "", orders: [] });
 
 /** صورتحسابِ میز — فقط برای مرورگری که روی همین میز سفارش داده */
@@ -86,6 +90,7 @@ export async function uploadReceiptAction(
   const table = String(formData.get("table") || "").trim();
   if (!table) throw new Error("شماره میز نامعتبر است");
   if (!(await ownsTable(table))) throw new Error("ابتدا از همین گوشی سفارش ثبت کنید");
+  await limitCustomer("receipt", table, 10, 10, 10 * 60_000);
   const buf = await readUpload(formData);
   if (!buf) throw new Error("تصویر رسید ارسال نشد");
   const { path, hash } = await saveReceiptWebp(buf, table);
@@ -103,6 +108,7 @@ export async function requestAction(
   return guard(async () => {
   // (نوع pos فقط از مسیرِ posRequestAction ساخته می‌شود)
   table = needTable(table);
+  await limitCustomer("request", table, 5, 8, 2 * 60_000);
   createRequest({ table, type, note: String(note || "").trim().slice(0, 200) });
   return { ok: true };
   });
@@ -115,6 +121,7 @@ export async function feedbackAction(input: {
   comment?: string;
 }): Promise<{ ok: boolean } | ActionFail> {
   return guard(async () => {
+  await limitCustomer("feedback", input.table || "-", 5, 10, 10 * 60_000);
   // نظر فقط به سفارشِ خودِ همین مرورگر وصل می‌شود
   if (input.orderId && !(await myOrderIds()).includes(input.orderId)) input = { ...input, orderId: undefined };
   createFeedback(input);
@@ -137,6 +144,8 @@ export async function otpVerifyAction(phone: string, code: string, table: string
 /** «کارت‌خوان سر میز»: صندوق فاکتور را چاپ می‌کند و سالن‌دار با کارت‌خوان می‌آید */
 export async function posRequestAction(table: string): Promise<{ ok: boolean } | ActionFail> {
   return guard(async () => {
-  return requestPos(needTable(table));
+  const t = needTable(table);
+  await limitCustomer("request", t, 5, 8, 2 * 60_000);
+  return requestPos(t);
   });
 }

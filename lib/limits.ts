@@ -16,7 +16,9 @@ function ldb(): DatabaseSync {
   const d = new DatabaseSync(path.join(DATA_DIR, "limits.db"));
   d.exec(`PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS hits (key TEXT PRIMARY KEY, n INTEGER, t INTEGER);
-    CREATE TABLE IF NOT EXISTS codes (key TEXT PRIMARY KEY, hash TEXT, exp INTEGER, attempts INTEGER, last_sent INTEGER);`);
+    CREATE TABLE IF NOT EXISTS codes (key TEXT PRIMARY KEY, hash TEXT, exp INTEGER, attempts INTEGER, last_sent INTEGER);
+    CREATE TABLE IF NOT EXISTS used (key TEXT PRIMARY KEY, exp INTEGER);`);
+  d.prepare("DELETE FROM used WHERE exp < ?").run(Date.now());
   d.prepare("DELETE FROM hits WHERE t < ?").run(Date.now() - 86_400_000);
   d.prepare("DELETE FROM codes WHERE exp < ?").run(Date.now() - 3600_000);
   g.__limitsDb = d;
@@ -38,6 +40,11 @@ export function hit(key: string, max: number, windowMs: number, message = "تع�
 export function assertNotLocked(key: string, max: number, windowMs: number, message = "تعداد تلاش زیاد است؛ کمی بعد دوباره امتحان کنید") {
   const r = ldb().prepare("SELECT n, t FROM hits WHERE key = ?").get(key) as unknown as { n: number; t: number } | undefined;
   if (r && Date.now() - r.t <= windowMs && r.n >= max) throw new Error(message);
+}
+/** توکنِ یک‌بارمصرف: بارِ اول true، از آن به بعد (حتی بعد از ری‌استارت) false */
+export function consumeOnce(key: string, ttlMs: number): boolean {
+  const r = ldb().prepare("INSERT OR IGNORE INTO used (key, exp) VALUES (?, ?)").run(key, Date.now() + ttlMs);
+  return Number(r.changes) > 0;
 }
 export function clearHits(key: string) {
   ldb().prepare("DELETE FROM hits WHERE key = ?").run(key);
