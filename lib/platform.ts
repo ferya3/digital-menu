@@ -11,6 +11,7 @@ import { sendSmsWith } from "@/lib/sms-send";
 import { DEFAULT_SMS } from "@/lib/otp";
 import type { BusinessKind } from "@/lib/seeds";
 import type { SmsSettings } from "@/lib/types";
+import { SECRET_SETTINGS, seal, sealExisting, unseal } from "@/lib/secret-box";
 
 /**
  * دیتابیسِ خودِ پلتفرم (data/platform.db): فهرستِ مجموعه‌ها، اشتراک‌ها، پرداخت‌ها و تنظیماتِ پلتفرم.
@@ -41,6 +42,7 @@ export function pdb(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_pay_auth ON payments(authority);
   `);
   g.__platformDb = d;
+  sealExisting(d);
   migrateLegacy(d);
   return d;
 }
@@ -85,10 +87,11 @@ export const DEFAULT_PLATFORM: PlatformSettings = {
 function rawGet<T>(key: string, fallback: T): T {
   const r = pdb().prepare("SELECT value FROM settings WHERE key = ?").get(key) as unknown as { value: string } | undefined;
   if (!r) return fallback;
-  try { return JSON.parse(r.value) as T; } catch { return fallback; }
+  try { return JSON.parse(unseal(r.value)) as T; } catch { return fallback; }
 }
 function rawSet(key: string, value: unknown) {
-  pdb().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
+  const json = JSON.stringify(value);
+  pdb().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, SECRET_SETTINGS.has(key) ? seal(json) : json);
 }
 export function platformSettings(): PlatformSettings {
   const s = rawGet<Partial<PlatformSettings>>("platform", {});

@@ -17,7 +17,7 @@ export async function clientIp(): Promise<string> {
 
 /* ---------- سفارش‌های همین مرورگر (جلوگیری از دیدنِ سفارش/صورتحسابِ دیگران) ---------- */
 const ORDERS = "cafe_orders";
-const ORDERS_TTL = 24 * 3600 * 1000;
+const ORDERS_TTL = 12 * 3600 * 1000;
 
 export async function myOrderIds(): Promise<string[]> {
   const d = readSigned<{ ids: string[] }>((await cookies()).get(ORDERS)?.value);

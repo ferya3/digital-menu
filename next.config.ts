@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           // دوربین فقط برای اسکنِ QR در همین سایت
           { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=()" },
-          { key: "Content-Security-Policy", value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'" },
+          // CSP (با nonceِ هر درخواست) و HSTS در middleware.ts
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
         ],
       },

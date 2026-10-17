@@ -21,7 +21,14 @@ if [ -f "$FILE.sha256" ]; then
   echo "   سالم است ✓"
 fi
 STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
-tar -xzf "$FILE" -C "$STAGE" 2>/dev/null || { echo "❌ این فایلِ بک‌آپِ معتبری نیست."; exit 1; }
+if [[ "$FILE" == *.enc ]]; then
+  # بک‌آپِ رمزدار: رمز از BACKUP_PASSWORD یا پرسیده می‌شود
+  if [ -z "${BACKUP_PASSWORD:-}" ]; then read -r -s -p "رمزِ بک‌آپ: " BACKUP_PASSWORD; echo; export BACKUP_PASSWORD; fi
+  openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSWORD -in "$FILE" 2>/dev/null | tar -xzf - -C "$STAGE" 2>/dev/null \
+    || { echo "❌ رمزِ بک‌آپ اشتباه است یا فایل خراب است."; exit 1; }
+else
+  tar -xzf "$FILE" -C "$STAGE" 2>/dev/null || { echo "❌ این فایلِ بک‌آپِ معتبری نیست."; exit 1; }
+fi
 [ -f "$STAGE/data/cafe.db" ] || [ -f "$STAGE/data/platform.db" ] || { echo "❌ بک‌آپ دیتابیس ندارد."; exit 1; }
 # سلامتِ همهٔ دیتابیس‌های داخلِ بک‌آپ
 find "$STAGE/data" -name '*.db' -not -path '*/uploads/*' | while read -r f; do
@@ -49,6 +56,8 @@ find data.new -name '*.db-wal' -delete; find data.new -name '*.db-shm' -delete
 mkdir -p data.new/uploads
 rm -rf data.old && [ -d data ] && mv data data.old
 mv data.new data && rm -rf data.old
+# کلیدِ اطلاعاتِ رمزشده باید همراهِ دیتابیس برگردد
+[ -f "$STAGE/env/.data-key" ] && install -m 600 "$STAGE/env/.data-key" .data-key
 if [ -f "$STAGE/env/.env.production.local" ]; then
   # تنظیماتِ سرورِ قبلی (رمزِ اولیه، و در حالتِ پلتفرم: دامنهٔ اصلی و رمزِ مدیرِ کل) — کلید به کلید ادغام می‌شود
   touch .env.production.local

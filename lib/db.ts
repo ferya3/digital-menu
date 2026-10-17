@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { seedMenu, type BusinessKind } from "@/lib/seeds";
 import { currentTenant } from "@/lib/tenant-context";
+import { sealExisting } from "@/lib/secret-box";
 
 // یک اتصال برای هر مجموعه؛ روی globalThis تا با هات‌ری‌لودِ Next دوباره باز نشود
 const g = globalThis as unknown as { __cafeDbs?: Map<string, DatabaseSync> };
@@ -77,6 +78,8 @@ function createDb(dir: string, init?: SeedOptions): DatabaseSync {
   // ارسالی که با ری‌استارتِ سرور نیمه‌کاره مانده را «قطع‌شده» علامت بزن (از پنل قابل ادامه است)
   db.exec("UPDATE sms_campaigns SET status='interrupted' WHERE status='running'");
   seed(db, init);
+  // اطلاعاتِ حساسِ ذخیره‌شده با نسخه‌های قبلی هم رمز شوند
+  sealExisting(db);
   return db;
 }
 
