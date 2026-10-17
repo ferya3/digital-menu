@@ -13,7 +13,7 @@ import { Box, L, Toggle, err, smallField, type Flash } from "./shared";
 
 const SECTIONS = [
   ["brand", "برند و سئو"], ["announce", "نوارِ اعلان"], ["hero", "بالای صفحه"], ["features", "امکانات"], ["steps", "مراحل"],
-  ["pricing", "تعرفه‌ها"], ["faq", "سؤالات"], ["footer", "پاورقی و تماس"], ["forms", "ثبت‌نام و ورود"], ["legal", "قوانین"], ["system", "پیام‌های سیستمی"],
+  ["pricing", "تعرفه‌ها"], ["faq", "سؤالات"], ["showcase", "پنل و دعوتِ پایانی"], ["footer", "پاورقی و تماس"], ["forms", "ثبت‌نام و ورود"], ["legal", "قوانین"], ["system", "پیام‌های سیستمی"],
 ] as const;
 type Sec = (typeof SECTIONS)[number][0];
 
@@ -134,6 +134,9 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
             <L t="دکمهٔ دوم">{inp(c.hero.ctaSecondary, (v) => set("hero", { ctaSecondary: v }))}</L>
             <L t="نامِ نمونه در تصویرِ گوشی">{inp(c.hero.mockupName, (v) => set("hero", { mockupName: v }))}</L>
           </div>
+          <L t="ویژگی‌های کوتاهِ زیرِ دکمه‌ها (تیک‌دار)">
+            <ListEditor items={c.trust} onChange={(v) => setC({ ...c, trust: v })} make={() => ""} addLabel="مورِد جدید" render={(it, s) => inp(it, s)} />
+          </L>
           <L t="برچسب‌های «مناسب برای»">
             <ListEditor items={c.kinds} onChange={(v) => setC({ ...c, kinds: v })} make={() => ""} addLabel="برچسبِ جدید"
               render={(it, s) => inp(it, s, "مثلاً 🍕 پیتزافروشی")} />
@@ -187,6 +190,23 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
           <ListEditor items={c.faq.items} onChange={(v) => set("faq", { items: v })} make={() => ({ q: "", a: "" })} addLabel="سؤالِ جدید"
             render={(it, s) => (<>{inp(it.q, (v) => s({ ...it, q: v }), "سؤال")}{area(it.a, (v) => s({ ...it, a: v }), 3)}</>)} />
         </Box>
+      )}
+
+      {sec === "showcase" && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Box title="بخشِ معرفیِ پنلِ مدیریت" action={resetBtn("showcase")}>
+            <L t="تیتر">{inp(c.showcase.title, (v) => set("showcase", { title: v }))}</L>
+            <L t="توضیح">{area(c.showcase.text, (v) => set("showcase", { text: v }), 3)}</L>
+            <L t="ویژگی‌ها (تیک‌دار)">
+              <ListEditor items={c.showcase.bullets} onChange={(v) => set("showcase", { bullets: v })} make={() => ""} addLabel="مورِد جدید" render={(it, s) => inp(it, s)} />
+            </L>
+          </Box>
+          <Box title="دعوتِ پایانیِ پایینِ صفحه" action={resetBtn("finalCta")}>
+            <L t="تیتر">{inp(c.finalCta.title, (v) => set("finalCta", { title: v }))}</L>
+            <L t="توضیح">{area(c.finalCta.text, (v) => set("finalCta", { text: v }), 2)}</L>
+            <L t="متنِ دکمه">{inp(c.finalCta.button, (v) => set("finalCta", { button: v }))}</L>
+          </Box>
+        </div>
       )}
 
       {sec === "footer" && (

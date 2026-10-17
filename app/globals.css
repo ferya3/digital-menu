@@ -188,3 +188,45 @@
 @media (prefers-reduced-motion: reduce) {
   .rise, .rise-down { animation: none; }
 }
+
+/* ===== سایتِ پلتفرم (صفحهٔ اصلی): پالتِ خنثی و حرفه‌ای؛ رنگِ اصلی از «محتوای سایت» ===== */
+.platform {
+  --background: 0 0% 100%;
+  --foreground: 222 40% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 40% 10%;
+  --muted: 220 22% 96%;
+  --muted-foreground: 218 14% 38%;
+  --border: 220 16% 90%;
+  --input: 220 16% 90%;
+}
+.dark .platform {
+  --background: 224 30% 6%;
+  --foreground: 220 20% 95%;
+  --card: 224 24% 10%;
+  --card-foreground: 220 20% 95%;
+  --muted: 224 18% 14%;
+  --muted-foreground: 220 10% 66%;
+  --border: 224 14% 20%;
+  --input: 224 14% 20%;
+}
+@keyframes pf-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes pf-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.pf-float { animation: pf-float 6s ease-in-out infinite; }
+.pf-float-slow { animation: pf-float 8s ease-in-out infinite; }
+.pf-rise { animation: pf-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.pf-grid {
+  background-image: linear-gradient(to right, rgb(255 255 255 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at 50% 30%, black 30%, transparent 75%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-float, .pf-float-slow, .pf-rise { animation: none; }
+}

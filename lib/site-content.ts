@@ -7,6 +7,12 @@ export interface SiteContent {
   brand: { name: string; logo: string; color: string; seoTitle: string; seoDescription: string };
   announce: { enabled: boolean; text: string; link: string };
   hero: { badge: string; title: string; highlight: string; subtitle: string; ctaPrimary: string; ctaSecondary: string; mockupName: string };
+  /** ویژگی‌های کوتاهِ زیرِ دکمه‌های بالای صفحه (تیک‌دار) */
+  trust: string[];
+  /** بخشِ معرفیِ پنلِ مدیریت (پس‌زمینهٔ تیره) */
+  showcase: { title: string; text: string; bullets: string[] };
+  /** دعوتِ پایانیِ پایینِ صفحه */
+  finalCta: { title: string; text: string; button: string };
   kinds: string[];
   features: { title: string; subtitle: string; items: FeatureItem[] };
   steps: { title: string; items: { title: string; text: string }[] };
@@ -58,7 +64,14 @@ export const DEFAULT_CONTENT: SiteContent = {
     ctaSecondary: "ورود به پنل",
     mockupName: "کافه رویا",
   },
-  kinds: ["☕ کافه و کافی‌شاپ", "🍽️ رستوران", "🍔 فست‌فود", "🍨 بستنی و آبمیوه", "🧁 قنادی و شیرینی"],
+  trust: ["بدونِ نیاز به کارت بانکی", "راه‌اندازی در چند دقیقه", "بدونِ نصبِ برنامه برای مشتری"],
+  showcase: {
+    title: "همهٔ کارها در یک پنلِ ساده",
+    text: "سفارش‌ها لحظه‌ای با صدای اعلان می‌رسند، پرداخت‌ها را تأیید می‌کنید و درآمدِ روز و ماه را می‌بینید — از گوشی یا لپ‌تاپ.",
+    bullets: ["سفارش و درخواستِ گارسون به‌صورتِ زنده", "صندوق و تأییدِ پرداخت با یک لمس", "حسابداریِ روزانه و ماهانه با تقویمِ شمسی", "باشگاهِ مشتریان و پیامکِ گروهی"],
+  },
+  finalCta: { title: "منوی دیجیتالِ خودتان را همین امروز بسازید", text: "{trialDays} روزِ اول رایگان است. بدونِ قرارداد، هر وقت خواستید لغو کنید.", button: "شروعِ رایگان" },
+  kinds: ["کافه و کافی‌شاپ", "رستوران", "فست‌فود", "بستنی و آبمیوه", "قنادی و شیرینی"],
   features: {
     title: "هر چیزی که برای سرویسِ سریع‌تر لازم دارید",
     subtitle: "بدونِ سخت‌افزار و نصبِ برنامه؛ فقط یک گوشی یا لپ‌تاپ برای پنلِ مدیریت.",
