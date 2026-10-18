@@ -9,6 +9,7 @@ import type { Plan } from "@/lib/platform";
 import { FeatureIcon } from "@/components/platform/feature-icon";
 import { FeatureCarousel } from "@/components/platform/feature-carousel";
 import { MenuModesShowcase } from "@/components/platform/menu-modes-showcase";
+import { DeckCarousel } from "@/components/platform/deck-carousel";
 
 export interface PublicPlatform {
   trialDays: number; allowSignup: boolean; plans: Plan[]; root: string; otp: boolean;
@@ -353,30 +354,34 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
       {/* ===== تعرفه‌ها ===== */}
       <section id="pricing" className={`scroll-mt-24 pb-16 sm:pb-28 ${container}`}>
         <SectionHead eyebrow="تعرفه‌ها" title={c.pricing.title} subtitle={c.pricing.subtitle} />
-        {/* موبایل: امکاناتِ مشترک یک‌بار بالای کارت‌ها (نه تکرار در هر کارت) */}
-        {c.pricing.bullets.length > 0 && (
-          <ul className="mt-8 flex flex-wrap justify-center gap-2 md:hidden">
-            {c.pricing.bullets.map((x) => <li key={x} className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold"><Check className="size-3.5 text-primary" /> {x}</li>)}
-          </ul>
+        {/* کاروسلِ طرح‌ها؛ از طرحِ محبوب شروع می‌شود */}
+        {p.plans.length > 0 && (
+          <DeckCarousel
+            className="mt-8 sm:mt-12" label={c.pricing.title}
+            start={Math.max(0, p.plans.findIndex((pl) => pl.popular))}
+            stageClass="h-[28rem] sm:h-[30.5rem]"
+            cardClass="h-[25rem] w-[min(19rem,78vw)] rounded-[1.75rem] sm:h-[27rem] sm:w-[21rem] sm:rounded-[2rem]"
+            slideClass={p.plans.map((pl) => (pl.popular ? "bg-slate-950 text-white shadow-2xl shadow-primary/25 ring-2 ring-inset ring-primary" : "border border-border bg-card shadow-xl shadow-black/[0.06]"))}
+            dimClass="bg-background" dim={[0.35, 0.6]} spread={[0.62, 0.86]}
+            titles={p.plans.map((pl) => pl.title)}
+            slides={p.plans.map((pl) => (
+              <div key={pl.id} className="flex h-full flex-col p-5 sm:p-7">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-extrabold sm:text-lg">{pl.title}</h3>
+                  {pl.popular && <span className="rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-primary-foreground shadow">محبوب‌ترین</span>}
+                </div>
+                <div className="mt-3 flex items-baseline gap-1.5 sm:mt-4"><b className="text-[1.75rem] font-black tracking-tight sm:text-4xl">{toFa(pl.price.toLocaleString("en-US"))}</b><span className={`text-sm sm:text-base ${pl.popular ? "text-white/60" : "text-muted-foreground"}`}>تومان</span></div>
+                <div className={`mt-1 text-xs sm:text-sm ${pl.popular ? "text-white/60" : "text-muted-foreground"}`}>{pl.months > 1 ? `معادلِ ماهی ${money(Math.round(pl.price / pl.months))}` : "پرداختِ ماهانه"}</div>
+                <ul className={`mt-5 flex-1 space-y-2.5 border-t pt-5 text-sm ${pl.popular ? "border-white/10" : "border-border"}`}>
+                  {c.pricing.bullets.map((x) => <li key={x} className="flex items-center gap-2.5"><Check className="size-4 shrink-0 text-primary" /> {x}</li>)}
+                </ul>
+                {p.allowSignup && c.pricing.cta && (
+                  <Link href="/signup" className={pl.popular ? `${btnPrimary} mt-5 w-full` : "mt-5 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-border font-bold transition-colors duration-200 hover:bg-muted sm:h-12"}>{c.pricing.cta}</Link>
+                )}
+              </div>
+            ))}
+          />
         )}
-        <div className="mx-auto mt-6 grid max-w-5xl items-stretch gap-4 md:mt-14 md:grid-cols-3 md:gap-5">
-          {p.plans.map((pl) => (
-            <div key={pl.id} className={pl.popular
-              ? "relative order-first flex flex-col rounded-3xl bg-slate-950 p-5 text-white shadow-2xl shadow-primary/20 ring-2 ring-primary md:order-none md:-my-3 md:p-7"
-              : "relative flex flex-col rounded-3xl border border-border bg-card p-5 md:p-7"}>
-              {pl.popular && <span className="absolute -top-3 right-7 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow">محبوب‌ترین</span>}
-              <h3 className="text-base font-extrabold md:text-lg">{pl.title}</h3>
-              <div className="mt-3 flex items-baseline gap-1.5 md:mt-4"><b className="text-[1.75rem] font-black tracking-tight md:text-4xl">{toFa(pl.price.toLocaleString("en-US"))}</b><span className={`text-sm md:text-base ${pl.popular ? "text-white/60" : "text-muted-foreground"}`}>تومان</span></div>
-              <div className={`mt-1 text-xs md:text-sm ${pl.popular ? "text-white/60" : "text-muted-foreground"}`}>{pl.months > 1 ? `معادلِ ماهی ${money(Math.round(pl.price / pl.months))}` : "پرداختِ ماهانه"}</div>
-              <ul className="mt-6 hidden flex-1 space-y-3 text-sm md:block">
-                {c.pricing.bullets.map((x) => <li key={x} className="flex items-center gap-2.5"><Check className={`size-4 shrink-0 ${pl.popular ? "text-primary" : "text-primary"}`} /> {x}</li>)}
-              </ul>
-              {p.allowSignup && c.pricing.cta && (
-                <Link href="/signup" className={pl.popular ? `${btnPrimary} mt-5 w-full md:mt-8` : "mt-5 inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-xl border border-border font-bold transition-colors duration-200 hover:bg-muted md:mt-8"}>{c.pricing.cta}</Link>
-              )}
-            </div>
-          ))}
-        </div>
       </section>
 
       {/* ===== سؤالات ===== */}
