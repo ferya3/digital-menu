@@ -380,6 +380,22 @@ export async function sendPlatformSms(phone: string, text: string) {
 
 /* ----------------------------- مهاجرت از نسخهٔ تک‌مجموعه‌ای ----------------------------- */
 /**
+ * LEGACY_DOMAIN=artavilstar.com: دامنهٔ قبلیِ کافه به‌عنوانِ «دامنهٔ اختصاصیِ» همان مجموعه وصل می‌شود
+ * (QRهای چاپ‌شده بدونِ هیچ تغییری کار می‌کنند). فقط وقتی مجموعه هنوز دامنهٔ اختصاصی ندارد.
+ */
+function attachLegacyDomain(d: DatabaseSync, legacy: string) {
+  const dom = (process.env.LEGACY_DOMAIN || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
+  if (!dom || !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(dom)) return;
+  const root = rootDomain();
+  if (root && (dom === root || dom.endsWith("." + root))) return;
+  const t = d.prepare("SELECT domain FROM tenants WHERE slug = ?").get(legacy) as unknown as { domain: string } | undefined;
+  if (!t || t.domain) return;
+  if (d.prepare("SELECT 1 FROM tenants WHERE domain = ?").get(dom)) return;
+  d.prepare("UPDATE tenants SET domain = ? WHERE slug = ?").run(dom, legacy);
+  console.log(`[platform] دامنهٔ ${dom} به مجموعهٔ «${legacy}» وصل شد`);
+}
+
+/**
  * LEGACY_TENANT=artavil: دادهٔ قبلی (data/cafe.db + data/uploads) یک‌بار به data/tenants/artavil منتقل
  * و به‌عنوانِ مجموعهٔ «بدونِ انقضا» ثبت می‌شود. رمزِ پنلِ قبلی (ADMIN_PASSWORD) هم حفظ می‌شود.
  */
@@ -399,7 +415,7 @@ function migrateLegacy(d: DatabaseSync) {
   const dbFile = path.join(dir, "cafe.db");
   if (!fs.existsSync(dbFile)) return;
   const exists = d.prepare("SELECT 1 FROM tenants WHERE slug = ?").get(legacy);
-  if (exists) return;
+  if (exists) { attachLegacyDomain(d, legacy); return; }
   let name = legacy;
   try {
     const t = new DatabaseSync(dbFile);
@@ -419,4 +435,5 @@ function migrateLegacy(d: DatabaseSync) {
   d.prepare(
     "INSERT INTO tenants (slug, name, kind, status, plan, expires_at, note, created_at) VALUES (?, ?, 'cafe', 'active', 'lifetime', ?, 'مجموعهٔ اصلی (منتقل‌شده از نسخهٔ قبلی)', ?)"
   ).run(legacy, name, "2099-12-31T00:00:00.000Z", new Date().toISOString());
+  attachLegacyDomain(d, legacy);
 }

@@ -125,10 +125,10 @@ cd /opt/cafe-next && sudo bash restore.sh /root/data-XXXX.tar.gz.enc
 
 | آدرس | چیست |
 |---|---|
-| `https://artavilstar.com` | سایتِ معرفی، تعرفه‌ها، ثبت‌نام و «ورود به پنل» |
-| `https://artavilstar.com/admin` | پنلِ مدیرِ کل (جزئیات پایین‌تر) |
-| `https://roya.artavilstar.com` | منوی مشتریِ مجموعهٔ «roya» (QRِ میزها) |
-| `https://roya.artavilstar.com/staff` | پنلِ مدیریتِ همان مجموعه + بخشِ «اشتراک» برای تمدید |
+| `https://menuchii.ir` | سایتِ معرفی، تعرفه‌ها، ثبت‌نام و «ورود به پنل» |
+| `https://menuchii.ir/admin` | پنلِ مدیرِ کل (جزئیات پایین‌تر) |
+| `https://roya.menuchii.ir` | منوی مشتریِ مجموعهٔ «roya» (QRِ میزها) |
+| `https://roya.menuchii.ir/staff` | پنلِ مدیریتِ همان مجموعه + بخشِ «اشتراک» برای تمدید |
 
 - **جداسازی:** هر مجموعه دیتابیس (`data/tenants/<آدرس>/cafe.db`)، پوشهٔ عکس‌ها، رمزِ پنل، کانالِ زنده، تنظیماتِ پرداخت/پیامک و ظاهرِ خودش را دارد. نشستِ یک مجموعه روی مجموعهٔ دیگر معتبر نیست.
 - **ثبت‌نام:** نام، نوعِ کسب‌وکار (کافه، رستوران، فست‌فود، سایر — منوی نمونه و عنوان‌ها متناسب با آن)، آدرس، موبایل (با کدِ پیامکی اگر پیامکِ پلتفرم تنظیم شده) و رمز ← دورهٔ آزمایشیِ رایگان (پیش‌فرض ۱۴ روز) ← ورودِ خودکار به پنل.
@@ -147,20 +147,22 @@ cd /opt/cafe-next && sudo bash restore.sh /root/data-XXXX.tar.gz.enc
 - **گزارشِ فعالیت:** همهٔ کارهای مدیرِ کل، ورودهای ناموفق، ثبت‌نام‌ها، پرداخت‌ها و فیش‌ها — با جستجو و خروجیِ اکسل.
 - **تنظیمات:** روزهای آزمایشی، باز/بستنِ ثبت‌نام، طرح‌ها و قیمت‌ها، زرین‌پال، کارت‌به‌کارت، سامانهٔ پیامکِ پلتفرم، رمزِ مدیرِ کل.
 
-### راه‌اندازی روی سروری که الان منوی آرتاویل را دارد
+### راه‌اندازی روی سروری که الان منوی آرتاویل را دارد (پلتفرم روی menuchii.ir)
 
-۱) در پنلِ دامنه سه رکوردِ A روی IPِ سرور: `artavilstar.com`، `www` و **`*`** (همهٔ زیردامنه‌ها).
-۲) کد را به شاخهٔ `saas` ببرید و فعال کنید:
+۱) در پنلِ دامنهٔ **menuchii.ir** سه رکوردِ A روی IPِ سرور: `menuchii.ir`، `www` و **`*`** (همهٔ زیردامنه‌ها). رکوردهای `artavilstar.com` و `www` هم همان‌طور روی همین سرور بمانند.
+۲) روی سرور:
 ```bash
-cd /opt/cafe-next && sudo bash backup.sh && sudo git fetch origin saas:refs/remotes/origin/saas && sudo git checkout -B saas origin/saas && sudo bash update.sh
-sudo ROOT_DOMAIN=artavilstar.com EMAIL=you@mail.com PLATFORM_ADMIN_PASSWORD='رمز-قوی-مدیر-کل' LEGACY_TENANT=artavil bash set-saas.sh
+cd /opt/cafe-next && sudo BACKUP_PASSWORD='یک-رمز-برای-بک‌آپ' bash backup.sh
+sudo git fetch origin saas:refs/remotes/origin/saas && sudo git checkout -B saas origin/saas && sudo bash update.sh
+sudo ROOT_DOMAIN=menuchii.ir EMAIL=you@mail.com PLATFORM_ADMIN_PASSWORD='رمز-قوی-مدیر-کل' LEGACY_TENANT=artavil LEGACY_DOMAIN=artavilstar.com bash set-saas.sh
 ```
-- `LEGACY_TENANT=artavil`: منو، سفارش‌ها، مشتری‌ها و رمزِ فعلی به مجموعهٔ `artavil` (آدرسِ `artavil.artavilstar.com`، بدونِ انقضا) منتقل می‌شود و **QRهای چاپ‌شدهٔ قدیمی** (`artavilstar.com/?table=…`) خودکار به آن هدایت می‌شوند.
-- اگر می‌خواهید آرتاویل روی همان `artavilstar.com` بماند، پلتفرم را روی دامنهٔ دیگری بیاورید (`ROOT_DOMAIN=دامنهٔ-جدید`) و از پنلِ مدیرِ کل برای مجموعهٔ آرتاویل «دامنهٔ اختصاصی» = `artavilstar.com` بگذارید.
+- `LEGACY_TENANT=artavil`: منو، سفارش‌ها، مشتری‌ها و رمزِ فعلی به مجموعهٔ `artavil` (بدونِ انقضا) منتقل می‌شود.
+- `LEGACY_DOMAIN=artavilstar.com`: همان دامنه دامنهٔ اختصاصیِ آرتاویل می‌شود؛ منو و پنل مثلِ قبل روی `artavilstar.com` و `artavilstar.com/staff` می‌مانند و **QRهای چاپ‌شده بدونِ هیچ تغییری** کار می‌کنند.
+- سایتِ معرفی و ثبت‌نام: `https://menuchii.ir` · مدیرِ کل: `https://menuchii.ir/admin` · هر مجموعهٔ تازه: `https://<آدرس>.menuchii.ir`.
 
 ### نصبِ تازهٔ پلتفرم با یک خط
 ```bash
-sudo apt-get update && sudo apt-get install -y git && sudo git clone -b saas https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo ROOT_DOMAIN=example.com EMAIL=you@mail.com PLATFORM_ADMIN_PASSWORD='رمز-قوی' bash install.sh
+sudo apt-get update && sudo apt-get install -y git && sudo git clone -b saas https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo ROOT_DOMAIN=menuchii.ir EMAIL=you@mail.com PLATFORM_ADMIN_PASSWORD='رمز-قوی' bash install.sh
 ```
 بک‌آپ/بازیابی (`backup.sh` / `restore.sh` / `RESTORE=` در نصب) همهٔ مجموعه‌ها و دیتابیسِ پلتفرم را با هم جابه‌جا می‌کند؛ بعد از بازیابی روی سرورِ جدید یک‌بار `sudo bash set-saas.sh`.
 

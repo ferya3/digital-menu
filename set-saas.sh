@@ -8,6 +8,8 @@
 #  ROOT_DOMAIN             دامنهٔ اصلی؛ سایتِ معرفی/ثبت‌نام روی آن و هر مجموعه روی <آدرس>.ROOT_DOMAIN
 #  PLATFORM_ADMIN_PASSWORD رمزِ پنلِ مدیرِ کل (https://ROOT_DOMAIN/admin) — حداقل ۸ نویسه
 #  EMAIL                   (اختیاری) ایمیل برای گواهی‌های Let's Encrypt
+#  LEGACY_DOMAIN           (اختیاری) دامنهٔ قبلیِ همان کافه (مثلاً artavilstar.com) به‌عنوانِ دامنهٔ اختصاصیِ آن وصل
+#                          می‌شود و گواهی می‌گیرد؛ QRهای قدیمی بدونِ تغییر کار می‌کنند
 #  LEGACY_TENANT           (اختیاری) اگر این سرور قبلاً منوی یک کافه را داشته: داده‌اش با همین آدرس
 #                          (مثلاً artavil.artavilstar.com) منتقل می‌شود و QRهای قدیمی خودکار هدایت می‌شوند
 #
@@ -30,6 +32,10 @@ PLATFORM_ADMIN_PASSWORD="${PLATFORM_ADMIN_PASSWORD:-$(cur PLATFORM_ADMIN_PASSWOR
 EMAIL="${EMAIL:-$(cur CERT_EMAIL)}"
 LEGACY_TENANT="$(echo "${LEGACY_TENANT:-$(cur LEGACY_TENANT)}" | tr 'A-Z' 'a-z')"
 if [ -n "$LEGACY_TENANT" ] && ! [[ "$LEGACY_TENANT" =~ ^[a-z][a-z0-9-]{2,29}$ ]]; then die "LEGACY_TENANT نامعتبر است (حروفِ انگلیسیِ کوچک، عدد و -)"; fi
+LEGACY_DOMAIN="${LEGACY_DOMAIN:-$(cur LEGACY_DOMAIN)}"; LEGACY_DOMAIN="${LEGACY_DOMAIN#http://}"; LEGACY_DOMAIN="${LEGACY_DOMAIN#https://}"
+LEGACY_DOMAIN="$(echo "${LEGACY_DOMAIN%%/*}" | tr 'A-Z' 'a-z')"; LEGACY_DOMAIN="${LEGACY_DOMAIN#www.}"
+if [ -n "$LEGACY_DOMAIN" ] && [ -z "$LEGACY_TENANT" ]; then die "LEGACY_DOMAIN فقط همراهِ LEGACY_TENANT معنا دارد"; fi
+if [ -n "$LEGACY_DOMAIN" ] && [ "$LEGACY_DOMAIN" = "$ROOT_DOMAIN" ]; then die "LEGACY_DOMAIN نباید همان ROOT_DOMAIN باشد"; fi
 APP_PORT="${APP_PORT:-$(grep -ho 'proxy_pass http://127.0.0.1:[0-9]*' /etc/nginx/sites-available/cafe 2>/dev/null | head -1 | grep -o '[0-9]*$' || true)}"
 APP_PORT="${APP_PORT:-3000}"
 
@@ -53,6 +59,7 @@ setenv(){ local k="$1" v="$2"; grep -v "^$k=" "$ENVF" > "$ENVF.tmp" || true; [ -
 setenv ROOT_DOMAIN "$ROOT_DOMAIN"
 setenv PLATFORM_ADMIN_PASSWORD "$PLATFORM_ADMIN_PASSWORD"
 setenv LEGACY_TENANT "$LEGACY_TENANT"
+setenv LEGACY_DOMAIN "$LEGACY_DOMAIN"
 setenv CERT_EMAIL "$EMAIL"
 setenv AUTO_SSL 1
 
@@ -136,6 +143,7 @@ sleep 4
 say "گواهیِ HTTPS برای دامنهٔ اصلی و مجموعه‌ها"
 HOSTS=("$ROOT_DOMAIN" "www.$ROOT_DOMAIN")
 [ -n "$LEGACY_TENANT" ] && HOSTS+=("$LEGACY_TENANT.$ROOT_DOMAIN")
+[ -n "$LEGACY_DOMAIN" ] && HOSTS+=("$LEGACY_DOMAIN" "www.$LEGACY_DOMAIN")
 for h in $(node -e 'try{const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync("data/platform.db",{readOnly:true});for(const r of d.prepare("SELECT slug, domain FROM tenants").all()){console.log(r.slug+"."+process.argv[1]);if(r.domain)console.log(r.domain)}}catch{}' "$ROOT_DOMAIN" 2>/dev/null); do HOSTS+=("$h"); done
 for h in $(printf '%s\n' "${HOSTS[@]}" | sort -u); do
   if bash "$APP_DIR/tenant-cert.sh" "$h"; then echo "  ✓ $h"; else echo "  ⚠️  $h — گواهی نگرفت (DNS را بررسی کنید؛ لاگ: /var/log/cafe-certs.log)"; fi
@@ -144,5 +152,9 @@ done
 say "تمام شد ✅"
 echo "  سایتِ پلتفرم (معرفی و ثبت‌نام):  https://$ROOT_DOMAIN"
 echo "  پنلِ مدیرِ کل:                    https://$ROOT_DOMAIN/admin"
-[ -n "$LEGACY_TENANT" ] && echo "  منوی قبلی:                        https://$LEGACY_TENANT.$ROOT_DOMAIN  (QRهای قدیمی خودکار هدایت می‌شوند)"
+if [ -n "$LEGACY_DOMAIN" ]; then
+  echo "  منوی قبلی:                        https://$LEGACY_DOMAIN  (همان آدرسِ QRهای چاپ‌شده — پنل: https://$LEGACY_DOMAIN/staff)"
+elif [ -n "$LEGACY_TENANT" ]; then
+  echo "  منوی قبلی:                        https://$LEGACY_TENANT.$ROOT_DOMAIN  (QRهای قدیمی خودکار هدایت می‌شوند)"
+fi
 echo "  هر مجموعهٔ تازه:                  https://<آدرس>.$ROOT_DOMAIN  (گواهی خودکار گرفته می‌شود)"
