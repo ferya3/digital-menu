@@ -15,6 +15,8 @@ export interface SiteContent {
   finalCta: { title: string; text: string; button: string };
   kinds: string[];
   features: { title: string; subtitle: string; items: FeatureItem[] };
+  /** معرفیِ حالت‌های نمایشِ منو؛ items به ترتیب: کاروسل، شبکه‌ای، لیستی */
+  views: { title: string; subtitle: string; items: { title: string; text: string }[]; bullets: string[] };
   steps: { title: string; items: { title: string; text: string }[] };
   pricing: { title: string; subtitle: string; bullets: string[]; cta: string };
   faq: { title: string; items: { q: string; a: string }[] };
@@ -87,6 +89,16 @@ export const DEFAULT_CONTENT: SiteContent = {
       { icon: "MessageSquareText", title: "پیامکِ گروهی", text: "تخفیف‌ها و جشنواره‌ها را برای مشتری‌های وفادار یا قدیمی بفرستید." },
       { icon: "Palette", title: "کاملاً شخصی‌سازی‌شده", text: "لوگو، رنگِ برند، بنرِ دسته‌ها، ویدیوی خوش‌آمد و آدرسِ اختصاصی برای هر مجموعه." },
     ],
+  },
+  views: {
+    title: "منو، همان‌طور که مشتری دوست دارد",
+    subtitle: "سه حالتِ نمایش در یک منو؛ مشتری با یک لمس بینِ آن‌ها جابه‌جا می‌شود و انتخابش برای دفعهٔ بعد هم یادش می‌ماند.",
+    items: [
+      { title: "کاروسلِ سه‌بعدی", text: "عکس‌های بزرگ و تمام‌قد که مثلِ ویترین می‌چرخند؛ بهترین حالت وقتی محصولاتتان خودشان را نشان می‌دهند." },
+      { title: "شبکه‌ای", text: "کارت‌های عکس‌دار کنارِ هم با قیمت و توضیح؛ کلِ یک دسته را در یک نگاه مرور کنید." },
+      { title: "لیستی", text: "فهرستِ جمع‌وجور با نام و قیمت؛ با لمسِ هر ردیف، عکس و توضیحش باز می‌شود. سریع برای منوهای بلند." },
+    ],
+    bullets: ["تمِ روشن و تیره", "نامِ مجموعه روی عکس‌ها", "بزرگ‌نماییِ عکس", "اشتراک‌گذاریِ هر محصول"],
   },
   steps: {
     title: "در سه قدم راه بیندازید",

@@ -36,6 +36,11 @@ export function saveSiteContent(input: SiteContent) {
     showcase: { title: clip(c.showcase.title, 200), text: clip(c.showcase.text, 600), bullets: c.showcase.bullets.slice(0, 8).map((b) => clip(b, 100)).filter(Boolean) },
     finalCta: t(c.finalCta, 300) as SiteContent["finalCta"],
     features: { title: clip(c.features.title, 200), subtitle: clip(c.features.subtitle, 400), items: c.features.items.slice(0, 16).map((f) => ({ icon: clip(f.icon, 40), title: clip(f.title, 80), text: clip(f.text, 300) })).filter((f) => f.title) },
+    views: {
+      title: clip(c.views.title, 200), subtitle: clip(c.views.subtitle, 400),
+      items: DEFAULT_CONTENT.views.items.map((d, i) => ({ title: clip(c.views.items[i]?.title || d.title, 60), text: clip(c.views.items[i]?.text ?? d.text, 300) })),
+      bullets: c.views.bullets.slice(0, 8).map((b) => clip(b, 60)).filter(Boolean),
+    },
     steps: { title: clip(c.steps.title, 200), items: c.steps.items.slice(0, 6).map((s) => ({ title: clip(s.title, 80), text: clip(s.text, 300) })).filter((s) => s.title) },
     pricing: { title: clip(c.pricing.title, 200), subtitle: clip(c.pricing.subtitle, 300), bullets: c.pricing.bullets.slice(0, 10).map((b) => clip(b, 80)).filter(Boolean), cta: clip(c.pricing.cta, 60) },
     faq: { title: clip(c.faq.title, 200), items: c.faq.items.slice(0, 30).map((f) => ({ q: clip(f.q, 200), a: clip(f.a, 1500) })).filter((f) => f.q) },

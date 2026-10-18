@@ -8,6 +8,7 @@ import { colorHsl, type SiteContent } from "@/lib/site-content";
 import type { Plan } from "@/lib/platform";
 import { FeatureIcon } from "@/components/platform/feature-icon";
 import { FeatureCarousel } from "@/components/platform/feature-carousel";
+import { MenuModesShowcase } from "@/components/platform/menu-modes-showcase";
 
 export interface PublicPlatform {
   trialDays: number; allowSignup: boolean; plans: Plan[]; root: string; otp: boolean;
@@ -64,7 +65,7 @@ export function PlatformNav({ p }: { p: PublicPlatform }) {
       <header className="mx-auto flex max-w-6xl items-center gap-2 rounded-2xl border border-border/70 bg-background/80 px-3 py-2.5 shadow-sm shadow-black/5 backdrop-blur-xl sm:px-4">
         <Link href="/" className="flex items-center gap-2 font-black"><BrandMark c={p.c} />{p.c.brand.name}</Link>
         <nav className="mx-auto hidden items-center gap-1 text-sm font-semibold text-muted-foreground md:flex">
-          {[["امکانات", "/#features"], ["روشِ کار", "/#how"], ["تعرفه‌ها", "/#pricing"], ["سؤالات", "/#faq"]].map(([l, h]) => (
+          {[["امکانات", "/#features"], ["حالت‌های نمایش", "/#views"], ["روشِ کار", "/#how"], ["تعرفه‌ها", "/#pricing"], ["سؤالات", "/#faq"]].map(([l, h]) => (
             <a key={h} href={h} className="rounded-lg px-3 py-2 transition-colors duration-200 hover:bg-muted hover:text-foreground">{l}</a>
           ))}
         </nav>
@@ -294,6 +295,17 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
         </section>
       )}
 
+      {/* ===== حالت‌های نمایشِ منو ===== */}
+      {c.views.title && (
+        <section id="views" className="relative scroll-mt-24 overflow-hidden border-t border-border py-16 sm:py-28">
+          <div aria-hidden className="absolute -right-40 top-20 size-[28rem] rounded-full bg-primary/[0.07] blur-[100px]" />
+          <div className={`relative ${container}`}>
+            <SectionHead eyebrow="حالت‌های نمایش" title={c.views.title} subtitle={c.views.subtitle} />
+            <MenuModesShowcase v={c.views} cafeName={c.hero.mockupName} />
+          </div>
+        </section>
+      )}
+
       {/* ===== روشِ کار ===== */}
       {c.steps.items.length > 0 && (
         <section id="how" className="scroll-mt-24 border-y border-border bg-muted/50 py-16 sm:py-28">
@@ -433,6 +445,7 @@ export function PlatformFooter({ p }: { p: PublicPlatform }) {
           <h3 className="text-sm font-extrabold">محصول</h3>
           <ul className="mt-4 space-y-2.5">
             <li><a href="/#features" className={col}>امکانات</a></li>
+            <li><a href="/#views" className={col}>حالت‌های نمایش</a></li>
             <li><a href="/#pricing" className={col}>تعرفه‌ها</a></li>
             <li><a href="/#faq" className={col}>سؤالاتِ رایج</a></li>
           </ul>

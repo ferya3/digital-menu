@@ -12,7 +12,7 @@ import { BRAND_COLORS, DEFAULT_CONTENT, FEATURE_ICONS, type SiteContent } from "
 import { Box, L, Toggle, err, smallField, type Flash } from "./shared";
 
 const SECTIONS = [
-  ["brand", "برند و سئو"], ["announce", "نوارِ اعلان"], ["hero", "بالای صفحه"], ["features", "امکانات"], ["steps", "مراحل"],
+  ["brand", "برند و سئو"], ["announce", "نوارِ اعلان"], ["hero", "بالای صفحه"], ["features", "امکانات"], ["views", "حالت‌های نمایش"], ["steps", "مراحل"],
   ["pricing", "تعرفه‌ها"], ["faq", "سؤالات"], ["showcase", "پنل و دعوتِ پایانی"], ["footer", "پاورقی و تماس"], ["forms", "ثبت‌نام و ورود"], ["legal", "قوانین"], ["system", "پیام‌های سیستمی"],
 ] as const;
 type Sec = (typeof SECTIONS)[number][0];
@@ -177,6 +177,28 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
                 <textarea value={it.text} onChange={(e) => s({ ...it, text: e.target.value })} rows={2} placeholder="توضیح" className={cn(smallField, "resize-y")} />
               </>
             )} />
+        </Box>
+      )}
+
+      {sec === "views" && (
+        <Box title="حالت‌های نمایشِ منو" action={resetBtn("views")}>
+          <L t="تیتر">{inp(c.views.title, (v) => set("views", { title: v }))}</L>
+          <L t="زیرتیتر">{area(c.views.subtitle, (v) => set("views", { subtitle: v }), 2)}</L>
+          {(["کاروسلِ سه‌بعدی", "شبکه‌ای", "لیستی"] as const).map((name, i) => {
+            const it = c.views.items[i] || DEFAULT_CONTENT.views.items[i];
+            const put = (patch: Partial<typeof it>) => set("views", { items: DEFAULT_CONTENT.views.items.map((d, j) => (j === i ? { ...it, ...patch } : c.views.items[j] || d)) });
+            return (
+              <L key={name} t={`حالتِ ${name}`}>
+                <div className="space-y-2 rounded-2xl border border-border bg-background p-3">
+                  {inp(it.title, (v) => put({ title: v }), "عنوان")}
+                  {area(it.text, (v) => put({ text: v }), 2)}
+                </div>
+              </L>
+            );
+          })}
+          <L t="ویژگی‌های کنارِ پیش‌نمایش (تیک‌دار)">
+            <ListEditor items={c.views.bullets} onChange={(v) => set("views", { bullets: v })} make={() => ""} addLabel="مورِد جدید" render={(it, s) => inp(it, s)} />
+          </L>
         </Box>
       )}
 

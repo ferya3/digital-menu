@@ -252,3 +252,6 @@
 @media (prefers-reduced-motion: reduce) {
   .fc-chip, .fc-card { transition-duration: 0.01ms; }
 }
+/* نوارِ زمانِ پخشِ خودکارِ حالت‌های نمایش */
+@keyframes mm-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.mm-progress { animation: mm-progress linear both; }
