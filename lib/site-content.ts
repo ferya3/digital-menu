@@ -78,7 +78,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     title: "هر چیزی که برای سرویسِ سریع‌تر لازم دارید",
     subtitle: "بدونِ سخت‌افزار و نصبِ برنامه؛ فقط یک گوشی یا لپ‌تاپ برای پنلِ مدیریت.",
     items: [
-      { icon: "QrCode", title: "منوی QR برای هر میز", text: "مشتری QRِ روی میز را اسکن می‌کند و منوی زیبا و سریع را روی گوشی می‌بیند؛ بدونِ نصبِ برنامه." },
+      { icon: "QrCode", title: "منوی QR برای هر میز", text: "مشتری کدِ QR روی میز را اسکن می‌کند و منوی زیبا و سریع را روی گوشی می‌بیند؛ بدونِ نصبِ برنامه." },
       { icon: "Smartphone", title: "سفارش آنلاین سرِ میز", text: "سفارش مستقیم و لحظه‌ای روی پنلِ شما و آشپزخانه می‌نشیند؛ با صدای اعلان." },
       { icon: "CreditCard", title: "پرداخت قبل از آماده‌سازی", text: "کارت‌به‌کارت با فیش، کارت‌خوانِ سرِ میز یا درگاهِ اینترنتی — به انتخابِ شما." },
       { icon: "BellRing", title: "صدا زدنِ گارسون و صورتحساب", text: "درخواست‌ها با شمارهٔ میز روی پنل می‌آید؛ دیگر کسی منتظر نمی‌ماند." },
@@ -93,7 +93,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     items: [
       { title: "ثبت‌نام", text: "نام و نوعِ کسب‌وکار و یک آدرس (مثل roya.{root}) انتخاب کنید." },
       { title: "شخصی‌سازی", text: "منو، قیمت‌ها، عکس‌ها، لوگو و روش‌های پرداخت را از پنل وارد کنید." },
-      { title: "چاپِ QR", text: "QRِ میزها را از پنل چاپ کنید و روی میزها بگذارید. تمام!" },
+      { title: "چاپِ QR", text: "کدهای QR میزها را از پنل چاپ کنید و روی میزها بگذارید. تمام!" },
     ],
   },
   pricing: {
@@ -120,7 +120,7 @@ export const DEFAULT_CONTENT: SiteContent = {
   },
   unavailable: {
     missingTitle: "منویی با این آدرس پیدا نشد",
-    missingText: "آدرس را دوباره بررسی کنید یا QRِ روی میز را اسکن کنید.",
+    missingText: "آدرس را دوباره بررسی کنید یا کدِ QR روی میز را اسکن کنید.",
     inactiveTitle: "منوی {name} موقتاً در دسترس نیست",
     inactiveText: "لطفاً سفارش‌تان را حضوری ثبت کنید. مدیرِ مجموعه می‌تواند از پنلِ مدیریت، اشتراک را تمدید کند.",
   },
@@ -140,7 +140,10 @@ export function mergeContent(saved: Partial<SiteContent> | null | undefined): Si
 
 /** جایگذاریِ {brand} {trialDays} {root} {name} */
 export function fill(text: string, vars: Record<string, string | number>): string {
-  return String(text || "").replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+  return String(text || "")
+    .replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m))
+    // کسره‌ای که به حرفِ انگلیسی چسبیده (مثل «QRِ») در متنِ راست‌به‌چپ تنها و بی‌جا دیده می‌شود
+    .replace(/([A-Za-z])\u0650/g, "$1");
 }
 
 export const colorHsl = (id: string) => (BRAND_COLORS.find((c) => c.id === id) || BRAND_COLORS[0]).hsl;

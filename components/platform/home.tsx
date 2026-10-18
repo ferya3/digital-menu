@@ -7,6 +7,7 @@ import { money, toFa } from "@/lib/utils";
 import { colorHsl, type SiteContent } from "@/lib/site-content";
 import type { Plan } from "@/lib/platform";
 import { FeatureIcon } from "@/components/platform/feature-icon";
+import { FeatureCarousel } from "@/components/platform/feature-carousel";
 
 export interface PublicPlatform {
   trialDays: number; allowSignup: boolean; plans: Plan[]; root: string; otp: boolean;
@@ -27,7 +28,7 @@ function kindIcon(k: string) {
 }
 
 const container = "mx-auto w-full max-w-6xl px-4 sm:px-6";
-const btnPrimary = "inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-6 font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-[filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-xl hover:shadow-primary/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30";
+const btnPrimary = "inline-flex h-11 sm:h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-6 font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-[filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-xl hover:shadow-primary/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30";
 
 /** قاب مشترکِ صفحه‌های پلتفرم: پالتِ خنثی + رنگِ برند، نوارِ اعلان، منوی شناور و پاورقی */
 export function PlatformShell({ p, children }: { p: PublicPlatform; children: React.ReactNode }) {
@@ -181,9 +182,9 @@ function DashboardMock() {
 function SectionHead({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
-      <span className="text-sm font-bold text-primary">{eyebrow}</span>
-      <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{title}</h2>
-      {subtitle && <p className="mt-4 text-lg leading-8 text-muted-foreground">{subtitle}</p>}
+      <span className="text-xs font-bold text-primary sm:text-sm">{eyebrow}</span>
+      <h2 className="mt-2 text-[1.45rem] font-black leading-snug tracking-tight sm:text-4xl">{title}</h2>
+      {subtitle && <p className="mt-3 text-sm leading-7 text-muted-foreground sm:mt-4 sm:text-lg sm:leading-8">{subtitle}</p>}
     </div>
   );
 }
@@ -194,39 +195,27 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
   return (
     <PlatformShell p={p}>
       {/* ===== هیرو (تیره، با رنگِ برند) ===== */}
-      <section className="relative -mt-[4.5rem] overflow-hidden bg-slate-950 pb-20 pt-32 text-white sm:pb-28 sm:pt-40">
+      <section className="relative -mt-[4.5rem] overflow-hidden bg-slate-950 pb-14 pt-28 text-white sm:pb-28 sm:pt-40">
         <div aria-hidden className="pf-grid absolute inset-0" />
         <div aria-hidden className="absolute -top-40 right-1/2 size-[44rem] translate-x-1/3 rounded-full bg-primary/30 blur-[120px]" />
         <div aria-hidden className="absolute -bottom-40 left-0 size-[30rem] rounded-full bg-primary/15 blur-[100px]" />
-        <div className={`relative grid items-center gap-14 lg:grid-cols-[1.15fr_1fr] ${container}`}>
-          <div className="pf-rise text-center lg:text-right">
+        {/* موبایل: متن ← تصویرِ گوشی ← دکمه‌ها؛ دسکتاپ: متن و دکمه‌ها یک ستون، گوشی ستونِ دیگر */}
+        <div className={`relative grid items-center gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-x-14 lg:gap-y-0 ${container}`}>
+          <div className="pf-rise text-center lg:col-start-1 lg:row-start-1 lg:self-end lg:text-right">
             {c.hero.badge && (
               <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 text-xs font-bold text-white/90 backdrop-blur">
                 <Sparkles className="size-3.5 text-primary" /> {c.hero.badge}
               </span>
             )}
-            <h1 className="mt-6 text-4xl font-black leading-[1.3] tracking-tight sm:text-5xl lg:text-[3.6rem]">
+            <h1 className="mt-5 text-[1.75rem] font-black leading-[1.4] tracking-tight sm:mt-6 sm:text-5xl sm:leading-[1.3] lg:text-[3.6rem]">
               {c.hero.title}
               {c.hero.highlight && <span className="mt-1 block bg-gradient-to-l from-primary via-primary to-white/90 bg-clip-text text-transparent">{c.hero.highlight}</span>}
             </h1>
-            <p className="mx-auto mt-6 max-w-xl whitespace-pre-line text-lg leading-8 text-white/70 lg:mx-0">{c.hero.subtitle}</p>
-            <div className="mt-9 flex flex-wrap justify-center gap-3 lg:justify-start">
-              {p.allowSignup && c.hero.ctaPrimary && (
-                <Link href="/signup" className={btnPrimary}>{c.hero.ctaPrimary}<ArrowLeft className="size-4" /></Link>
-              )}
-              {c.hero.ctaSecondary && (
-                <Link href="/login" className="inline-flex h-12 cursor-pointer items-center rounded-xl border border-white/20 bg-white/5 px-6 font-bold text-white backdrop-blur transition-colors duration-200 hover:bg-white/10">{c.hero.ctaSecondary}</Link>
-              )}
-            </div>
-            {c.trust.length > 0 && (
-              <ul className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-white/70 lg:justify-start">
-                {c.trust.map((t) => <li key={t} className="flex items-center gap-1.5"><Check className="size-4 text-primary" /> {t}</li>)}
-              </ul>
-            )}
+            <p className="mx-auto mt-4 max-w-xl whitespace-pre-line text-[0.95rem] leading-7 text-white/70 sm:mt-6 sm:text-lg sm:leading-8 lg:mx-0">{c.hero.subtitle}</p>
           </div>
 
-          <div className="relative mx-auto h-[33rem] w-full max-w-md" aria-hidden>
-            <div className="pf-float absolute left-1/2 top-0 -translate-x-1/2"><PhoneMockup name={c.hero.mockupName} /></div>
+          <div className="relative mx-auto h-[22.5rem] w-full max-w-md sm:h-[33rem] lg:col-start-2 lg:row-span-2 lg:row-start-1" aria-hidden>
+            <div className="pf-float absolute left-1/2 top-0 -translate-x-1/2"><div className="origin-top scale-[0.78] sm:scale-100"><PhoneMockup name={c.hero.mockupName} /></div></div>
             <FloatCard className="pf-float-slow -left-10 top-12 hidden w-52 sm:block">
               <div className="flex items-center gap-2.5">
                 <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary"><BellRing className="size-5" /></span>
@@ -242,18 +231,35 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
               <div className="mt-1 text-center text-[10px] font-bold text-slate-500">اسکن کنید</div>
             </FloatCard>
           </div>
+
+          <div className="pf-rise text-center lg:col-start-1 lg:row-start-2 lg:self-start lg:text-right">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center lg:mt-9 lg:justify-start">
+              {p.allowSignup && c.hero.ctaPrimary && (
+                <Link href="/signup" className={btnPrimary}>{c.hero.ctaPrimary}<ArrowLeft className="size-4" /></Link>
+              )}
+              {c.hero.ctaSecondary && (
+                <Link href="/login" className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-white/20 sm:h-12 bg-white/5 px-6 font-bold text-white backdrop-blur transition-colors duration-200 hover:bg-white/10">{c.hero.ctaSecondary}</Link>
+              )}
+            </div>
+            {c.trust.length > 0 && (
+              <ul className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-white/70 sm:mt-8 sm:gap-x-6 sm:text-sm lg:justify-start">
+                {c.trust.map((t) => <li key={t} className="flex items-center gap-1.5"><Check className="size-4 text-primary" /> {t}</li>)}
+              </ul>
+            )}
+          </div>
         </div>
       </section>
 
       {/* ===== مناسب برای ===== */}
       {c.kinds.length > 0 && (
         <section className="border-b border-border">
-          <div className={`flex flex-wrap items-center justify-center gap-x-8 gap-y-4 py-8 ${container}`}>
-            <span className="text-sm font-semibold text-muted-foreground">مناسب برای</span>
+          {/* موبایل: یک ردیفِ قابلِ کشیدن؛ دسکتاپ: وسط‌چین */}
+          <div className="mx-auto flex max-w-6xl items-center gap-2 overflow-x-auto px-4 py-5 [scrollbar-width:none] sm:flex-wrap sm:justify-center sm:gap-x-8 sm:gap-y-4 sm:px-6 sm:py-8 [&::-webkit-scrollbar]:hidden">
+            <span className="shrink-0 text-sm font-semibold text-muted-foreground">مناسب برای</span>
             {c.kinds.map((raw) => {
               const k = noEmoji(raw);
               const I = kindIcon(k);
-              return <span key={raw} className="flex items-center gap-2 text-sm font-bold text-foreground/80"><I className="size-5 text-primary" /> {k}</span>;
+              return <span key={raw} className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-sm font-bold text-foreground/80 sm:border-0 sm:px-0 sm:py-0"><I className="size-5 text-primary" /> {k}</span>;
             })}
           </div>
         </section>
@@ -261,50 +267,48 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
 
       {/* ===== امکانات (چیدمانِ بنتو) ===== */}
       {c.features.items.length > 0 && (
-        <section id="features" className={`scroll-mt-24 py-20 sm:py-28 ${container}`}>
+        <section id="features" className={`scroll-mt-24 py-16 sm:py-28 ${container}`}>
           <SectionHead eyebrow="امکانات" title={c.features.title} subtitle={c.features.subtitle} />
-          <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {big && (
-              <article className="group relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/[0.07] to-transparent p-7 sm:col-span-2 lg:row-span-2">
+          {big && (
+            <article className="group relative mt-10 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/[0.07] to-transparent p-5 sm:mt-14 sm:p-7 lg:grid lg:grid-cols-2 lg:items-center lg:gap-10 lg:p-10">
+              <div>
                 <span className="grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25"><FeatureIcon name={big.icon} className="size-6" /></span>
-                <h3 className="mt-5 text-2xl font-black">{big.title}</h3>
-                <p className="mt-2 max-w-md leading-8 text-muted-foreground">{big.text}</p>
-                <div className="mt-8 flex items-end gap-6" aria-hidden>
-                  <div className="rounded-3xl border border-border bg-card p-4 shadow-xl shadow-black/5"><PseudoQr className="size-28 text-foreground dark:text-slate-900" /></div>
-                  <div className="hidden flex-1 space-y-2 sm:block">
-                    {DISHES.map((d) => (
-                      <div key={d.name} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5 shadow-sm">
-                        <span className={`grid size-10 place-items-center rounded-xl bg-gradient-to-br ${d.tone} text-white`}><d.icon className="size-5" /></span>
-                        <b className="flex-1 text-sm">{d.name}</b><span className="text-xs text-muted-foreground">{money(d.price)}</span>
-                      </div>
-                    ))}
-                  </div>
+                <h3 className="mt-4 text-xl font-black sm:mt-5 sm:text-2xl">{big.title}</h3>
+                <p className="mt-2 max-w-md text-sm leading-7 text-muted-foreground sm:text-base sm:leading-8">{big.text}</p>
+              </div>
+              <div className="mt-6 flex items-end gap-6 sm:mt-8 lg:mt-0" aria-hidden>
+                <div className="rounded-3xl border border-border bg-card p-3 shadow-xl shadow-black/5 sm:p-4"><PseudoQr className="size-20 text-foreground sm:size-28 dark:text-slate-900" /></div>
+                <div className="hidden flex-1 space-y-2 sm:block">
+                  {DISHES.map((d) => (
+                    <div key={d.name} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5 shadow-sm">
+                      <span className={`grid size-10 place-items-center rounded-xl bg-gradient-to-br ${d.tone} text-white`}><d.icon className="size-5" /></span>
+                      <b className="flex-1 text-sm">{d.name}</b><span className="text-xs text-muted-foreground">{money(d.price)}</span>
+                    </div>
+                  ))}
                 </div>
-              </article>
-            )}
-            {rest.map((f, i) => (
-              <article key={i} className="group rounded-3xl border border-border bg-card p-6 transition-[border-color,box-shadow] duration-200 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5">
-                <span className="grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary transition-colors duration-200 group-hover:bg-primary group-hover:text-primary-foreground"><FeatureIcon name={f.icon} /></span>
-                <h3 className="mt-4 text-lg font-extrabold">{f.title}</h3>
-                <p className="mt-1.5 whitespace-pre-line text-sm leading-7 text-muted-foreground">{f.text}</p>
-              </article>
-            ))}
-          </div>
+              </div>
+            </article>
+          )}
+          {/* بقیهٔ امکانات: کاروسلِ چرخ و دستهٔ کارت */}
+          {rest.length > 0 && <FeatureCarousel items={rest} label={c.features.title} />}
         </section>
       )}
 
       {/* ===== روشِ کار ===== */}
       {c.steps.items.length > 0 && (
-        <section id="how" className="scroll-mt-24 border-y border-border bg-muted/50 py-20 sm:py-28">
+        <section id="how" className="scroll-mt-24 border-y border-border bg-muted/50 py-16 sm:py-28">
           <div className={container}>
             <SectionHead eyebrow="روشِ کار" title={c.steps.title} />
-            <ol className="relative mt-14 grid gap-6 md:grid-cols-3">
+            <ol className="relative mt-10 grid gap-4 sm:mt-14 md:grid-cols-3 md:gap-6">
               <div aria-hidden className="absolute inset-x-[16%] top-7 hidden h-px bg-gradient-to-l from-transparent via-primary/40 to-transparent md:block" />
               {c.steps.items.map((s, i) => (
-                <li key={i} className="relative text-center">
-                  <span className="relative mx-auto grid size-14 place-items-center rounded-2xl border border-border bg-card text-xl font-black text-primary shadow-sm">{toFa(i + 1)}</span>
-                  <h3 className="mt-5 text-lg font-extrabold">{s.title}</h3>
-                  <p className="mx-auto mt-2 max-w-xs text-sm leading-7 text-muted-foreground" dir="auto">{s.text}</p>
+                <li key={i} className="relative flex items-start gap-4 rounded-2xl bg-card p-4 md:block md:bg-transparent md:p-0 md:text-center">
+                  <span className="relative grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-card text-base font-black text-primary shadow-sm md:mx-auto md:size-14 md:rounded-2xl md:text-xl">{toFa(i + 1)}</span>
+                  <div>
+                    <h3 className="text-[0.95rem] font-extrabold md:mt-5 md:text-lg">{s.title}</h3>
+                    {/* dir="rtl": متنی که با «QR» شروع شود هم راست‌به‌چپ بماند */}
+                    <p className="mt-1 text-[0.8125rem] leading-6 text-muted-foreground md:mx-auto md:text-sm md:leading-7 md:mt-2 md:max-w-xs" dir="rtl">{s.text}</p>
+                  </div>
                 </li>
               ))}
             </ol>
@@ -313,18 +317,18 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
       )}
 
       {/* ===== پنلِ مدیریت (تیره) ===== */}
-      <section className="py-20 sm:py-28">
+      <section className="py-16 sm:py-28">
         <div className={container}>
-          <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-12 text-white ring-1 ring-white/10 sm:px-12 sm:py-16">
+          <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 px-5 py-10 text-white ring-1 ring-white/10 sm:px-12 sm:py-16">
             <div aria-hidden className="absolute -left-20 -top-20 size-80 rounded-full bg-primary/25 blur-[100px]" />
             <div className="relative grid items-center gap-10 lg:grid-cols-2">
               <div>
                 <span className="inline-flex items-center gap-2 text-sm font-bold text-primary"><LayoutDashboard className="size-4" /> پنلِ مدیریت</span>
-                <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{c.showcase.title}</h2>
-                <p className="mt-4 leading-8 text-white/70">{c.showcase.text}</p>
+                <h2 className="mt-3 text-[1.45rem] font-black leading-snug tracking-tight sm:text-4xl">{c.showcase.title}</h2>
+                <p className="mt-3 text-sm leading-7 text-white/70 sm:mt-4 sm:text-base sm:leading-8">{c.showcase.text}</p>
                 <ul className="mt-6 space-y-3">
                   {c.showcase.bullets.map((b) => (
-                    <li key={b} className="flex items-start gap-3"><span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary/20"><Check className="size-3.5 text-primary" /></span><span className="text-white/85">{b}</span></li>
+                    <li key={b} className="flex items-start gap-3"><span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary/20"><Check className="size-3.5 text-primary" /></span><span className="text-sm text-white/85 sm:text-base">{b}</span></li>
                   ))}
                 </ul>
               </div>
@@ -335,22 +339,28 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
       </section>
 
       {/* ===== تعرفه‌ها ===== */}
-      <section id="pricing" className={`scroll-mt-24 pb-20 sm:pb-28 ${container}`}>
+      <section id="pricing" className={`scroll-mt-24 pb-16 sm:pb-28 ${container}`}>
         <SectionHead eyebrow="تعرفه‌ها" title={c.pricing.title} subtitle={c.pricing.subtitle} />
-        <div className="mx-auto mt-14 grid max-w-5xl items-stretch gap-5 md:grid-cols-3">
+        {/* موبایل: امکاناتِ مشترک یک‌بار بالای کارت‌ها (نه تکرار در هر کارت) */}
+        {c.pricing.bullets.length > 0 && (
+          <ul className="mt-8 flex flex-wrap justify-center gap-2 md:hidden">
+            {c.pricing.bullets.map((x) => <li key={x} className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold"><Check className="size-3.5 text-primary" /> {x}</li>)}
+          </ul>
+        )}
+        <div className="mx-auto mt-6 grid max-w-5xl items-stretch gap-4 md:mt-14 md:grid-cols-3 md:gap-5">
           {p.plans.map((pl) => (
             <div key={pl.id} className={pl.popular
-              ? "relative flex flex-col rounded-3xl bg-slate-950 p-7 text-white shadow-2xl shadow-primary/20 ring-2 ring-primary md:-my-3"
-              : "relative flex flex-col rounded-3xl border border-border bg-card p-7"}>
+              ? "relative order-first flex flex-col rounded-3xl bg-slate-950 p-5 text-white shadow-2xl shadow-primary/20 ring-2 ring-primary md:order-none md:-my-3 md:p-7"
+              : "relative flex flex-col rounded-3xl border border-border bg-card p-5 md:p-7"}>
               {pl.popular && <span className="absolute -top-3 right-7 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow">محبوب‌ترین</span>}
-              <h3 className="text-lg font-extrabold">{pl.title}</h3>
-              <div className="mt-4 flex items-baseline gap-1.5"><b className="text-4xl font-black tracking-tight">{toFa(pl.price.toLocaleString("en-US"))}</b><span className={pl.popular ? "text-white/60" : "text-muted-foreground"}>تومان</span></div>
-              <div className={`mt-1 text-sm ${pl.popular ? "text-white/60" : "text-muted-foreground"}`}>{pl.months > 1 ? `معادلِ ماهی ${money(Math.round(pl.price / pl.months))}` : "پرداختِ ماهانه"}</div>
-              <ul className="mt-6 flex-1 space-y-3 text-sm">
+              <h3 className="text-base font-extrabold md:text-lg">{pl.title}</h3>
+              <div className="mt-3 flex items-baseline gap-1.5 md:mt-4"><b className="text-[1.75rem] font-black tracking-tight md:text-4xl">{toFa(pl.price.toLocaleString("en-US"))}</b><span className={`text-sm md:text-base ${pl.popular ? "text-white/60" : "text-muted-foreground"}`}>تومان</span></div>
+              <div className={`mt-1 text-xs md:text-sm ${pl.popular ? "text-white/60" : "text-muted-foreground"}`}>{pl.months > 1 ? `معادلِ ماهی ${money(Math.round(pl.price / pl.months))}` : "پرداختِ ماهانه"}</div>
+              <ul className="mt-6 hidden flex-1 space-y-3 text-sm md:block">
                 {c.pricing.bullets.map((x) => <li key={x} className="flex items-center gap-2.5"><Check className={`size-4 shrink-0 ${pl.popular ? "text-primary" : "text-primary"}`} /> {x}</li>)}
               </ul>
               {p.allowSignup && c.pricing.cta && (
-                <Link href="/signup" className={pl.popular ? `${btnPrimary} mt-8 w-full` : "mt-8 inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-xl border border-border font-bold transition-colors duration-200 hover:bg-muted"}>{c.pricing.cta}</Link>
+                <Link href="/signup" className={pl.popular ? `${btnPrimary} mt-5 w-full md:mt-8` : "mt-5 inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-xl border border-border font-bold transition-colors duration-200 hover:bg-muted md:mt-8"}>{c.pricing.cta}</Link>
               )}
             </div>
           ))}
@@ -359,16 +369,16 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
 
       {/* ===== سؤالات ===== */}
       {c.faq.items.length > 0 && (
-        <section id="faq" className="scroll-mt-24 border-t border-border bg-muted/50 py-20 sm:py-28">
+        <section id="faq" className="scroll-mt-24 border-t border-border bg-muted/50 py-16 sm:py-28">
           <div className={container}>
             <SectionHead eyebrow="سؤالات" title={c.faq.title} />
-            <div className="mx-auto mt-12 grid max-w-5xl gap-3 md:grid-cols-2">
+            <div className="mx-auto mt-10 grid max-w-5xl gap-3 md:mt-12 md:grid-cols-2">
               {c.faq.items.map((f, i) => (
-                <details key={i} className="group h-fit rounded-2xl border border-border bg-card p-5 transition-shadow duration-200 open:shadow-lg open:shadow-black/5">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold [&::-webkit-details-marker]:hidden">
+                <details key={i} className="group h-fit rounded-2xl border border-border bg-card p-4 sm:p-5 transition-shadow duration-200 open:shadow-lg open:shadow-black/5">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold sm:text-base [&::-webkit-details-marker]:hidden">
                     {f.q}<ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
                   </summary>
-                  <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground">{f.a}</p>
+                  <p className="mt-3 whitespace-pre-line text-[0.8125rem] leading-6 text-muted-foreground sm:text-sm sm:leading-7">{f.a}</p>
                 </details>
               ))}
             </div>
@@ -378,14 +388,14 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
 
       {/* ===== دعوتِ پایانی ===== */}
       {p.allowSignup && (
-        <section className={`py-20 sm:py-24 ${container}`}>
-          <div className="relative overflow-hidden rounded-[2rem] bg-primary px-6 py-14 text-center text-primary-foreground sm:px-12">
+        <section className={`py-16 sm:py-24 ${container}`}>
+          <div className="relative overflow-hidden rounded-[2rem] bg-primary px-5 py-12 text-center text-primary-foreground sm:px-12 sm:py-14">
             <div aria-hidden className="pf-grid absolute inset-0 opacity-60" />
             <div aria-hidden className="absolute -bottom-24 left-1/2 size-96 -translate-x-1/2 rounded-full bg-white/20 blur-[90px]" />
             <div className="relative">
               <QrCode className="mx-auto size-10 opacity-90" />
-              <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-black tracking-tight sm:text-4xl">{c.finalCta.title}</h2>
-              <p className="mx-auto mt-4 max-w-xl text-lg text-primary-foreground/85">{c.finalCta.text}</p>
+              <h2 className="mx-auto mt-4 max-w-2xl text-[1.45rem] font-black leading-snug tracking-tight sm:text-4xl">{c.finalCta.title}</h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-primary-foreground/85 sm:mt-4 sm:text-lg">{c.finalCta.text}</p>
               <Link href="/signup" className="mt-8 inline-flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-7 font-bold text-slate-900 shadow-xl transition-opacity duration-200 hover:opacity-90">
                 {c.finalCta.button}<ArrowLeft className="size-4" />
               </Link>
@@ -407,8 +417,8 @@ export function PlatformFooter({ p }: { p: PublicPlatform }) {
   const col = "text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground";
   return (
     <footer className="border-t border-border bg-muted/40">
-      <div className={`grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr] ${container}`}>
-        <div>
+      <div className={`grid grid-cols-2 gap-x-6 gap-y-10 py-12 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr] lg:py-14 ${container}`}>
+        <div className="col-span-2 lg:col-span-1">
           <div className="flex items-center gap-2 font-black"><BrandMark c={p.c} />{p.c.brand.name}</div>
           <p className="mt-4 max-w-xs text-sm leading-7 text-muted-foreground">{f.text}</p>
           {social.length > 0 && (
@@ -436,7 +446,7 @@ export function PlatformFooter({ p }: { p: PublicPlatform }) {
             <li><Link href="/privacy" className={col}>حریمِ خصوصی</Link></li>
           </ul>
         </div>
-        <div>
+        <div className="col-span-2 lg:col-span-1">
           <h3 className="text-sm font-extrabold">تماس</h3>
           <ul className="mt-4 space-y-2.5 text-sm text-muted-foreground">
             {f.phone && <li className="flex items-center gap-2"><Phone className="size-4 shrink-0" /><a href={`tel:${f.phone}`} dir="ltr" className="hover:text-foreground">{toFa(f.phone)}</a></li>}

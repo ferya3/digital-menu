@@ -21,7 +21,8 @@ export const STATE: Record<string, { label: string; cls: string }> = {
 export function Box({ title, action, children, className }: { title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section className={cn("rounded-3xl border border-border bg-card p-4", className)}>
-      <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-extrabold">{title}</h2>{action}</div>
+      {/* روی گوشی دکمه‌ها زیرِ عنوان می‌روند (عنوان در چند خط فشرده نمی‌شود) */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="min-w-0 font-extrabold">{title}</h2>{action}</div>
       <div className="space-y-3">{children}</div>
     </section>
   );

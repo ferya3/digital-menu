@@ -230,3 +230,25 @@
 @media (prefers-reduced-motion: reduce) {
   .pf-float, .pf-float-slow, .pf-rise { animation: none; }
 }
+
+/* کاروسلِ امکانات: چرخِ چیپ‌ها با فنرِ نرم و بلند، کارت‌ها با فنرِ کوتاه و سفت */
+.platform {
+  --spring-wheel-ms: 1350ms;
+  --spring-wheel: linear(0, 0.0289, 0.0955, 0.1789, 0.2671, 0.3531, 0.4335, 0.5066, 0.5719, 0.6297, 0.6803, 0.7244, 0.7626, 0.7957, 0.8243, 0.849, 0.8702, 0.8885, 0.9042, 0.9177, 0.9293, 0.9393, 0.9479, 0.9552, 0.9615, 0.967, 0.9716, 0.9756, 0.9791, 0.982, 0.9846, 0.9868, 0.9886, 0.9902, 0.9916, 0.9928, 0.9938, 0.9947, 0.9954, 0.9961, 0.9966, 0.9971, 0.9975, 0.9979, 0.9982, 0.9984, 0.9987, 0.9988, 1);
+  --spring-card-ms: 290ms;
+  --spring-card: linear(0, 0.0055, 0.0206, 0.0435, 0.0727, 0.1067, 0.1445, 0.1848, 0.227, 0.2701, 0.3137, 0.3571, 0.3999, 0.4418, 0.4825, 0.5217, 0.5593, 0.5952, 0.6292, 0.6614, 0.6917, 0.7201, 0.7466, 0.7713, 0.7942, 0.8153, 0.8348, 0.8528, 0.8692, 0.8843, 0.898, 0.9104, 0.9217, 0.9318, 0.941, 0.9492, 0.9566, 0.9632, 0.969, 0.9742, 0.9787, 0.9827, 0.9862, 0.9893, 0.9919, 0.9942, 0.9962, 0.9978, 1);
+}
+.fc-wheel {
+  /* دو سرِ چرخ محو می‌شوند تا صف بی‌انتها به نظر برسد */
+  mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+}
+.fc-chip, .fc-card { transition-property: transform, opacity; }
+.fc-chip { transition-duration: var(--spring-wheel-ms); transition-timing-function: var(--spring-wheel); }
+.fc-card { transition-duration: var(--spring-card-ms); transition-timing-function: var(--spring-card); }
+@supports not (transition-timing-function: linear(0, 1)) {
+  .fc-chip { transition-duration: 700ms; transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  .fc-card { transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fc-chip, .fc-card { transition-duration: 0.01ms; }
+}

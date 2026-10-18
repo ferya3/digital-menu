@@ -17,6 +17,9 @@ function BarChart({ data, format, label }: { data: { label: string; value: numbe
   const p10 = 10 ** Math.floor(Math.log10(peak * 1.15));
   const r = (peak * 1.15) / p10;
   const max = (r <= 1 ? 1 : r <= 2 ? 2 : r <= 5 ? 5 : 10) * p10;
+  if (data.every((d) => d.value === 0)) {
+    return <div className="grid h-44 place-items-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">هنوز داده‌ای برای نمایش نیست</div>;
+  }
   const top = data.reduce((b, d, i) => (d.value > data[b].value ? i : b), 0);
   return (
     <div className="relative" role="img" aria-label={label}>
@@ -48,7 +51,11 @@ function BarChart({ data, format, label }: { data: { label: string; value: numbe
         </div>
       </div>
       <div className="mt-1 flex gap-[2px] pr-11">
-        {data.map((d, i) => <span key={i} className="flex-1 truncate text-center text-[10px] text-muted-foreground">{(data.length - 1 - i) % 2 === 0 ? d.label : ""}</span>)}
+        {/* روی گوشی هر سه ماه یک برچسب (کامل و بدونِ بریدگی)؛ روی صفحهٔ بزرگ یکی‌درمیان */}
+        {data.map((d, i) => {
+          const k = data.length - 1 - i;
+          return <span key={i} className={cn("flex-1 overflow-visible whitespace-nowrap text-center text-[10px] text-muted-foreground", k % 2 !== 0 && "invisible", k % 3 !== 0 && "max-sm:invisible", k % 3 === 0 && "max-sm:visible")}>{d.label}</span>;
+        })}
       </div>
     </div>
   );

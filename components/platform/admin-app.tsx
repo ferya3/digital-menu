@@ -478,10 +478,11 @@ function PlatformSettingsForm({ initial, reload, flash }: { initial: PlatformSet
 
       <Box title="طرح‌های اشتراک (تومان)">
         {s.plans.map((p, i) => (
-          <div key={i} className="grid grid-cols-[1fr_4.5rem_7rem_auto_auto] items-center gap-1.5">
-            <input value={p.title} onChange={(e) => set({ plans: s.plans.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)) })} placeholder="عنوان" className={cn(fieldCls, "px-3 py-2")} />
-            <input type="number" min={1} value={p.months} onChange={(e) => set({ plans: s.plans.map((x, j) => (j === i ? { ...x, months: Number(e.target.value) } : x)) })} title="ماه" className={cn(fieldCls, "px-2 py-2")} />
-            <input type="number" min={0} step={1000} value={p.price} onChange={(e) => set({ plans: s.plans.map((x, j) => (j === i ? { ...x, price: Number(e.target.value) } : x)) })} title="قیمت" className={cn(fieldCls, "px-2 py-2")} />
+          // روی گوشی: عنوان در ردیفِ اول، بقیه در ردیفِ دوم
+          <div key={i} className="grid grid-cols-[4.5rem_1fr_auto_auto] items-center gap-1.5 rounded-2xl border border-border p-2 sm:grid-cols-[1fr_4.5rem_7rem_auto_auto] sm:rounded-none sm:border-0 sm:p-0">
+            <input value={p.title} onChange={(e) => set({ plans: s.plans.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)) })} placeholder="عنوان" className={cn(fieldCls, "col-span-4 px-3 py-2 sm:col-span-1")} />
+            <input type="number" min={1} value={p.months} onChange={(e) => set({ plans: s.plans.map((x, j) => (j === i ? { ...x, months: Number(e.target.value) } : x)) })} title="ماه" aria-label="مدت (ماه)" className={cn(fieldCls, "px-2 py-2")} />
+            <input type="number" min={0} step={1000} value={p.price} onChange={(e) => set({ plans: s.plans.map((x, j) => (j === i ? { ...x, price: Number(e.target.value) } : x)) })} title="قیمت" aria-label="قیمت (تومان)" className={cn(fieldCls, "px-2 py-2")} />
             <label title="پیشنهادی" className="flex items-center gap-1 text-xs"><input type="checkbox" className="accent-primary" checked={!!p.popular} onChange={(e) => set({ plans: s.plans.map((x, j) => ({ ...x, popular: j === i ? e.target.checked : false })) })} />⭐</label>
             <button aria-label="حذف" onClick={() => set({ plans: s.plans.filter((_, j) => j !== i) })} className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
           </div>

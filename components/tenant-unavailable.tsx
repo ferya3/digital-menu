@@ -10,7 +10,7 @@ export function TenantUnavailable({ reason, name, texts }: { reason: "missing" |
         <h1 className="text-xl font-black">{reason === "missing" ? t(texts?.missingTitle, "منویی با این آدرس پیدا نشد") : t(texts?.inactiveTitle, "منوی {name} موقتاً در دسترس نیست")}</h1>
         <p className="mt-3 leading-7 text-muted-foreground">
           {reason === "missing"
-            ? t(texts?.missingText, "آدرس را دوباره بررسی کنید یا QRِ روی میز را اسکن کنید.")
+            ? t(texts?.missingText, "آدرس را دوباره بررسی کنید یا کدِ QR روی میز را اسکن کنید.")
             : t(texts?.inactiveText, "لطفاً سفارش‌تان را حضوری ثبت کنید. مدیرِ مجموعه می‌تواند از پنلِ مدیریت، اشتراک را تمدید کند.")}
         </p>
       </div>

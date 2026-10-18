@@ -32,7 +32,7 @@ export function ScanGate({ cafe, onTable }: { cafe: CafeInfo; onTable: (table: s
 
   const go = useCallback((text: string) => {
     const t = tableFromQr(text);
-    if (!t) { setLive(false); setErr("این QR مربوط به میزهای کافه نیست؛ QRِ روی میز را اسکن کنید."); return; }
+    if (!t) { setLive(false); setErr("این QR مربوط به میزهای این مجموعه نیست؛ کدِ QR روی میز را اسکن کنید."); return; }
     setLive(false);
     onTable(t); // بدونِ بارگذاریِ دوبارهٔ صفحه
   }, [onTable]);
