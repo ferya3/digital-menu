@@ -6,10 +6,10 @@ import { DeckCarousel } from "@/components/platform/deck-carousel";
 import type { FeatureItem } from "@/lib/site-content";
 
 /** کارت‌های امکانات در دستهٔ کارت، با پخشِ خودکار */
-export function FeatureCarousel({ items, label }: { items: FeatureItem[]; label: string }) {
+export function FeatureCarousel({ items, label, autoplay }: { items: FeatureItem[]; label: string; autoplay: number }) {
   return (
     <DeckCarousel
-      className="mt-10 sm:mt-14" label={label} autoplay={3400}
+      className="mt-10 sm:mt-14" label={label} autoplay={autoplay}
       stageClass="h-[23rem] sm:h-[26rem]"
       cardClass="h-[21rem] w-[min(19rem,74vw)] rounded-[1.75rem] border-4 border-card bg-slate-950 text-white shadow-2xl shadow-black/25 sm:h-[24rem] sm:w-[22rem] sm:rounded-[2.25rem] sm:border-8"
       titles={items.map((f) => f.title)}

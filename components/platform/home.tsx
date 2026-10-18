@@ -193,7 +193,7 @@ function SectionHead({ eyebrow, title, subtitle }: { eyebrow: string; title: str
 
 export function PlatformHome({ p }: { p: PublicPlatform }) {
   const { c } = p;
-  const [big, ...rest] = c.features.items;
+  const [big, ...rest] = c.features.items.filter((f) => !f.hidden);
   return (
     <PlatformShell p={p}>
       {/* ===== هیرو (تیره، با رنگِ برند) ===== */}
@@ -268,7 +268,7 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
       )}
 
       {/* ===== امکانات (چیدمانِ بنتو) ===== */}
-      {c.features.items.length > 0 && (
+      {big && (
         <section id="features" className={`scroll-mt-24 py-16 sm:py-28 ${container}`}>
           <SectionHead eyebrow="امکانات" title={c.features.title} subtitle={c.features.subtitle} />
           {big && (
@@ -292,7 +292,7 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
             </article>
           )}
           {/* بقیهٔ امکانات: کاروسلِ چرخ و دستهٔ کارت */}
-          {rest.length > 0 && <FeatureCarousel items={rest} label={c.features.title} />}
+          {rest.length > 0 && <FeatureCarousel items={rest} label={c.features.title} autoplay={Math.round((c.features.autoplay ?? 3.5) * 1000)} />}
         </section>
       )}
 

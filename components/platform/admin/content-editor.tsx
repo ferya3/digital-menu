@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ExternalLink, ImagePlus, Loader2, Plus, RotateCcw, Save, Store, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, ExternalLink, ImagePlus, Loader2, Plus, RotateCcw, Save, Store, Trash2 } from "lucide-react";
 import { FeatureIcon } from "@/components/platform/feature-icon";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, toFa } from "@/lib/utils";
 import { unwrap } from "@/lib/action-result";
 import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
 import { adminContentAction, adminSaveContentAction, adminUploadLogoAction, adminUploadOgAction } from "@/app/platform/actions";
-import { BRAND_COLORS, DEFAULT_CONTENT, FEATURE_ICONS, type SiteContent } from "@/lib/site-content";
+import { BRAND_COLORS, DEFAULT_CONTENT, FEATURE_ICONS, ICON_LABELS, type FeatureItem, type SiteContent } from "@/lib/site-content";
 import { Box, L, Toggle, err, smallField, type Flash } from "./shared";
 
 const SECTIONS = [
-  ["brand", "برند و سئو"], ["announce", "نوارِ اعلان"], ["hero", "بالای صفحه"], ["features", "امکانات"], ["views", "حالت‌های نمایش"], ["steps", "مراحل"],
+  ["brand", "برند و سئو"], ["announce", "نوارِ اعلان"], ["hero", "بالای صفحه"], ["features", "کارت‌های امکانات (کاروسل)"], ["views", "حالت‌های نمایش"], ["steps", "مراحل"],
   ["pricing", "تعرفه‌ها"], ["faq", "سؤالات"], ["showcase", "پنل و دعوتِ پایانی"], ["footer", "پاورقی و تماس"], ["forms", "ثبت‌نام و ورود"], ["legal", "قوانین"], ["system", "پیام‌های سیستمی"],
 ] as const;
 type Sec = (typeof SECTIONS)[number][0];
@@ -160,25 +160,7 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
         </Box>
       )}
 
-      {sec === "features" && (
-        <Box title="بخشِ امکانات" action={resetBtn("features")}>
-          <L t="تیتر">{inp(c.features.title, (v) => set("features", { title: v }))}</L>
-          <L t="زیرتیتر">{inp(c.features.subtitle, (v) => set("features", { subtitle: v }))}</L>
-          <ListEditor items={c.features.items} onChange={(v) => set("features", { items: v })} make={() => ({ icon: "Sparkles", title: "", text: "" })} addLabel="کارتِ جدید"
-            render={(it, s) => (
-              <>
-                <div className="flex gap-2">
-                  <select value={it.icon} onChange={(e) => s({ ...it, icon: e.target.value })} className={cn(smallField, "w-40")}>
-                    {FEATURE_ICONS.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FeatureIcon name={it.icon} /></span>
-                  <input value={it.title} onChange={(e) => s({ ...it, title: e.target.value })} placeholder="عنوان" className={smallField} />
-                </div>
-                <textarea value={it.text} onChange={(e) => s({ ...it, text: e.target.value })} rows={2} placeholder="توضیح" className={cn(smallField, "resize-y")} />
-              </>
-            )} />
-        </Box>
-      )}
+      {sec === "features" && <FeaturesEditor c={c} set={set} resetBtn={resetBtn("features")} />}
 
       {sec === "views" && (
         <Box title="حالت‌های نمایشِ منو" action={resetBtn("views")}>
@@ -296,6 +278,113 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
           <L t="اشتراکِ تمام‌شده — توضیح">{area(c.unavailable.inactiveText, (v) => set("unavailable", { inactiveText: v }), 2)}</L>
         </Box>
       )}
+    </div>
+  );
+}
+
+/* ============================ مدیریتِ کارت‌های امکانات ============================ */
+
+/** پیش‌نمایشِ کوچکِ کارت، با همان ظاهرِ کارت‌های کاروسلِ سایت */
+function CardPreview({ f, i }: { f: FeatureItem; i: number }) {
+  return (
+    <div className={cn("relative h-44 w-36 shrink-0 overflow-hidden rounded-2xl border-4 border-card bg-slate-950 text-white shadow-lg transition", f.hidden && "opacity-40 grayscale")} aria-hidden>
+      <div className="absolute inset-0" style={{ background: `radial-gradient(80% 70% at ${30 + ((i * 23) % 40)}% 15%, hsl(var(--primary) / 0.6), transparent 70%)` }} />
+      <div className="relative flex h-full flex-col items-center justify-center px-3 text-center">
+        <span className="grid size-10 place-items-center rounded-xl bg-white/10 ring-1 ring-white/20"><FeatureIcon name={f.icon} className="size-5" /></span>
+        <b className="mt-2.5 line-clamp-2 text-[11px] leading-5">{f.title || "بدونِ عنوان"}</b>
+        <span className="mt-1 line-clamp-3 text-[9px] leading-4 text-white/70">{f.text}</span>
+      </div>
+    </div>
+  );
+}
+
+/** انتخابِ آیکون با نامِ فارسی */
+function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className="flex items-center gap-2 rounded-xl border border-border bg-background px-2.5 py-1.5 text-xs font-semibold hover:border-primary/40">
+        <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary"><FeatureIcon name={value} className="size-4" /></span>
+        {ICON_LABELS[value] || value} <span className="text-muted-foreground">· تغییرِ آیکون</span>
+      </button>
+      {open && (
+        <div className="mt-2 grid grid-cols-4 gap-1.5 rounded-2xl border border-border bg-background p-2 sm:grid-cols-6">
+          {FEATURE_ICONS.map((n) => (
+            <button key={n} type="button" title={ICON_LABELS[n] || n} onClick={() => { onChange(n); setOpen(false); }}
+              className={cn("flex flex-col items-center gap-1 rounded-xl p-2 text-[10px] transition", n === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+              <FeatureIcon name={n} className="size-5" />
+              <span className="truncate">{ICON_LABELS[n] || n}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FeaturesEditor({ c, set, resetBtn }: {
+  c: SiteContent;
+  set: (k: "features", v: Partial<SiteContent["features"]>) => void;
+  resetBtn: React.ReactNode;
+}) {
+  const items = c.features.items;
+  const put = (v: FeatureItem[]) => set("features", { items: v });
+  const upd = (i: number, patch: Partial<FeatureItem>) => put(items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const move = (i: number, d: number) => { const n = [...items]; const j = i + d; if (j < 0 || j >= n.length) return; [n[i], n[j]] = [n[j], n[i]]; put(n); };
+  const remove = (i: number) => { if (confirm(`کارتِ «${items[i].title || "بدونِ عنوان"}» حذف شود؟`)) put(items.filter((_, j) => j !== i)); };
+  // اولین کارتِ نمایان در سایت کارتِ بزرگِ بالاست؛ بقیهٔ کارت‌های نمایان در کاروسل می‌چرخند
+  const bigIdx = items.findIndex((f) => !f.hidden);
+  const shown = items.filter((f) => !f.hidden).length;
+  const secs = c.features.autoplay ?? 3.5;
+  const secsFa = toFa(String(secs).replace(".", "٫"));
+
+  const card = (f: FeatureItem, i: number) => (
+    <div key={i} className="flex flex-col gap-3 rounded-2xl border border-border bg-background p-3 sm:flex-row">
+      <CardPreview f={f} i={i} />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold", f.hidden ? "bg-muted text-muted-foreground" : i === bigIdx ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary")}>
+            {f.hidden ? "پنهان" : i === bigIdx ? "کارتِ بزرگِ بالا" : `کاروسل · کارتِ ${toFa(items.slice(0, i + 1).filter((x) => !x.hidden).length - 1)}`}
+          </span>
+          <div className="ms-auto flex items-center gap-1">
+            <button type="button" onClick={() => upd(i, { hidden: !f.hidden })} title={f.hidden ? "نمایش در سایت" : "پنهان کردن"} aria-label={f.hidden ? "نمایش در سایت" : "پنهان کردن"} className="grid size-8 place-items-center rounded-lg hover:bg-muted">
+              {f.hidden ? <EyeOff className="size-4 text-muted-foreground" /> : <Eye className="size-4" />}
+            </button>
+            <button type="button" aria-label="بالا" onClick={() => move(i, -1)} disabled={i === 0} className="grid size-8 place-items-center rounded-lg hover:bg-muted disabled:opacity-30"><ArrowUp className="size-4" /></button>
+            <button type="button" aria-label="پایین" onClick={() => move(i, 1)} disabled={i === items.length - 1} className="grid size-8 place-items-center rounded-lg hover:bg-muted disabled:opacity-30"><ArrowDown className="size-4" /></button>
+            <button type="button" aria-label="حذف" onClick={() => remove(i)} className="grid size-8 place-items-center rounded-lg text-primary hover:bg-primary/10"><Trash2 className="size-4" /></button>
+          </div>
+        </div>
+        <IconPicker value={f.icon} onChange={(v) => upd(i, { icon: v })} />
+        <input value={f.title} onChange={(e) => upd(i, { title: e.target.value })} placeholder="عنوانِ کارت" className={smallField} />
+        <textarea value={f.text} onChange={(e) => upd(i, { text: e.target.value })} rows={2} placeholder="توضیحِ کارت" className={cn(smallField, "resize-y leading-7")} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <Box title="بخشِ امکانات" action={resetBtn}>
+        <L t="تیتر"><input value={c.features.title} onChange={(e) => set("features", { title: e.target.value })} className={smallField} /></L>
+        <L t="زیرتیتر"><input value={c.features.subtitle} onChange={(e) => set("features", { subtitle: e.target.value })} className={smallField} /></L>
+        <L t="سرعتِ چرخشِ خودکارِ کاروسل" hint={secs ? `هر ${secsFa} ثانیه کارتِ بعدی می‌آید (با نگه‌داشتنِ انگشت یا ماوس روی کاروسل متوقف می‌شود).` : "چرخشِ خودکار خاموش است؛ بازدیدکننده خودش جابه‌جا می‌کند."}>
+          <div className="flex items-center gap-3">
+            <input type="range" min={0} max={10} step={0.5} value={secs} onChange={(e) => set("features", { autoplay: Number(e.target.value) })} className="flex-1 accent-[hsl(var(--primary))]" />
+            <span className="w-20 shrink-0 text-center text-sm font-bold">{secs ? `${secsFa} ثانیه` : "خاموش"}</span>
+          </div>
+        </L>
+      </Box>
+
+      <Box title={`کارت‌ها (${toFa(shown)} نمایان از ${toFa(items.length)})`} action={
+        <Button type="button" size="sm" className="rounded-xl" onClick={() => put([...items, { icon: "Sparkles", title: "", text: "" }])}><Plus className="size-4" /> کارتِ جدید</Button>
+      }>
+        <p className="rounded-xl bg-muted/60 p-3 text-xs leading-6 text-muted-foreground">
+          اولین کارتِ نمایان به‌صورتِ <b className="text-foreground">کارتِ بزرگ</b> بالای بخش می‌آید و بقیه در <b className="text-foreground">کاروسل</b> می‌چرخند.
+          ترتیب را با فلش‌ها عوض کنید؛ با آیکونِ چشم، کارتی را بدونِ حذف از سایت پنهان کنید. کارت‌های تعرفه از «تنظیمات ← طرح‌های اشتراک» می‌آیند.
+        </p>
+        {items.length ? items.map(card) : <p className="py-6 text-center text-sm text-muted-foreground">هنوز کارتی نیست.</p>}
+      </Box>
     </div>
   );
 }

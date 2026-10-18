@@ -35,7 +35,7 @@ export function saveSiteContent(input: SiteContent) {
     trust: c.trust.slice(0, 6).map((k) => clip(k, 60)).filter(Boolean),
     showcase: { title: clip(c.showcase.title, 200), text: clip(c.showcase.text, 600), bullets: c.showcase.bullets.slice(0, 8).map((b) => clip(b, 100)).filter(Boolean) },
     finalCta: t(c.finalCta, 300) as SiteContent["finalCta"],
-    features: { title: clip(c.features.title, 200), subtitle: clip(c.features.subtitle, 400), items: c.features.items.slice(0, 16).map((f) => ({ icon: clip(f.icon, 40), title: clip(f.title, 80), text: clip(f.text, 300) })).filter((f) => f.title) },
+    features: { title: clip(c.features.title, 200), subtitle: clip(c.features.subtitle, 400), items: c.features.items.slice(0, 16).map((f) => ({ icon: clip(f.icon, 40), title: clip(f.title, 80), text: clip(f.text, 300), ...(f.hidden ? { hidden: true } : {}) })).filter((f) => f.title), autoplay: Math.min(20, Math.max(0, Math.round((Number(c.features.autoplay) || 0) * 2) / 2)) },
     views: {
       title: clip(c.views.title, 200), subtitle: clip(c.views.subtitle, 400),
       items: DEFAULT_CONTENT.views.items.map((d, i) => ({ title: clip(c.views.items[i]?.title || d.title, 60), text: clip(c.views.items[i]?.text ?? d.text, 300) })),

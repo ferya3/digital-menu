@@ -2,7 +2,8 @@
  * محتوای قابلِ ویرایشِ سایتِ پلتفرم (صفحهٔ اصلی، ثبت‌نام، ورود، پاورقی، صفحه‌های قوانین، پیام‌های سیستمی).
  * از پنلِ مدیرِ کل ← «محتوای سایت» ویرایش می‌شود. در متن‌ها می‌توان از {brand}، {trialDays} و {root} استفاده کرد.
  */
-export interface FeatureItem { icon: string; title: string; text: string }
+/** کارتِ امکانات؛ hidden = موقتاً در سایت نشان داده نشود */
+export interface FeatureItem { icon: string; title: string; text: string; hidden?: boolean }
 export interface SiteContent {
   brand: { name: string; logo: string; color: string; seoTitle: string; seoDescription: string; ogImage: string; googleVerification: string };
   announce: { enabled: boolean; text: string; link: string };
@@ -14,7 +15,8 @@ export interface SiteContent {
   /** دعوتِ پایانیِ پایینِ صفحه */
   finalCta: { title: string; text: string; button: string };
   kinds: string[];
-  features: { title: string; subtitle: string; items: FeatureItem[] };
+  /** اولین کارتِ نمایان = کارتِ بزرگِ بالا، بقیه = کاروسل؛ autoplay = ثانیه‌های پخشِ خودکار (۰ = خاموش) */
+  features: { title: string; subtitle: string; items: FeatureItem[]; autoplay: number };
   /** معرفیِ حالت‌های نمایشِ منو؛ items به ترتیب: کاروسل، شبکه‌ای، لیستی */
   views: { title: string; subtitle: string; items: { title: string; text: string }[]; bullets: string[] };
   steps: { title: string; items: { title: string; text: string }[] };
@@ -42,6 +44,14 @@ export const BRAND_COLORS: { id: string; label: string; hsl: string; hex: string
 ];
 
 /** آیکون‌های مجاز برای کارت‌های امکانات (نامِ آیکونِ lucide) */
+/** نامِ فارسیِ آیکون‌ها برای انتخابگرِ پنل */
+export const ICON_LABELS: Record<string, string> = {
+  QrCode: "کد QR", Smartphone: "گوشی", CreditCard: "کارت بانکی", BellRing: "زنگ", Calculator: "ماشین‌حساب", Users: "مشتریان",
+  MessageSquareText: "پیامک", Palette: "رنگ و طرح", Store: "فروشگاه", Sparkles: "درخشش", Clock: "ساعت", ShieldCheck: "امنیت",
+  Truck: "ارسال", Coffee: "قهوه", UtensilsCrossed: "رستوران", ChefHat: "آشپز", Printer: "چاپگر", Globe: "وب", Heart: "قلب",
+  Star: "ستاره", Zap: "سرعت", BarChart3: "نمودار", Gift: "هدیه", Percent: "تخفیف",
+};
+
 export const FEATURE_ICONS = [
   "QrCode", "Smartphone", "CreditCard", "BellRing", "Calculator", "Users", "MessageSquareText", "Palette", "Store",
   "Sparkles", "Clock", "ShieldCheck", "Truck", "Coffee", "UtensilsCrossed", "ChefHat", "Printer", "Globe", "Heart",
@@ -79,6 +89,7 @@ export const DEFAULT_CONTENT: SiteContent = {
   features: {
     title: "هر چیزی که برای سرویسِ سریع‌تر لازم دارید",
     subtitle: "بدونِ سخت‌افزار و نصبِ برنامه؛ فقط یک گوشی یا لپ‌تاپ برای پنلِ مدیریت.",
+    autoplay: 3.5,
     items: [
       { icon: "QrCode", title: "منوی QR برای هر میز", text: "مشتری کدِ QR روی میز را اسکن می‌کند و منوی زیبا و سریع را روی گوشی می‌بیند؛ بدونِ نصبِ برنامه." },
       { icon: "Smartphone", title: "سفارش آنلاین سرِ میز", text: "سفارش مستقیم و لحظه‌ای روی پنلِ شما و آشپزخانه می‌نشیند؛ با صدای اعلان." },
