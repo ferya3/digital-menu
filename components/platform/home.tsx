@@ -36,15 +36,20 @@ const btnPrimary = "inline-flex h-11 sm:h-12 cursor-pointer items-center justify
 export function PlatformShell({ p, children }: { p: PublicPlatform; children: React.ReactNode }) {
   const { c } = p;
   return (
-    <div className="platform min-h-screen bg-background text-foreground" style={{ ["--primary" as string]: colorHsl(c.brand.color), ["--ring" as string]: colorHsl(c.brand.color) }}>
-      {c.announce.enabled && c.announce.text && (
-        <div className="bg-primary px-4 py-2 text-center text-sm font-bold text-primary-foreground">
-          {c.announce.link ? <Link href={c.announce.link} className="underline-offset-4 hover:underline">{c.announce.text}</Link> : c.announce.text}
-        </div>
-      )}
-      <PlatformNav p={p} />
-      {children}
-      <PlatformFooter p={p} />
+    <div className="platform relative isolate min-h-screen bg-background text-foreground lg:bg-transparent lg:px-5 lg:py-5" style={{ ["--primary" as string]: colorHsl(c.brand.color), ["--ring" as string]: colorHsl(c.brand.color) }}>
+      {/* چیدمانِ باکسی: از lg به بالا کلِ سایت در یک قابِ وسط‌چین با گوشه‌های گرد روی زمینهٔ طرح‌دار؛ روی گوشی تمام‌عرض.
+          overflow-clip (نه hidden) تا منوی چسبان (sticky) کار کند */}
+      <div aria-hidden className="pf-backdrop pointer-events-none fixed inset-0 -z-10 hidden lg:block" />
+      <div className="relative mx-auto max-w-[1320px] bg-background lg:overflow-clip lg:rounded-[2rem] lg:shadow-2xl lg:shadow-black/10 lg:ring-1 lg:ring-black/5 dark:lg:shadow-black/50 dark:lg:ring-white/10">
+        {c.announce.enabled && c.announce.text && (
+          <div className="bg-primary px-4 py-2 text-center text-sm font-bold text-primary-foreground">
+            {c.announce.link ? <Link href={c.announce.link} className="underline-offset-4 hover:underline">{c.announce.text}</Link> : c.announce.text}
+          </div>
+        )}
+        <PlatformNav p={p} />
+        {children}
+        <PlatformFooter p={p} />
+      </div>
     </div>
   );
 }
@@ -62,7 +67,7 @@ export function BrandMark({ c, className = "size-9" }: { c: SiteContent; classNa
 
 export function PlatformNav({ p }: { p: PublicPlatform }) {
   return (
-    <div className="sticky top-3 z-40 px-3">
+    <div className="sticky top-3 z-40 px-3 lg:top-0 lg:pt-3">
       <header className="mx-auto flex max-w-6xl items-center gap-2 rounded-2xl border border-border/70 bg-background/80 px-3 py-2.5 shadow-sm shadow-black/5 backdrop-blur-xl sm:px-4">
         <Link href="/" className="flex items-center gap-2 font-black"><BrandMark c={p.c} />{p.c.brand.name}</Link>
         <nav className="mx-auto hidden items-center gap-1 text-sm font-semibold text-muted-foreground md:flex">
@@ -197,7 +202,7 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
   return (
     <PlatformShell p={p}>
       {/* ===== هیرو (تیره، با رنگِ برند) ===== */}
-      <section className="relative -mt-[4.5rem] overflow-hidden bg-slate-950 pb-14 pt-28 text-white sm:pb-28 sm:pt-40">
+      <section className="relative -mt-[4.5rem] overflow-hidden bg-slate-950 lg:-mt-[5.25rem] pb-14 pt-28 text-white sm:pb-28 sm:pt-40">
         <div aria-hidden className="pf-grid absolute inset-0" />
         <div aria-hidden className="absolute -top-40 right-1/2 size-[44rem] translate-x-1/3 rounded-full bg-primary/30 blur-[120px]" />
         <div aria-hidden className="absolute -bottom-40 left-0 size-[30rem] rounded-full bg-primary/15 blur-[100px]" />

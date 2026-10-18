@@ -231,6 +231,24 @@
   .pf-float, .pf-float-slow, .pf-rise { animation: none; }
 }
 
+/* زمینهٔ بیرونِ قابِ سایت (چیدمانِ باکسی، از lg): کمی تیره‌تر از خودِ سایت، با هالهٔ رنگِ برند و نقطه‌های ریز.
+   لایهٔ fixedِ جدا (نه background-attachment: fixed که در کروم هنگامِ اسکرول خوب رنگ نمی‌شود) */
+.pf-backdrop {
+  background-color: hsl(220 16% 93%);
+  background-image:
+    radial-gradient(60rem 40rem at 85% -10%, hsl(var(--primary) / 0.14), transparent 70%),
+    radial-gradient(50rem 36rem at 0% 110%, hsl(var(--primary) / 0.10), transparent 70%),
+    radial-gradient(hsl(220 14% 70% / 0.45) 1px, transparent 1px);
+  background-size: auto, auto, 22px 22px;
+}
+.dark .pf-backdrop {
+  background-color: hsl(224 22% 4%);
+  background-image:
+    radial-gradient(60rem 40rem at 85% -10%, hsl(var(--primary) / 0.16), transparent 70%),
+    radial-gradient(50rem 36rem at 0% 110%, hsl(var(--primary) / 0.10), transparent 70%),
+    radial-gradient(hsl(0 0% 100% / 0.07) 1px, transparent 1px);
+}
+
 /* کاروسلِ امکانات: کارت‌ها با فنرِ کوتاه و سفت */
 .platform {
   --spring-card-ms: 290ms;
