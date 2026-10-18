@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn, toFa } from "@/lib/utils";
 import { unwrap } from "@/lib/action-result";
 import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
-import { adminContentAction, adminSaveContentAction, adminUploadLogoAction, adminUploadOgAction } from "@/app/platform/actions";
+import { adminContentAction, adminSaveContentAction, adminUploadCardImageAction, adminUploadLogoAction, adminUploadOgAction } from "@/app/platform/actions";
 import { BRAND_COLORS, DEFAULT_CONTENT, FEATURE_ICONS, ICON_LABELS, type FeatureItem, type SiteContent } from "@/lib/site-content";
 import { Box, L, Toggle, err, smallField, type Flash } from "./shared";
 
@@ -160,7 +160,7 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
         </Box>
       )}
 
-      {sec === "features" && <FeaturesEditor c={c} set={set} resetBtn={resetBtn("features")} />}
+      {sec === "features" && <FeaturesEditor c={c} set={set} resetBtn={resetBtn("features")} flash={flash} />}
 
       {sec === "views" && (
         <Box title="حالت‌های نمایشِ منو" action={resetBtn("views")}>
@@ -285,9 +285,33 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
 /* ============================ مدیریتِ کارت‌های امکانات ============================ */
 
 /** پیش‌نمایشِ کوچکِ کارت، با همان ظاهرِ کارت‌های کاروسلِ سایت */
-function CardPreview({ f, i }: { f: FeatureItem; i: number }) {
+function CardPreview({ f, i, wide }: { f: FeatureItem; i: number; wide: boolean }) {
+  if (wide) {
+    // کارتِ بزرگ: عکس جای تصویرِ QR می‌نشیند (۱۶:۱۰)
+    return (
+      <div className={cn("relative grid aspect-[16/10] w-44 shrink-0 place-items-center overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 to-transparent transition", f.hidden && "opacity-40 grayscale")} aria-hidden>
+        {f.image
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={f.image} alt="" className="absolute inset-0 size-full object-cover" />
+          : <span className="grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground"><FeatureIcon name={f.icon} className="size-6" /></span>}
+      </div>
+    );
+  }
+  if (f.image) {
+    return (
+      <div className={cn("relative h-44 w-40 shrink-0 overflow-hidden rounded-2xl border-4 border-card bg-slate-950 text-white shadow-lg transition", f.hidden && "opacity-40 grayscale")} aria-hidden>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={f.image} alt="" className="absolute inset-0 size-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent via-40% to-black/90" />
+        <div className="absolute inset-x-0 bottom-0 p-2.5">
+          <b className="line-clamp-2 text-[11px] leading-5">{f.title || "بدونِ عنوان"}</b>
+          <span className="mt-0.5 line-clamp-2 text-[9px] leading-4 text-white/80">{f.text}</span>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className={cn("relative h-44 w-36 shrink-0 overflow-hidden rounded-2xl border-4 border-card bg-slate-950 text-white shadow-lg transition", f.hidden && "opacity-40 grayscale")} aria-hidden>
+    <div className={cn("relative h-44 w-40 shrink-0 overflow-hidden rounded-2xl border-4 border-card bg-slate-950 text-white shadow-lg transition", f.hidden && "opacity-40 grayscale")} aria-hidden>
       <div className="absolute inset-0" style={{ background: `radial-gradient(80% 70% at ${30 + ((i * 23) % 40)}% 15%, hsl(var(--primary) / 0.6), transparent 70%)` }} />
       <div className="relative flex h-full flex-col items-center justify-center px-3 text-center">
         <span className="grid size-10 place-items-center rounded-xl bg-white/10 ring-1 ring-white/20"><FeatureIcon name={f.icon} className="size-5" /></span>
@@ -323,15 +347,27 @@ function IconPicker({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
-function FeaturesEditor({ c, set, resetBtn }: {
+/** اندازهٔ پیشنهادیِ عکس (پیکسل) — هم‌خوان با قابِ کارت‌ها در سایت */
+const CARD_SIZE = { wide: "۱۶۰۰ × ۱۰۰۰ پیکسل · نسبتِ ۱۶:۱۰ (افقی)", card: "۱۰۸۰ × ۱۲۰۰ پیکسل · نسبتِ ۹:۱۰ (تقریباً مربع، کمی ایستاده)" };
+
+function FeaturesEditor({ c, set, resetBtn, flash }: {
   c: SiteContent;
   set: (k: "features", v: Partial<SiteContent["features"]>) => void;
   resetBtn: React.ReactNode;
+  flash: Flash;
 }) {
+  const [uploading, setUploading] = useState(-1);
   const items = c.features.items;
   const put = (v: FeatureItem[]) => set("features", { items: v });
   const upd = (i: number, patch: Partial<FeatureItem>) => put(items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const move = (i: number, d: number) => { const n = [...items]; const j = i + d; if (j < 0 || j >= n.length) return; [n[i], n[j]] = [n[j], n[i]]; put(n); };
+  async function upload(i: number, file: File) {
+    setUploading(i);
+    try {
+      const { url } = unwrap(await adminUploadCardImageAction(imageForm(await compressImage(file, 1600, 0.88))));
+      upd(i, { image: url });
+    } catch (e) { flash("❌ " + err(e)); } finally { setUploading(-1); }
+  }
   const remove = (i: number) => { if (confirm(`کارتِ «${items[i].title || "بدونِ عنوان"}» حذف شود؟`)) put(items.filter((_, j) => j !== i)); };
   // اولین کارتِ نمایان در سایت کارتِ بزرگِ بالاست؛ بقیهٔ کارت‌های نمایان در کاروسل می‌چرخند
   const bigIdx = items.findIndex((f) => !f.hidden);
@@ -341,7 +377,7 @@ function FeaturesEditor({ c, set, resetBtn }: {
 
   const card = (f: FeatureItem, i: number) => (
     <div key={i} className="flex flex-col gap-3 rounded-2xl border border-border bg-background p-3 sm:flex-row">
-      <CardPreview f={f} i={i} />
+      <CardPreview f={f} i={i} wide={i === bigIdx} />
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold", f.hidden ? "bg-muted text-muted-foreground" : i === bigIdx ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary")}>
@@ -356,7 +392,19 @@ function FeaturesEditor({ c, set, resetBtn }: {
             <button type="button" aria-label="حذف" onClick={() => remove(i)} className="grid size-8 place-items-center rounded-lg text-primary hover:bg-primary/10"><Trash2 className="size-4" /></button>
           </div>
         </div>
-        <IconPicker value={f.icon} onChange={(v) => upd(i, { icon: v })} />
+        <div className="flex flex-wrap items-center gap-2">
+          <IconPicker value={f.icon} onChange={(v) => upd(i, { icon: v })} />
+          <label className={cn("flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-2.5 py-2 text-xs font-semibold hover:border-primary/40", uploading === i && "pointer-events-none opacity-60")}>
+            {uploading === i ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4 text-primary" />}
+            {f.image ? "عوض کردنِ عکس" : "افزودنِ عکس"}
+            <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) upload(i, file); }} />
+          </label>
+          {f.image && <button type="button" onClick={() => upd(i, { image: undefined })} className="rounded-xl px-2.5 py-2 text-xs font-semibold text-primary hover:bg-primary/10">حذفِ عکس</button>}
+        </div>
+        <p className="text-[11px] leading-5 text-muted-foreground">
+          اندازهٔ پیشنهادیِ عکس: <b className="text-foreground">{i === bigIdx ? CARD_SIZE.wide : CARD_SIZE.card}</b>
+          {i === bigIdx ? " — جای تصویرِ QR در کارتِ بزرگ می‌نشیند." : " — کلِ کارت را می‌پوشاند؛ سوژهٔ اصلی را بالا یا وسطِ عکس بگذارید چون پایینش زیرِ متن می‌رود."}
+        </p>
         <input value={f.title} onChange={(e) => upd(i, { title: e.target.value })} placeholder="عنوانِ کارت" className={smallField} />
         <textarea value={f.text} onChange={(e) => upd(i, { text: e.target.value })} rows={2} placeholder="توضیحِ کارت" className={cn(smallField, "resize-y leading-7")} />
       </div>
@@ -382,6 +430,7 @@ function FeaturesEditor({ c, set, resetBtn }: {
         <p className="rounded-xl bg-muted/60 p-3 text-xs leading-6 text-muted-foreground">
           اولین کارتِ نمایان به‌صورتِ <b className="text-foreground">کارتِ بزرگ</b> بالای بخش می‌آید و بقیه در <b className="text-foreground">کاروسل</b> می‌چرخند.
           ترتیب را با فلش‌ها عوض کنید؛ با آیکونِ چشم، کارتی را بدونِ حذف از سایت پنهان کنید. کارت‌های تعرفه از «تنظیمات ← طرح‌های اشتراک» می‌آیند.
+          <br />عکس اختیاری است (jpg، png، webp و…)؛ بدونِ عکس، کارت با آیکون و رنگِ برند نمایش داده می‌شود. عکس‌های بزرگ‌تر خودکار کوچک و فشرده می‌شوند.
         </p>
         {items.length ? items.map(card) : <p className="py-6 text-center text-sm text-muted-foreground">هنوز کارتی نیست.</p>}
       </Box>

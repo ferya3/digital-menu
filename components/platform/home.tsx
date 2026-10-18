@@ -278,17 +278,22 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
                 <h3 className="mt-4 text-xl font-black sm:mt-5 sm:text-2xl">{big.title}</h3>
                 <p className="mt-2 max-w-md text-sm leading-7 text-muted-foreground sm:text-base sm:leading-8">{big.text}</p>
               </div>
-              <div className="mt-6 flex items-end gap-6 sm:mt-8 lg:mt-0" aria-hidden>
-                <div className="rounded-3xl border border-border bg-card p-3 shadow-xl shadow-black/5 sm:p-4"><PseudoQr className="size-20 text-foreground sm:size-28 dark:text-slate-900" /></div>
-                <div className="hidden flex-1 space-y-2 sm:block">
-                  {DISHES.map((d) => (
-                    <div key={d.name} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5 shadow-sm">
-                      <span className={`grid size-10 place-items-center rounded-xl bg-gradient-to-br ${d.tone} text-white`}><d.icon className="size-5" /></span>
-                      <b className="flex-1 text-sm">{d.name}</b><span className="text-xs text-muted-foreground">{money(d.price)}</span>
-                    </div>
-                  ))}
+              {big.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={big.image} alt={big.title} loading="lazy" decoding="async" className="mt-6 aspect-[16/10] w-full rounded-2xl border border-border object-cover shadow-xl shadow-black/10 sm:mt-8 lg:mt-0" />
+              ) : (
+                <div className="mt-6 flex items-end gap-6 sm:mt-8 lg:mt-0" aria-hidden>
+                  <div className="rounded-3xl border border-border bg-card p-3 shadow-xl shadow-black/5 sm:p-4"><PseudoQr className="size-20 text-foreground sm:size-28 dark:text-slate-900" /></div>
+                  <div className="hidden flex-1 space-y-2 sm:block">
+                    {DISHES.map((d) => (
+                      <div key={d.name} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5 shadow-sm">
+                        <span className={`grid size-10 place-items-center rounded-xl bg-gradient-to-br ${d.tone} text-white`}><d.icon className="size-5" /></span>
+                        <b className="flex-1 text-sm">{d.name}</b><span className="text-xs text-muted-foreground">{money(d.price)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </article>
           )}
           {/* بقیهٔ امکانات: کاروسلِ چرخ و دستهٔ کارت */}

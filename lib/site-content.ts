@@ -2,8 +2,11 @@
  * محتوای قابلِ ویرایشِ سایتِ پلتفرم (صفحهٔ اصلی، ثبت‌نام، ورود، پاورقی، صفحه‌های قوانین، پیام‌های سیستمی).
  * از پنلِ مدیرِ کل ← «محتوای سایت» ویرایش می‌شود. در متن‌ها می‌توان از {brand}، {trialDays} و {root} استفاده کرد.
  */
-/** کارتِ امکانات؛ hidden = موقتاً در سایت نشان داده نشود */
-export interface FeatureItem { icon: string; title: string; text: string; hidden?: boolean }
+/**
+ * کارتِ امکانات؛ hidden = موقتاً در سایت نشان داده نشود.
+ * image: عکسِ کارت (کاروسل: کلِ کارت را می‌پوشاند، نسبتِ ۹:۱۰؛ کارتِ بزرگ: جای تصویرِ QR، نسبتِ ۱۶:۱۰)
+ */
+export interface FeatureItem { icon: string; title: string; text: string; hidden?: boolean; image?: string }
 export interface SiteContent {
   brand: { name: string; logo: string; color: string; seoTitle: string; seoDescription: string; ogImage: string; googleVerification: string };
   announce: { enabled: boolean; text: string; link: string };

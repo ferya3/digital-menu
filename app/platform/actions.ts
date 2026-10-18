@@ -23,7 +23,7 @@ import type { ActionFail } from "@/lib/action-result";
 import {
   announcement, applyCoupon, audit, deleteCoupon, listAudit, listCoupons, listOwnerSms, listReminders,
   notifySettings, ownersFor, platformStats, runReminders, saveAnnouncement, saveCoupon, saveNotifySettings, savePlatformLogo,
-  saveSiteContent, siteContent, startOwnerSms, allCustomers, savePlatformOgImage,
+  saveSiteContent, siteContent, startOwnerSms, allCustomers, savePlatformOgImage, savePlatformCardImage,
   type Announcement, type AuditRow, type Coupon, type NotifySettings, type OwnerAudience, type PlatformStats, type PlatformCustomer,
 } from "@/lib/platform-admin";
 import { readUpload } from "@/lib/images";
@@ -309,6 +309,13 @@ export async function adminUploadOgAction(fd: FormData) {
     const buf = await readUpload(fd);
     if (!buf) throw new Error("عکسی انتخاب نشده");
     return { url: await savePlatformOgImage(buf) };
+  });
+}
+export async function adminUploadCardImageAction(fd: FormData) {
+  return adminGuard(async () => {
+    const buf = await readUpload(fd);
+    if (!buf) throw new Error("عکسی انتخاب نشده");
+    return { url: await savePlatformCardImage(buf) };
   });
 }
 export async function adminCouponsAction() {
