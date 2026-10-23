@@ -4,9 +4,11 @@ import { faDate, toFa } from "@/lib/utils";
 import { fill } from "@/lib/site-content";
 import { readMinutes, type Article } from "@/lib/articles";
 import { SOLUTIONS, type Solution } from "@/lib/solutions";
+import type { City } from "@/lib/cities";
 import { FeatureIcon } from "@/components/platform/feature-icon";
 import { Prose } from "@/components/platform/prose";
-import { PlatformShell, SectionHead, btnPrimary, container, type PublicPlatform } from "@/components/platform/home";
+import { DemoTry, PlatformShell, SectionHead, btnPrimary, container, type PublicPlatform } from "@/components/platform/home";
+import type { DemoInfo } from "@/app/platform/demo";
 
 /** متغیرهای متن ({brand}، {trialDays}) برای صفحه‌های موضوعی و مقاله‌ها */
 export const pageVars = (p: PublicPlatform) => ({ brand: p.c.brand.name, trialDays: toFa(p.trialDays), root: p.root });
@@ -65,7 +67,7 @@ export function ArticleCard({ a, vars }: { a: Article; vars: Record<string, stri
 }
 
 /* ============================ صفحهٔ موضوعی ============================ */
-export function SolutionView({ p, s, articles }: { p: PublicPlatform; s: Solution; articles: Article[] }) {
+export function SolutionView({ p, s, articles, demo = null }: { p: PublicPlatform; s: Solution; articles: Article[]; demo?: DemoInfo | null }) {
   const v = pageVars(p);
   const f = (t: string) => fill(t, v);
   const others = SOLUTIONS.filter((x) => x.slug !== s.slug);
@@ -103,6 +105,7 @@ export function SolutionView({ p, s, articles }: { p: PublicPlatform; s: Solutio
             </article>
           ))}
         </div>
+        {demo && <DemoTry demo={demo} />}
       </section>
 
       <section className="border-y border-border bg-muted/40 py-14 sm:py-20">
@@ -197,6 +200,124 @@ export function ArticleView({ p, a, related }: { p: PublicPlatform; a: Article; 
             ))}
           </div>
         </div>
+      </main>
+    </PlatformShell>
+  );
+}
+
+/* ============================ صفحه‌های شهری ============================ */
+export interface CityMenu { name: string; url: string }
+
+/** پرسش‌های صفحهٔ شهری (همین‌ها در JSON-LD هم می‌روند) */
+export const cityFaq = (city: string, brand: string, trial: string) => [
+  { q: `برای راه‌اندازیِ منوی دیجیتال در ${city} باید حضوری مراجعه کنیم؟`, a: `نه. ثبت‌نام و ساختِ منو کاملاً آنلاین است و چند دقیقه طول می‌کشد؛ هر جای ${city} که باشید، منوی شما همان روز آماده است.` },
+  { q: `مجموعه‌های ${city} چطور پشتیبانی می‌گیرند؟`, a: `پشتیبانیِ ${brand} تلفنی و آنلاین است و برای همهٔ شهرها یکسان انجام می‌شود.` },
+  { q: "هزینهٔ منوی دیجیتال چقدر است؟", a: `${trial} روزِ اول رایگان است و بعد از آن یکی از طرح‌های ماهانه، سه‌ماهه یا سالانه را انتخاب می‌کنید.` },
+];
+
+export function CityView({ p, city, cities, menus, articles, demo = null }: { p: PublicPlatform; city: City; cities: City[]; menus: CityMenu[]; articles: Article[]; demo?: DemoInfo | null }) {
+  const v = pageVars(p);
+  const n = city.name;
+  const faq = cityFaq(n, p.c.brand.name, String(v.trialDays));
+  const body = `## منوی دیجیتال برای کافه‌ها و رستوران‌های ${n}
+با ${p.c.brand.name}، هر [کافه](/cafe-menu)، [رستوران](/restaurant-menu) یا [فست‌فود](/fastfood-menu) در ${n} می‌تواند در چند دقیقه منوی QR خودش را بسازد؛ مشتری کدِ روی میز را با دوربینِ گوشی اسکن می‌کند و منو با عکس و قیمتِ به‌روز باز می‌شود، بدونِ نصبِ برنامه.
+
+## چه چیزهایی می‌گیرید
+- منوی دیجیتال با عکس، دسته‌بندی و سه حالتِ نمایش
+- QR جدا برای هر میز و چاپِ آماده از پنل
+- سفارش آنلاین سرِ میز، صدا زدنِ گارسون و درخواستِ صورتحساب
+- پرداخت با کارت‌به‌کارت، کارت‌خوان یا درگاهِ اینترنتی
+- حسابداریِ روزانه و ماهانه و باشگاهِ مشتریان با پیامک
+- آدرسِ اختصاصی و شخصی‌سازی با لوگو و رنگِ برند
+
+## راه‌اندازی در ${n}، قدم‌به‌قدم
+1. ثبت‌نام کنید و نوعِ کسب‌وکار و یک آدرس برای منو انتخاب کنید.
+2. محصولات، قیمت‌ها و عکس‌ها را وارد کنید (منوی نمونه آماده است).
+3. QR میزها را چاپ کنید و روی میزها بگذارید؛ از همان روز سفارش می‌گیرید.
+
+برای جزئیات، [آموزشِ ساختِ منوی QR](/blog/qr-menu-guide) را بخوانید.`;
+  return (
+    <PlatformShell p={p}>
+      <section className="relative -mt-[4.5rem] overflow-hidden bg-slate-950 pb-14 pt-28 text-white sm:pb-20 sm:pt-36 lg:-mt-[5.25rem]">
+        <div aria-hidden className="pf-grid absolute inset-0" />
+        <div aria-hidden className="absolute -top-40 right-1/2 size-[40rem] translate-x-1/3 rounded-full bg-primary/30 blur-[120px]" />
+        <div className={`relative ${container}`}>
+          <div className="[&_a:hover]:text-white [&_nav]:text-white/60 [&_span[aria-current]]:text-white"><Crumbs items={[{ name: p.c.brand.name, href: "/" }, { name: "شهرها", href: "/city" }, { name: n }]} /></div>
+          <h1 className="mt-6 max-w-3xl text-[1.75rem] font-black leading-[1.4] tracking-tight sm:text-5xl sm:leading-[1.3]">
+            منوی دیجیتال در {n}
+            <span className="mt-1 block bg-gradient-to-l from-primary via-primary to-white/90 bg-clip-text text-[0.6em] text-transparent sm:text-[0.55em]">برای کافه، رستوران و فست‌فودهای {n}</span>
+          </h1>
+          <p className="mt-6 max-w-3xl text-[0.95rem] leading-8 text-white/75 sm:text-lg sm:leading-9">{city.intro}</p>
+          {p.allowSignup && (
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link href="/signup" className={btnPrimary}>{p.c.hero.ctaPrimary || "شروعِ رایگان"}<ArrowLeft className="size-4" /></Link>
+              <a href="/#pricing" className="inline-flex h-11 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 font-bold text-white backdrop-blur transition-colors hover:bg-white/10 sm:h-12">تعرفه‌ها</a>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className={`py-14 sm:py-20 ${container}`}>
+        <div className="mx-auto max-w-3xl"><Prose text={body} />{city.body && <Prose className="mt-6" text={fill(city.body, v)} />}</div>
+        {demo && <DemoTry demo={demo} />}
+      </section>
+
+      {menus.length > 0 && (
+        <section className="border-y border-border bg-muted/40 py-14 sm:py-20">
+          <div className={container}>
+            <SectionHead eyebrow={n} title={`منوهای دیجیتالِ فعال در ${n}`} subtitle={`مجموعه‌هایی در ${n} که منویشان با ${p.c.brand.name} است.`} />
+            <div className="mt-8 flex flex-wrap justify-center gap-2">
+              {menus.map((m) => <a key={m.url} href={m.url} target="_blank" rel="noopener" className="rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold transition-colors hover:border-primary/40 hover:text-primary">{m.name}</a>)}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className={`py-14 sm:py-20 ${container}`}>
+        <SectionHead eyebrow="سؤالات" title={`سؤالاتِ رایج — منوی دیجیتال ${n}`} />
+        <div className="mx-auto mt-10 grid max-w-3xl gap-3">
+          {faq.map((q, i) => (
+            <details key={i} className="group rounded-2xl border border-border bg-card p-4 open:shadow-lg open:shadow-black/5 sm:p-5" open={i === 0}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold sm:text-base [&::-webkit-details-marker]:hidden">
+                <h3>{q.q}</h3><ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <p className="mt-3 text-[0.8125rem] leading-6 text-muted-foreground sm:text-sm sm:leading-7">{q.a}</p>
+            </details>
+          ))}
+        </div>
+        <h2 className="mt-12 text-lg font-black sm:text-xl">شهرهای دیگر</h2>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {cities.filter((c) => c.slug !== city.slug).map((c) => <Link key={c.slug} href={`/city/${c.slug}`} className="rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold transition-colors hover:border-primary/40 hover:text-primary">منوی دیجیتال {c.name}</Link>)}
+        </div>
+        {articles.length > 0 && (
+          <>
+            <h2 className="mt-10 text-lg font-black sm:text-xl">راهنماها</h2>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{articles.slice(0, 3).map((a) => <ArticleCard key={a.slug} a={a} vars={v} />)}</div>
+          </>
+        )}
+        <div className="mt-12"><Cta p={p} /></div>
+      </section>
+    </PlatformShell>
+  );
+}
+
+export function CityIndex({ p, cities }: { p: PublicPlatform; cities: City[] }) {
+  return (
+    <PlatformShell p={p}>
+      <main className={`py-10 sm:py-14 ${container}`}>
+        <Crumbs items={[{ name: p.c.brand.name, href: "/" }, { name: "شهرها" }]} />
+        <h1 className="mt-5 text-[1.6rem] font-black leading-snug sm:text-4xl">منوی دیجیتال در شهرهای ایران</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base sm:leading-8">
+          {p.c.brand.name} کاملاً آنلاین است و کافه‌ها و رستوران‌های هر شهری می‌توانند در چند دقیقه منوی QR و سفارش آنلاینِ خودشان را راه بیندازند.
+        </p>
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {cities.map((c) => (
+            <Link key={c.slug} href={`/city/${c.slug}`} className="group flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-4 font-bold transition-[border-color,box-shadow] hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5">
+              منوی دیجیتال {c.name}<ArrowLeft className="size-4 text-primary transition-transform group-hover:-translate-x-1" />
+            </Link>
+          ))}
+        </div>
+        <div className="mt-14"><Cta p={p} /></div>
       </main>
     </PlatformShell>
   );

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Ban, CalendarPlus, Check, CircleDollarSign, Download, ExternalLink, FileText, Globe, History, KeyRound, LayoutDashboard,
-  Loader2, LogIn, LogOut, Megaphone, Menu as MenuIcon, MessageSquareText, Newspaper, Pencil, Percent, Plus, Receipt, Search, Settings, Store, Trash2, Users, X,
+  Loader2, LogIn, LogOut, Megaphone, Menu as MenuIcon, MessageSquareText, Newspaper, Handshake, MapPin, Pencil, Percent, Plus, Receipt, Search, Settings, Store, Trash2, Users, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -20,6 +20,8 @@ import { Box, L, Modal, STATE, Toggle, downloadCsv, err, fieldCls, smallField, t
 import { Dashboard } from "@/components/platform/admin/dashboard";
 import { ContentEditor } from "@/components/platform/admin/content-editor";
 import { Articles } from "@/components/platform/admin/articles";
+import { Partners } from "@/components/platform/admin/partners";
+import { Cities } from "@/components/platform/admin/cities";
 import { Coupons } from "@/components/platform/admin/coupons";
 import { Notify } from "@/components/platform/admin/notify";
 import { AuditLog } from "@/components/platform/admin/audit";
@@ -28,7 +30,7 @@ import { PlatformCustomers } from "@/components/platform/admin/customers";
 const PAY: Record<string, string> = { pending: "در انتظار", paid: "پرداخت‌شده", failed: "ناموفق", rejected: "ردشده" };
 const METHOD: Record<string, string> = { zarinpal: "زرین‌پال", card: "کارت‌به‌کارت", manual: "دستی" };
 
-type Section = "dashboard" | "tenants" | "customers" | "payments" | "coupons" | "content" | "articles" | "notify" | "audit" | "settings";
+type Section = "dashboard" | "tenants" | "customers" | "payments" | "coupons" | "content" | "articles" | "cities" | "partners" | "notify" | "audit" | "settings";
 const NAV: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "dashboard", label: "داشبورد", icon: LayoutDashboard },
   { id: "tenants", label: "مجموعه‌ها", icon: Store },
@@ -37,6 +39,8 @@ const NAV: { id: Section; label: string; icon: React.ComponentType<{ className?:
   { id: "coupons", label: "کدهای تخفیف", icon: Percent },
   { id: "content", label: "محتوای سایت", icon: FileText },
   { id: "articles", label: "مقالات (وبلاگ)", icon: Newspaper },
+  { id: "cities", label: "صفحه‌های شهرها", icon: MapPin },
+  { id: "partners", label: "همکاران (معرف‌ها)", icon: Handshake },
   { id: "notify", label: "اطلاع‌رسانی", icon: Megaphone },
   { id: "audit", label: "گزارشِ فعالیت", icon: History },
   { id: "settings", label: "تنظیمات", icon: Settings },
@@ -140,6 +144,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
           : section === "coupons" ? <Coupons flash={flash} plans={data.settings.plans} />
           : section === "content" ? <ContentEditor flash={flash} siteUrl={siteUrl} />
           : section === "articles" ? <Articles flash={flash} siteUrl={siteUrl} />
+          : section === "cities" ? <Cities flash={flash} siteUrl={siteUrl} />
+          : section === "partners" ? <Partners flash={flash} />
           : section === "notify" ? <Notify flash={flash} />
           : section === "audit" ? <AuditLog flash={flash} />
           : <PlatformSettingsForm initial={data.settings} reload={load} flash={flash} />}

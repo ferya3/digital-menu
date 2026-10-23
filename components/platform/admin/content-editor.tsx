@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { cn, toFa } from "@/lib/utils";
 import { unwrap } from "@/lib/action-result";
 import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
-import { adminContentAction, adminSaveContentAction, adminUploadCardImageAction, adminUploadLogoAction, adminUploadOgAction } from "@/app/platform/actions";
-import { BRAND_COLORS, DEFAULT_CONTENT, FEATURE_ICONS, ICON_LABELS, type FeatureItem, type SiteContent } from "@/lib/site-content";
+import { adminContentAction, adminCreateDemoAction, adminSaveContentAction, adminUploadCardImageAction, adminUploadLogoAction, adminUploadOgAction } from "@/app/platform/actions";
+import { BRAND_COLORS, DEFAULT_CONTENT, FEATURE_ICONS, ICON_LABELS, type FeatureItem, type SiteContent, type Testimonial } from "@/lib/site-content";
 import { Box, L, Toggle, err, smallField, type Flash } from "./shared";
 
 const SECTIONS = [
   ["brand", "برند و سئو"], ["announce", "نوارِ اعلان"], ["hero", "بالای صفحه"], ["features", "کارت‌های امکانات (کاروسل)"], ["views", "حالت‌های نمایش"], ["steps", "مراحل"],
-  ["pricing", "تعرفه‌ها"], ["faq", "سؤالات"], ["showcase", "پنل و دعوتِ پایانی"], ["footer", "پاورقی و تماس"], ["forms", "ثبت‌نام و ورود"], ["legal", "قوانین"], ["system", "پیام‌های سیستمی"],
+  ["pricing", "تعرفه‌ها"], ["faq", "سؤالات"], ["showcase", "پنل و دعوتِ پایانی"], ["testimonials", "نظرِ مشتری‌ها"], ["footer", "پاورقی و تماس"], ["forms", "ثبت‌نام و ورود"], ["legal", "قوانین"], ["system", "پیام‌های سیستمی"],
 ] as const;
 type Sec = (typeof SECTIONS)[number][0];
 
@@ -155,6 +155,7 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
             <L t="دکمهٔ دوم">{inp(c.hero.ctaSecondary, (v) => set("hero", { ctaSecondary: v }))}</L>
             <L t="نامِ نمونه در تصویرِ گوشی">{inp(c.hero.mockupName, (v) => set("hero", { mockupName: v }))}</L>
           </div>
+          <DemoField c={c} set={set} flash={flash} />
           <L t="ویژگی‌های کوتاهِ زیرِ دکمه‌ها (تیک‌دار)">
             <ListEditor items={c.trust} onChange={(v) => setC({ ...c, trust: v })} make={() => ""} addLabel="مورِد جدید" render={(it, s) => inp(it, s)} />
           </L>
@@ -245,8 +246,15 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
             <L t="واتساپ (شماره)">{inp(c.footer.whatsapp, (v) => set("footer", { whatsapp: v }), "0912…", true)}</L>
             <L t="آدرس">{inp(c.footer.address, (v) => set("footer", { address: v }))}</L>
           </div>
+          <div className="space-y-3 rounded-2xl border border-border bg-background p-3">
+            <Toggle checked={c.footer.floatButton !== false} onChange={(v) => set("footer", { floatButton: v })} label="دکمهٔ شناورِ واتساپ/تماس گوشهٔ صفحه" />
+            <p className="text-[11px] leading-5 text-muted-foreground">از شمارهٔ واتساپ و تلفنِ بالا استفاده می‌کند؛ اگر هر دو خالی باشند نمایش داده نمی‌شود.</p>
+            <L t="پیامِ آماده در واتساپ">{inp(c.footer.floatText, (v) => set("footer", { floatText: v }))}</L>
+          </div>
         </Box>
       )}
+
+      {sec === "testimonials" && <TestimonialsEditor c={c} setC={setC} resetBtn={resetBtn("testimonials")} flash={flash} />}
 
       {sec === "forms" && (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -465,5 +473,78 @@ function GooglePreview({ url, title, description }: { url: string; title: string
       <div className="mt-0.5 text-lg leading-snug text-[#1a0dab] dark:text-[#8ab4f8]">{cut(title || "بدونِ عنوان", 62)}</div>
       <div className="mt-1 text-sm leading-6 text-[#4d5156] dark:text-[#bdc1c6]">{cut(description || "—", 160)}</div>
     </div>
+  );
+}
+
+/* ============================ منوی نمونهٔ زنده ============================ */
+function DemoField({ c, set, flash }: { c: SiteContent; set: (k: "hero", v: Partial<SiteContent["hero"]>) => void; flash: Flash }) {
+  const [busy, setBusy] = useState(false);
+  async function create() {
+    setBusy(true);
+    try {
+      const r = unwrap(await adminCreateDemoAction("cafe"));
+      set("hero", { demoSlug: r.slug });
+      flash("✅ منوی نمونه آماده است؛ «ذخیره» را بزنید تا دکمه‌اش در سایت نمایش داده شود");
+    } catch (e) { flash("❌ " + err(e)); } finally { setBusy(false); }
+  }
+  return (
+    <div className="space-y-3 rounded-2xl border border-primary/25 bg-primary/[0.04] p-3">
+      <div className="text-sm font-extrabold">منوی نمونهٔ زنده</div>
+      <p className="text-xs leading-6 text-muted-foreground">
+        بازدیدکننده با یک کلیک (یا اسکنِ QR از روی مانیتور) یک منوی واقعی را روی گوشی‌اش می‌بیند و حتی سفارشِ آزمایشی می‌دهد. یک مجموعهٔ «demo» با منوی نمونه ساخته می‌شود که منقضی نمی‌شود؛ منو و عکس‌هایش را از «مجموعه‌ها ← demo ← ورود» مثلِ یک مجموعهٔ معمولی ویرایش کنید.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <L t="آدرسِ منوی نمونه (زیردامنه)"><input value={c.hero.demoSlug} onChange={(e) => set("hero", { demoSlug: e.target.value.trim().toLowerCase() })} dir="ltr" placeholder="demo" className={smallField} /></L>
+        <L t="متنِ دکمه"><input value={c.hero.demoLabel} onChange={(e) => set("hero", { demoLabel: e.target.value })} className={smallField} /></L>
+        {!c.hero.demoSlug && <Button type="button" size="sm" className="h-10 rounded-xl" disabled={busy} onClick={create}>{busy ? <Loader2 className="animate-spin" /> : <Plus className="size-4" />} ساختِ منوی نمونه</Button>}
+      </div>
+      <p className="text-[11px] text-muted-foreground">خالی = دکمهٔ منوی نمونه نمایش داده نمی‌شود. می‌توانید آدرسِ منوی یکی از مشتری‌ها را هم (با اجازهٔ خودشان) بگذارید.</p>
+    </div>
+  );
+}
+
+/* ============================ نظرِ مشتری‌ها ============================ */
+function TestimonialsEditor({ c, setC, resetBtn, flash }: { c: SiteContent; setC: (c: SiteContent) => void; resetBtn: React.ReactNode; flash: Flash }) {
+  const [up, setUp] = useState(-1);
+  const tm = c.testimonials;
+  const put = (patch: Partial<SiteContent["testimonials"]>) => setC({ ...c, testimonials: { ...tm, ...patch } });
+  const blank: Testimonial = { name: "", person: "", role: "", city: "", text: "", logo: "" };
+  async function upload(i: number, f: File, set: (v: Testimonial) => void, it: Testimonial) {
+    setUp(i);
+    try { const { url } = unwrap(await adminUploadCardImageAction(imageForm(await compressImage(f, 400, 0.9)))); set({ ...it, logo: url }); }
+    catch (e) { flash("❌ " + err(e)); } finally { setUp(-1); }
+  }
+  return (
+    <Box title="نظرِ مشتری‌ها" action={resetBtn}>
+      <p className="rounded-xl bg-muted/60 p-3 text-xs leading-6 text-muted-foreground">
+        فقط نظرِ واقعیِ مشتری‌ها را با اجازهٔ خودشان بگذارید (نظرِ ساختگی اعتمادِ بازدیدکننده را از بین می‌برد). تا وقتی هیچ نظری اضافه نشده، این بخش در سایت نمایش داده نمی‌شود.
+        لوگوی مجموعه‌ها بالای نظرها هم یک ردیف نمایش داده می‌شود.
+      </p>
+      <L t="تیتر"><input value={tm.title} onChange={(e) => put({ title: e.target.value })} className={smallField} /></L>
+      <L t="زیرتیتر (اختیاری)"><input value={tm.subtitle} onChange={(e) => put({ subtitle: e.target.value })} className={smallField} /></L>
+      <ListEditor items={tm.items} onChange={(v) => put({ items: v })} make={() => ({ ...blank })} addLabel="نظرِ جدید"
+        render={(it, set, i) => (
+          <>
+            <div className="flex items-center gap-3">
+              {it.logo
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={it.logo} alt="" className="size-12 rounded-xl border border-border object-cover" />
+                : <span className="grid size-12 place-items-center rounded-xl bg-muted text-xs text-muted-foreground">لوگو</span>}
+              <label className={cn("flex cursor-pointer items-center gap-1.5 rounded-xl border border-border px-2.5 py-1.5 text-xs font-semibold hover:border-primary/40", up === i && "pointer-events-none opacity-60")}>
+                {up === i ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4 text-primary" />} {it.logo ? "عوض کردنِ لوگو" : "لوگوی مجموعه"}
+                <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload(i, f, set, it); }} />
+              </label>
+              {it.logo && <button type="button" onClick={() => set({ ...it, logo: "" })} className="text-xs text-muted-foreground hover:text-primary">حذف</button>}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input value={it.name} onChange={(e) => set({ ...it, name: e.target.value })} placeholder="نامِ مجموعه (مثلاً کافه لیان)" className={smallField} />
+              <input value={it.city} onChange={(e) => set({ ...it, city: e.target.value })} placeholder="شهر (اختیاری)" className={smallField} />
+              <input value={it.person} onChange={(e) => set({ ...it, person: e.target.value })} placeholder="نامِ شخص (اختیاری)" className={smallField} />
+              <input value={it.role} onChange={(e) => set({ ...it, role: e.target.value })} placeholder="سمت (مثلاً مدیر)" className={smallField} />
+            </div>
+            <textarea value={it.text} onChange={(e) => set({ ...it, text: e.target.value })} rows={3} placeholder="متنِ نظر" className={cn(smallField, "resize-y leading-7")} />
+          </>
+        )} />
+    </Box>
   );
 }

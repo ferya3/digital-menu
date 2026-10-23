@@ -11,7 +11,7 @@ export async function GET() {
   const origin = await siteOrigin();
   if (saasEnabled()) {
     const kind = classifyHost((await requestHost()).host).kind;
-    if (kind === "platform") return txt(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /login\n\nSitemap: ${origin}/sitemap.xml\n`);
+    if (kind === "platform") return txt(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /login\nDisallow: /partner/\nDisallow: /r/\n\nSitemap: ${origin}/sitemap.xml\n`);
     if (kind === "missing") return txt("User-agent: *\nDisallow: /\n");
   }
   try {

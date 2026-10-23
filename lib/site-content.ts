@@ -7,11 +7,14 @@
  * image: عکسِ کارت (کاروسل: کلِ کارت را می‌پوشاند، نسبتِ ۹:۱۰؛ کارتِ بزرگ: جای تصویرِ QR، نسبتِ ۱۶:۱۰)
  */
 export interface FeatureItem { icon: string; title: string; text: string; hidden?: boolean; image?: string }
+/** نظرِ یک مجموعهٔ مشتری */
+export interface Testimonial { name: string; person: string; role: string; city: string; text: string; logo: string }
 export interface SiteContent {
   /** poweredBy: لینکِ کوچکِ «منوی دیجیتال با …» پایینِ منوی مجموعه‌ها (بک‌لینک به سایت) */
   brand: { name: string; logo: string; color: string; seoTitle: string; seoDescription: string; ogImage: string; googleVerification: string; poweredBy: boolean };
   announce: { enabled: boolean; text: string; link: string };
-  hero: { badge: string; title: string; highlight: string; subtitle: string; ctaPrimary: string; ctaSecondary: string; mockupName: string };
+  /** demoSlug: زیردامنهٔ منوی نمونهٔ زنده (خالی = بدونِ دکمهٔ منوی نمونه) */
+  hero: { badge: string; title: string; highlight: string; subtitle: string; ctaPrimary: string; ctaSecondary: string; mockupName: string; demoSlug: string; demoLabel: string };
   /** ویژگی‌های کوتاهِ زیرِ دکمه‌های بالای صفحه (تیک‌دار) */
   trust: string[];
   /** بخشِ معرفیِ پنلِ مدیریت (پس‌زمینهٔ تیره) */
@@ -26,7 +29,10 @@ export interface SiteContent {
   steps: { title: string; items: { title: string; text: string }[] };
   pricing: { title: string; subtitle: string; bullets: string[]; cta: string };
   faq: { title: string; items: { q: string; a: string }[] };
-  footer: { text: string; phone: string; email: string; address: string; instagram: string; telegram: string; whatsapp: string };
+  /** floatButton: دکمهٔ شناورِ واتساپ/تماس؛ floatText: پیامِ آماده در واتساپ */
+  footer: { text: string; phone: string; email: string; address: string; instagram: string; telegram: string; whatsapp: string; floatButton: boolean; floatText: string };
+  /** نظرِ مشتری‌ها (خالی = بخش نمایش داده نمی‌شود؛ فقط نظرِ واقعی بگذارید) */
+  testimonials: { title: string; subtitle: string; items: Testimonial[] };
   signup: { title: string; subtitle: string; button: string; requireTerms: boolean };
   login: { title: string; subtitle: string; help: string };
   legal: { terms: string; privacy: string };
@@ -82,6 +88,8 @@ export const DEFAULT_CONTENT: SiteContent = {
     ctaPrimary: "ساختِ منوی رایگان",
     ctaSecondary: "ورود به پنل",
     mockupName: "کافه رویا",
+    demoSlug: "",
+    demoLabel: "منوی نمونه را زنده ببینید",
   },
   trust: ["بدونِ نیاز به کارت بانکی", "راه‌اندازی در چند دقیقه", "بدونِ نصبِ برنامه برای مشتری"],
   showcase: {
@@ -139,7 +147,8 @@ export const DEFAULT_CONTENT: SiteContent = {
       { q: "برای شروع چه لازم است؟", a: "هیچ! ثبت‌نام کنید، منوی نمونه آماده است؛ فقط محصولات و قیمت‌های خودتان را جایگزین کنید." },
     ],
   },
-  footer: { text: "{brand} — منوی دیجیتالِ کافه و رستوران", phone: "", email: "", address: "", instagram: "", telegram: "", whatsapp: "" },
+  footer: { text: "{brand} — منوی دیجیتالِ کافه و رستوران", phone: "", email: "", address: "", instagram: "", telegram: "", whatsapp: "", floatButton: true, floatText: "سلام، دربارهٔ منوی دیجیتالِ {brand} سؤال دارم." },
+  testimonials: { title: "مجموعه‌هایی که به ما اعتماد کرده‌اند", subtitle: "", items: [] },
   signup: { title: "ساختِ منوی دیجیتال", subtitle: "{trialDays} روزِ اول رایگان است؛ بدونِ نیاز به کارت بانکی.", button: "ساختِ منو", requireTerms: false },
   login: { title: "ورود به پنلِ مدیریت", subtitle: "آدرسِ منوی مجموعه‌تان را وارد کنید.", help: "آدرس یا رمز را فراموش کرده‌اید؟ با پشتیبانی تماس بگیرید." },
   legal: {

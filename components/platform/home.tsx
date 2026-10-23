@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
   ArrowLeft, BellRing, CakeSlice, Check, ChevronDown, Coffee, CupSoda, IceCreamCone, Instagram, LayoutDashboard, Mail, MapPin,
-  Phone, Pizza, QrCode, Send, ShieldCheck, Sparkles, Store, TrendingUp, UtensilsCrossed,
+  Phone, Pizza, QrCode, Quote, Send, ShieldCheck, Smartphone, Sparkles, Store, TrendingUp, UtensilsCrossed,
 } from "lucide-react";
 import { money, toFa } from "@/lib/utils";
 import { colorHsl, type SiteContent } from "@/lib/site-content";
@@ -11,6 +11,8 @@ import { FeatureCarousel } from "@/components/platform/feature-carousel";
 import { MenuModesShowcase } from "@/components/platform/menu-modes-showcase";
 import { DeckCarousel } from "@/components/platform/deck-carousel";
 import { SOLUTIONS } from "@/lib/solutions";
+import { ContactFab } from "@/components/platform/contact-fab";
+import type { DemoInfo } from "@/app/platform/demo";
 
 export interface PublicPlatform {
   trialDays: number; allowSignup: boolean; plans: Plan[]; root: string; otp: boolean;
@@ -51,6 +53,7 @@ export function PlatformShell({ p, children }: { p: PublicPlatform; children: Re
         {children}
         <PlatformFooter p={p} />
       </div>
+      {c.footer.floatButton !== false && <ContactFab whatsapp={c.footer.whatsapp} phone={c.footer.phone} text={c.footer.floatText} />}
     </div>
   );
 }
@@ -185,6 +188,22 @@ function DashboardMock() {
   );
 }
 
+/** «منوی واقعی را امتحان کنید»: روی گوشی دکمه، روی مانیتور QR برای اسکن با گوشی */
+export function DemoTry({ demo }: { demo: DemoInfo }) {
+  return (
+    <div className="mx-auto mt-10 flex max-w-3xl flex-col items-center gap-5 rounded-[2rem] border border-primary/20 bg-gradient-to-br from-primary/[0.08] to-transparent p-5 text-center sm:mt-14 sm:flex-row sm:p-6 sm:text-start">
+      <span aria-hidden className="hidden size-32 shrink-0 overflow-hidden rounded-2xl border border-border bg-white p-2 shadow-lg sm:block [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: demo.qr }} />
+      <div className="flex-1">
+        <h3 className="text-lg font-black sm:text-xl">همین حالا یک منوی واقعی را امتحان کنید</h3>
+        <p className="mt-1.5 text-sm leading-7 text-muted-foreground">
+          <span className="hidden sm:inline">QR را با دوربینِ گوشی اسکن کنید؛ </span>منوی نمونه دقیقاً همان چیزی است که مشتری‌های شما می‌بینند — حتی می‌توانید سفارشِ آزمایشی بدهید.
+        </p>
+        <a href={demo.url} target="_blank" rel="noopener" className={`${btnPrimary} mt-4`}><Smartphone className="size-4" />{demo.label}</a>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------------- صفحهٔ اصلی ---------------------------------- */
 
 export function SectionHead({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
@@ -200,7 +219,7 @@ export function SectionHead({ eyebrow, title, subtitle }: { eyebrow: string; tit
 /** خلاصهٔ مقاله برای بخشِ «راهنماها»ی صفحهٔ اصلی (متغیرها از قبل جایگذاری‌شده) */
 export interface ArticleTeaser { slug: string; title: string; description: string }
 
-export function PlatformHome({ p, articles = [] }: { p: PublicPlatform; articles?: ArticleTeaser[] }) {
+export function PlatformHome({ p, articles = [], demo = null, cities = [] }: { p: PublicPlatform; articles?: ArticleTeaser[]; demo?: DemoInfo | null; cities?: { slug: string; name: string }[] }) {
   const { c } = p;
   const [big, ...rest] = c.features.items.filter((f) => !f.hidden);
   return (
@@ -252,6 +271,11 @@ export function PlatformHome({ p, articles = [] }: { p: PublicPlatform; articles
                 <Link href="/login" className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-white/20 sm:h-12 bg-white/5 px-6 font-bold text-white backdrop-blur transition-colors duration-200 hover:bg-white/10">{c.hero.ctaSecondary}</Link>
               )}
             </div>
+            {demo && (
+              <a href={demo.url} target="_blank" rel="noopener" className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-white/85 underline-offset-4 hover:text-white hover:underline">
+                <Smartphone className="size-4 text-primary" />{demo.label}<ArrowLeft className="size-3.5" />
+              </a>
+            )}
             {c.trust.length > 0 && (
               <ul className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-white/70 sm:mt-8 sm:gap-x-6 sm:text-sm lg:justify-start">
                 {c.trust.map((t) => <li key={t} className="flex items-center gap-1.5"><Check className="size-4 text-primary" /> {t}</li>)}
@@ -317,6 +341,7 @@ export function PlatformHome({ p, articles = [] }: { p: PublicPlatform; articles
           <div className={`relative ${container}`}>
             <SectionHead eyebrow="حالت‌های نمایش" title={c.views.title} subtitle={c.views.subtitle} />
             <MenuModesShowcase v={c.views} cafeName={c.hero.mockupName} />
+            {demo && <DemoTry demo={demo} />}
           </div>
         </section>
       )}
@@ -364,6 +389,40 @@ export function PlatformHome({ p, articles = [] }: { p: PublicPlatform; articles
           </div>
         </div>
       </section>
+
+      {/* ===== نظرِ مشتری‌ها (فقط اگر از پنل اضافه شده باشد) ===== */}
+      {c.testimonials.items.length > 0 && (
+        <section id="testimonials" className={`scroll-mt-24 pb-16 sm:pb-24 ${container}`}>
+          <SectionHead eyebrow="مشتریانِ ما" title={c.testimonials.title} subtitle={c.testimonials.subtitle} />
+          {/* ردیفِ لوگوها */}
+          {c.testimonials.items.some((t) => t.logo) && (
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:mt-10">
+              {c.testimonials.items.filter((t) => t.logo).map((t) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={t.name} src={t.logo} alt={t.name} title={t.name} loading="lazy" className="h-12 w-auto max-w-28 rounded-xl object-contain grayscale transition duration-300 hover:grayscale-0 sm:h-14" />
+              ))}
+            </div>
+          )}
+          <div className="mt-8 columns-1 gap-4 sm:mt-10 sm:columns-2 lg:columns-3">
+            {c.testimonials.items.map((t, i) => (
+              <figure key={i} className="mb-4 break-inside-avoid rounded-3xl border border-border bg-card p-5 sm:p-6">
+                <Quote aria-hidden className="size-7 text-primary/30" />
+                <blockquote className="mt-2 whitespace-pre-line text-sm leading-7 text-foreground/85 sm:text-[0.95rem] sm:leading-8">{t.text}</blockquote>
+                <figcaption className="mt-4 flex items-center gap-3 border-t border-border pt-4">
+                  {t.logo
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={t.logo} alt="" className="size-11 shrink-0 rounded-xl border border-border object-cover" />
+                    : <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 font-black text-primary">{t.name.slice(0, 1)}</span>}
+                  <div className="min-w-0 text-sm">
+                    <b className="block truncate">{t.name}{t.city && <span className="font-normal text-muted-foreground"> · {t.city}</span>}</b>
+                    {(t.person || t.role) && <span className="text-xs text-muted-foreground">{[t.person, t.role].filter(Boolean).join("، ")}</span>}
+                  </div>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ===== تعرفه‌ها ===== */}
       <section id="pricing" className={`scroll-mt-24 pb-16 sm:pb-28 ${container}`}>
@@ -420,6 +479,12 @@ export function PlatformHome({ p, articles = [] }: { p: PublicPlatform; articles
             </div>
             <div className="mt-6 text-center"><Link href="/blog" className="inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline">همهٔ مقالات<ArrowLeft className="size-4" /></Link></div>
           </>
+        )}
+        {cities.length > 0 && (
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-2 text-sm">
+            <span className="font-semibold text-muted-foreground">در شهرِ شما:</span>
+            {cities.map((x) => <Link key={x.slug} href={`/city/${x.slug}`} className="rounded-full border border-border bg-card px-3 py-1.5 font-semibold transition-colors hover:border-primary/40 hover:text-primary">{x.name}</Link>)}
+          </div>
         )}
       </section>
 
@@ -500,6 +565,7 @@ export function PlatformFooter({ p }: { p: PublicPlatform }) {
           <ul className="mt-4 space-y-2.5">
             {SOLUTIONS.map((x) => <li key={x.slug}><Link href={`/${x.slug}`} className={col}>{x.label}</Link></li>)}
             <li><Link href="/blog" className={col}>مقالات و آموزش‌ها</Link></li>
+            <li><Link href="/city" className={col}>منوی دیجیتال در شهرها</Link></li>
           </ul>
         </div>
         <div>

@@ -74,6 +74,23 @@ export function middleware(req: NextRequest) {
 
   if (!onRoot) return secure(req);
 
+  // لینکِ همکار: /r/<code> یا ?ref=<code> ← کوکی (۶۰ روز) و برگشت به آدرسِ تمیز (بدونِ ref، تا صفحهٔ تکراری ساخته نشود)
+  const refPath = url.pathname.match(/^\/r\/([A-Za-z0-9-]{3,20})\/?$/);
+  const refQuery = url.searchParams.get("ref");
+  if (refPath || refQuery) {
+    const code = (refPath?.[1] || refQuery || "").toLowerCase();
+    const proto = req.headers.get("x-forwarded-proto") === "https" ? "https" : "http";
+    const port = rawHost.match(/:\d+$/)?.[0] || "";
+    const clean = new URL(url.toString());
+    clean.searchParams.delete("ref");
+    const target = refPath ? "/" : `${clean.pathname}${clean.search}`;
+    const res = NextResponse.redirect(`${proto}://${r}${port}${target}`, 302);
+    if (/^[a-z0-9][a-z0-9-]{2,19}$/.test(code)) {
+      res.cookies.set("pref", code, { maxAge: 60 * 24 * 3600, path: "/", sameSite: "lax", httpOnly: true, secure: proto === "https" });
+    }
+    return secure(req, res);
+  }
+
   // www → دامنهٔ اصلی (۳۰۱): گوگل دو نسخهٔ تکراری از سایت نبیند
   if (host === `www.${r}`) {
     const proto = req.headers.get("x-forwarded-proto") === "https" ? "https" : "http";

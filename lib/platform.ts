@@ -53,7 +53,7 @@ export function pdb(): DatabaseSync {
     -- پیامکِ گروهی به صاحبانِ مجموعه‌ها
     CREATE TABLE IF NOT EXISTS owner_sms (id TEXT PRIMARY KEY, at TEXT, message TEXT, audience TEXT, total INTEGER, sent INTEGER DEFAULT 0, failed INTEGER DEFAULT 0, status TEXT DEFAULT 'running');
   `);
-  for (const sql of ["ALTER TABLE payments ADD COLUMN coupon TEXT DEFAULT ''", "ALTER TABLE payments ADD COLUMN discount INTEGER DEFAULT 0", "ALTER TABLE payments ADD COLUMN list_price INTEGER DEFAULT 0"]) {
+  for (const sql of ["ALTER TABLE tenants ADD COLUMN ref TEXT DEFAULT ''", "ALTER TABLE payments ADD COLUMN coupon TEXT DEFAULT ''", "ALTER TABLE payments ADD COLUMN discount INTEGER DEFAULT 0", "ALTER TABLE payments ADD COLUMN list_price INTEGER DEFAULT 0"]) {
     try { d.exec(sql); } catch { /* ستون از قبل هست */ }
   }
   g.__platformDb = d;
@@ -167,12 +167,14 @@ export interface Tenant {
   slug: string; name: string; kind: BusinessKind; ownerName: string; ownerPhone: string;
   status: "active" | "suspended"; plan: string; expiresAt: string; domain: string;
   note: string; createdAt: string; lastSeen: string;
+  /** کدِ همکارِ معرف (خالی = بدونِ معرف) */
+  ref: string;
 }
-type Row = { slug: string; name: string; kind: string; owner_name: string; owner_phone: string; status: string; plan: string; expires_at: string; domain: string; note: string; created_at: string; last_seen: string };
+type Row = { slug: string; name: string; kind: string; owner_name: string; owner_phone: string; status: string; plan: string; expires_at: string; domain: string; note: string; created_at: string; last_seen: string; ref?: string };
 const toTenant = (r: Row): Tenant => ({
   slug: r.slug, name: r.name, kind: (r.kind || "cafe") as BusinessKind, ownerName: r.owner_name, ownerPhone: r.owner_phone,
   status: r.status === "suspended" ? "suspended" : "active", plan: r.plan, expiresAt: r.expires_at, domain: r.domain || "",
-  note: r.note || "", createdAt: r.created_at, lastSeen: r.last_seen || "",
+  note: r.note || "", createdAt: r.created_at, lastSeen: r.last_seen || "", ref: r.ref || "",
 });
 export function getTenant(slug: string): Tenant | null {
   const r = pdb().prepare("SELECT * FROM tenants WHERE slug = ?").get(slug) as unknown as Row | undefined;
@@ -197,11 +199,11 @@ export function tenantState(t: Tenant): { state: TenantStateName; active: boolea
 }
 
 const RESERVED = new Set("www admin api app apps mail email smtp ftp ns ns1 ns2 cdn static assets platform panel staff dashboard billing pay signup login register help support blog docs test dev demo root status shop store menu account accounts portal secure server host".split(" "));
-export function validateSlug(raw: string): string {
+export function validateSlug(raw: string, allowReserved = false): string {
   const slug = String(raw || "").trim().toLowerCase();
   if (!/^[a-z][a-z0-9-]{2,29}$/.test(slug) || slug.endsWith("-") || slug.includes("--"))
     throw new Error("آدرس باید ۳ تا ۳۰ حرفِ انگلیسیِ کوچک/عدد/خط‌تیره باشد و با حرف شروع شود (مثل: cafe-roya)");
-  if (RESERVED.has(slug)) throw new Error("این آدرس رزرو شده است؛ آدرسِ دیگری انتخاب کنید");
+  if (RESERVED.has(slug) && !allowReserved) throw new Error("این آدرس رزرو شده است؛ آدرسِ دیگری انتخاب کنید");
   return slug;
 }
 export function slugAvailable(slug: string): boolean {
@@ -211,10 +213,14 @@ export function slugAvailable(slug: string): boolean {
 export interface NewTenant {
   slug: string; name: string; kind: BusinessKind; ownerName: string; ownerPhone: string;
   password: string; sample: boolean; days?: number; plan?: string; note?: string;
+  /** کدِ همکارِ معرف */
+  ref?: string;
+  /** آدرس‌های رزرو (مثل demo) فقط برای مجموعه‌های خودِ پلتفرم */
+  reserved?: boolean;
 }
 /** ساختِ مجموعهٔ تازه: رکورد + پوشه + دیتابیس با منوی نمونه + رمزِ پنل */
 export function createTenant(input: NewTenant): Tenant {
-  const slug = validateSlug(input.slug);
+  const slug = validateSlug(input.slug, input.reserved);
   const name = String(input.name || "").trim().slice(0, 60);
   if (name.length < 2) throw new Error("نامِ مجموعه را وارد کنید");
   if (!slugAvailable(slug)) throw new Error("این آدرس قبلاً گرفته شده است");
@@ -223,10 +229,10 @@ export function createTenant(input: NewTenant): Tenant {
   const days = input.days ?? platformSettings().trialDays;
   const now = new Date();
   pdb().prepare(
-    `INSERT INTO tenants (slug, name, kind, owner_name, owner_phone, status, plan, expires_at, note, created_at)
-     VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`
+    `INSERT INTO tenants (slug, name, kind, owner_name, owner_phone, status, plan, expires_at, note, created_at, ref)
+     VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`
   ).run(slug, name, kind, String(input.ownerName || "").trim().slice(0, 60), String(input.ownerPhone || ""), input.plan || "trial",
-    new Date(now.getTime() + days * DAY).toISOString(), input.note || "", now.toISOString());
+    new Date(now.getTime() + days * DAY).toISOString(), input.note || "", now.toISOString(), String(input.ref || "").slice(0, 30));
   try {
     runAsTenant(slug, () => {
       initTenantDb({ kind, name, sample: input.sample });

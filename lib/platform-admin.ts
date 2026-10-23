@@ -12,6 +12,8 @@ import {
 import { DEFAULT_CONTENT, fill, mergeContent, type SiteContent } from "@/lib/site-content";
 import { SLUG_RE, type Article } from "@/lib/articles";
 import { SEED_ARTICLES } from "@/lib/article-seeds";
+import { CITY_SLUG, SEED_CITIES, normCity, type City } from "@/lib/cities";
+import { unseal } from "@/lib/secret-box";
 import { toFa } from "@/lib/utils";
 
 const DAY = 86_400_000;
@@ -56,6 +58,13 @@ export function saveSiteContent(input: SiteContent) {
     pricing: { title: clip(c.pricing.title, 200), subtitle: clip(c.pricing.subtitle, 300), bullets: c.pricing.bullets.slice(0, 10).map((b) => clip(b, 80)).filter(Boolean), cta: clip(c.pricing.cta, 60) },
     faq: { title: clip(c.faq.title, 200), items: c.faq.items.slice(0, 30).map((f) => ({ q: clip(f.q, 200), a: clip(f.a, 1500) })).filter((f) => f.q) },
     footer: t(c.footer, 300) as SiteContent["footer"],
+    testimonials: {
+      title: clip(c.testimonials.title, 200), subtitle: clip(c.testimonials.subtitle, 300),
+      items: c.testimonials.items.slice(0, 24).map((x) => ({
+        name: clip(x.name, 60).trim(), person: clip(x.person, 60).trim(), role: clip(x.role, 60).trim(), city: clip(x.city, 40).trim(),
+        text: clip(x.text, 500).trim(), logo: CARD_IMG.test(x.logo || "") ? x.logo : "",
+      })).filter((x) => x.name && x.text),
+    },
     signup: { ...(t(c.signup, 300) as SiteContent["signup"]), requireTerms: !!c.signup.requireTerms },
     login: t(c.login, 300) as SiteContent["login"],
     legal: { terms: clip(c.legal.terms, 30000), privacy: clip(c.legal.privacy, 30000) },
@@ -297,10 +306,14 @@ export function platformStats(): PlatformStats {
   const payments = listPayments(undefined, 5000).filter((p) => p.status === "paid");
   const months: PlatformStats["months"] = [];
   const idx = new Map<string, number>();
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(); d.setDate(15); d.setMonth(d.getMonth() - i);
-    const m = jMonth(d);
-    if (idx.has(m.key)) continue;
+  // ۱۲ ماهِ شمسیِ اخیر (ماهِ جاری آخر). از امروز با گام‌های چندروزه عقب می‌رویم؛
+  // مرزِ ماهِ شمسی وسطِ ماهِ میلادی است و ساختن از «روزِ ۱۵ِ هر ماهِ میلادی» ماهِ جاری را بعد از ~۲۲ام جا می‌انداخت
+  const keys: { key: string; label: string }[] = [];
+  for (let back = 0; keys.length < 12 && back < 400; back += 7) {
+    const m = jMonth(new Date(Date.now() - back * DAY));
+    if (!keys.some((k) => k.key === m.key)) keys.push(m);
+  }
+  for (const m of keys.reverse()) {
     idx.set(m.key, months.length);
     months.push({ ...m, signups: 0, revenue: 0 });
   }
@@ -391,4 +404,58 @@ export function saveArticle(input: Article, prevSlug?: string): Article {
 }
 export function deleteArticle(slug: string) {
   rawSet("articles", listArticles().filter((a) => a.slug !== slug));
+}
+
+/* ============================ صفحه‌های شهری ============================ */
+export function listCities(): City[] {
+  return rawGet<City[] | null>("cities", null) ?? SEED_CITIES;
+}
+export function getCity(slug: string): City | undefined {
+  return listCities().find((c) => c.slug === slug);
+}
+export function saveCity(input: City, prevSlug?: string): City {
+  const c: City = {
+    slug: clip(input.slug, 30).trim().toLowerCase(),
+    name: clip(input.name, 40).trim(),
+    intro: clip(input.intro, 2000).trim(),
+    body: clip(input.body, 30000),
+    published: !!input.published,
+    updated: new Date().toISOString().slice(0, 10),
+  };
+  if (!CITY_SLUG.test(c.slug)) throw new Error("آدرسِ صفحه فقط حروفِ انگلیسیِ کوچک، عدد و خط‌تیره (مثل shiraz)");
+  if (!c.name) throw new Error("نامِ شهر را وارد کنید");
+  const rest = listCities().filter((x) => x.slug !== (prevSlug || c.slug));
+  if (rest.some((x) => x.slug === c.slug)) throw new Error("صفحه‌ای با این آدرس وجود دارد");
+  rawSet("cities", [...rest, c].sort((a, b) => a.name.localeCompare(b.name, "fa")));
+  return c;
+}
+export function deleteCity(slug: string) {
+  rawSet("cities", listCities().filter((c) => c.slug !== slug));
+}
+
+/** شهرِ هر مجموعه (از تنظیماتِ خودش) — ۱۰ دقیقه در حافظه، چون باید دیتابیسِ همهٔ مجموعه‌ها خوانده شود */
+const cityCache = globalThis as unknown as { __tenantCities?: { at: number; map: Map<string, string> } };
+function tenantCities(): Map<string, string> {
+  const c = cityCache.__tenantCities;
+  if (c && Date.now() - c.at < 10 * 60_000) return c.map;
+  const map = new Map<string, string>();
+  for (const t of listTenants()) {
+    const file = path.join(tenantDirOf(t.slug), "cafe.db");
+    if (!fs.existsSync(file)) continue;
+    try {
+      const d = new DatabaseSync(file, { readOnly: true });
+      const r = d.prepare("SELECT value FROM settings WHERE key = 'cafe'").get() as { value: string } | undefined;
+      d.close();
+      const city = r ? String((JSON.parse(unseal(r.value)) as { city?: string }).city || "") : "";
+      if (city) map.set(t.slug, normCity(city));
+    } catch { /* دیتابیسِ خراب یا قفل: رد شو */ }
+  }
+  cityCache.__tenantCities = { at: Date.now(), map };
+  return map;
+}
+/** منوهای فعال و عمومیِ یک شهر (برای صفحهٔ همان شهر؛ منوی نمونه و منقضی‌ها نه) */
+export function tenantsInCity(name: string): Tenant[] {
+  const key = normCity(name);
+  const map = tenantCities();
+  return listTenants().filter((t) => t.plan !== "demo" && map.get(t.slug) === key && tenantState(t).active).slice(0, 24);
 }

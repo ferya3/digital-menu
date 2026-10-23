@@ -23,9 +23,10 @@ function Label({ text, hint, children }: { text: string; hint?: React.ReactNode;
 
 const toLatinDigits = (s: string) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
 
-export function SignupForm({ root, otp, kinds, texts }: { root: string; otp: boolean; kinds: Record<BusinessKind, string>; texts: { title: string; subtitle: string; button: string; requireTerms: boolean } }) {
+export function SignupForm({ root, otp, kinds, texts, refCode = "" }: { root: string; otp: boolean; kinds: Record<BusinessKind, string>; texts: { title: string; subtitle: string; button: string; requireTerms: boolean }; refCode?: string }) {
   const [accepted, setAccepted] = useState(false);
-  const [f, setF] = useState({ name: "", kind: "cafe" as BusinessKind, slug: "", ownerName: "", phone: "", password: "", code: "", sample: true, website: "" });
+  const [f, setF] = useState({ name: "", kind: "cafe" as BusinessKind, slug: "", ownerName: "", phone: "", password: "", code: "", sample: true, website: "", ref: refCode });
+  const [showRef, setShowRef] = useState(!!refCode);
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   const [slugState, setSlugState] = useState<{ ok: boolean; message: string } | null>(null);
   const [codeSent, setCodeSent] = useState(false);
@@ -110,6 +111,13 @@ export function SignupForm({ root, otp, kinds, texts }: { root: string; otp: boo
         <Label text="رمزِ پنلِ مدیریت" hint="حداقل ۸ نویسه؛ با همین رمز وارد پنلِ مجموعه می‌شوید">
           <input required type="password" minLength={8} value={f.password} onChange={(e) => set({ password: e.target.value })} className={fieldCls} autoComplete="new-password" />
         </Label>
+        {showRef ? (
+          <Label text="کدِ معرف (اختیاری)" hint={refCode ? "از طریقِ لینکِ همکار آمده‌اید" : "اگر کسی ما را به شما معرفی کرده، کدش را وارد کنید"}>
+            <input value={f.ref} onChange={(e) => set({ ref: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} dir="ltr" className={fieldCls} maxLength={20} />
+          </Label>
+        ) : (
+          <button type="button" onClick={() => setShowRef(true)} className="text-start text-xs font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">کدِ معرف دارید؟</button>
+        )}
         {/* تلهٔ ربات‌ها: برای انسان دیده نمی‌شود */}
         <input tabIndex={-1} autoComplete="off" value={f.website} onChange={(e) => set({ website: e.target.value })} className="hidden" aria-hidden name="website" />
         <label className="flex cursor-pointer items-center gap-2 text-sm">

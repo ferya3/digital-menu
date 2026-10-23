@@ -2,7 +2,7 @@ import { saasEnabled } from "@/lib/tenant-context";
 import { classifyHost, requestHost, withTenant } from "@/lib/tenant";
 import { siteOrigin, tenantIndexable } from "@/lib/seo";
 import { getMenu } from "@/lib/queries";
-import { publishedArticles } from "@/lib/platform-admin";
+import { listCities, publishedArticles } from "@/lib/platform-admin";
 import { SOLUTIONS } from "@/lib/solutions";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +28,8 @@ export async function GET() {
         ...SOLUTIONS.map((x) => ({ loc: `${origin}/${x.slug}`, priority: "0.9", freq: "monthly" })),
         { loc: `${origin}/blog`, priority: "0.8", freq: "weekly", lastmod: posts[0]?.updated },
         ...posts.map((a) => ({ loc: `${origin}/blog/${a.slug}`, priority: "0.7", freq: "monthly", lastmod: a.updated || a.date })),
+        { loc: `${origin}/city`, priority: "0.6", freq: "monthly" },
+        ...listCities().filter((c) => c.published).map((c) => ({ loc: `${origin}/city/${c.slug}`, priority: "0.7", freq: "monthly", lastmod: c.updated })),
         { loc: `${origin}/signup`, priority: "0.6", freq: "monthly" },
         { loc: `${origin}/terms`, priority: "0.3", freq: "yearly" },
         { loc: `${origin}/privacy`, priority: "0.3", freq: "yearly" },

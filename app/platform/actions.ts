@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { assertNotLocked, checkCode, hit, issueCode } from "@/lib/limits";
 import { clientIp } from "@/lib/security";
 import { saasEnabled, rootDomain } from "@/lib/tenant-context";
-import { classifyHost, requestHost, requestProto, tenantUrl } from "@/lib/tenant";
+import { classifyHost, platformUrl, requestHost, requestProto, tenantUrl } from "@/lib/tenant";
 import {
   checkPlatformAdmin, createPayment, createTenant, deleteTenant, extendTenant, getPayment, getTenant,
   listPayments, listTenants, markPaymentFailed, markPaymentPaid, platformAdminConfigured, platformSettings,
@@ -23,12 +23,14 @@ import type { ActionFail } from "@/lib/action-result";
 import {
   announcement, applyCoupon, audit, deleteCoupon, listAudit, listCoupons, listOwnerSms, listReminders,
   notifySettings, ownersFor, platformStats, runReminders, saveAnnouncement, saveCoupon, saveNotifySettings, savePlatformLogo,
-  saveSiteContent, siteContent, startOwnerSms, allCustomers, savePlatformOgImage, savePlatformCardImage, listArticles, saveArticle, deleteArticle,
+  saveSiteContent, siteContent, startOwnerSms, allCustomers, savePlatformOgImage, savePlatformCardImage, listArticles, saveArticle, deleteArticle, listCities, saveCity, deleteCity,
   type Announcement, type AuditRow, type Coupon, type NotifySettings, type OwnerAudience, type PlatformStats, type PlatformCustomer,
 } from "@/lib/platform-admin";
 import { readUpload } from "@/lib/images";
 import type { SiteContent } from "@/lib/site-content";
 import type { Article } from "@/lib/articles";
+import type { City } from "@/lib/cities";
+import { REF_COOKIE, activeRef, addPayout, deletePartner, getPartner, listPartners, partnerStats, savePartner, type Partner, type PartnerStats } from "@/lib/partners";
 
 /** خطای فارسی به مرورگر برسد (Next در production پیامِ خطای اکشن را پنهان می‌کند) */
 async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
@@ -76,6 +78,8 @@ export async function signupOtpAction(rawPhone: string) {
 export interface SignupInput {
   name: string; kind: BusinessKind; slug: string; ownerName: string; phone: string;
   password: string; code?: string; sample: boolean; website?: string;
+  /** کدِ همکارِ معرف (اختیاری؛ اگر خالی باشد از کوکیِ لینکِ همکار) */
+  ref?: string;
 }
 /** ساختِ مجموعه + دورهٔ آزمایشی؛ خروجی: آدرسِ ورودِ خودکار به پنلِ مجموعه */
 export async function signupAction(input: SignupInput) {
@@ -90,6 +94,7 @@ export async function signupAction(input: SignupInput) {
     const t = createTenant({
       slug: input.slug, name: input.name, kind: input.kind, ownerName: input.ownerName, ownerPhone: phone,
       password: input.password, sample: input.sample,
+      ref: activeRef(input.ref) || activeRef((await cookies()).get(REF_COOKIE)?.value),
     });
     audit(input.ownerName || phone, "ثبت‌نامِ آنلاینِ مجموعه", t.slug, `${t.name} · ${phone}`, await clientIp());
     return { ...(await enterLink(t)), slug: t.slug, trialDays: ps.trialDays };
@@ -319,6 +324,64 @@ export async function adminUploadCardImageAction(fd: FormData) {
     return { url: await savePlatformCardImage(buf) };
   });
 }
+/* ---------- صفحه‌های شهری ---------- */
+export async function adminCitiesAction() {
+  return adminGuard((): City[] => listCities());
+}
+export async function adminSaveCityAction(c: City, prevSlug?: string) {
+  return adminGuard(async () => { const saved = saveCity(c, prevSlug); await log(prevSlug ? "ویرایشِ صفحهٔ شهر" : "صفحهٔ شهرِ جدید", saved.slug, saved.name); return saved; });
+}
+export async function adminDeleteCityAction(slug: string) {
+  return adminGuard(async () => { deleteCity(slug); await log("حذفِ صفحهٔ شهر", slug); return true; });
+}
+
+/* ---------- همکاران (معرف‌ها) ---------- */
+export type AdminPartner = Partner & { stats: PartnerStats; link: string; dashboard: string };
+export async function adminPartnersAction() {
+  return adminGuard(async (): Promise<AdminPartner[]> => {
+    const base = await platformUrl("");
+    return listPartners().map((p) => ({ ...p, stats: partnerStats(p), link: `${base}/r/${p.code}`, dashboard: `${base}/partner/${p.token}` }));
+  });
+}
+export async function adminSavePartnerAction(p: Partial<Partner> & { code: string }, prevCode?: string) {
+  return adminGuard(async () => {
+    const saved = savePartner(p, prevCode);
+    await log(prevCode ? "ویرایشِ همکار" : "همکارِ جدید", saved.code, `${saved.name} · ${saved.percent}٪`);
+    return saved.code;
+  });
+}
+export async function adminDeletePartnerAction(code: string) {
+  return adminGuard(async () => { deletePartner(code); await log("حذفِ همکار", code); return true; });
+}
+export async function adminPayoutAction(code: string, amount: number, note: string) {
+  return adminGuard(async () => {
+    if (!getPartner(code)) throw new Error("همکار پیدا نشد");
+    addPayout(code, amount, note);
+    await log("تسویهٔ پورسانتِ همکار", code, `${amount} تومان`);
+    return true;
+  });
+}
+
+/* ---------- منوی نمونهٔ زنده ---------- */
+/** ساختِ مجموعهٔ «demo» با منوی نمونه که هیچ‌وقت منقضی نمی‌شود (برای دکمهٔ «منوی نمونه» در سایت) */
+export async function adminCreateDemoAction(kind: BusinessKind = "cafe") {
+  return adminGuard(async () => {
+    const slug = "demo";
+    let t = getTenant(slug);
+    if (!t) {
+      t = createTenant({
+        slug, name: kind === "restaurant" ? "رستوران نمونه" : kind === "fastfood" ? "فست‌فود نمونه" : "کافه نمونه", kind,
+        ownerName: "منوی نمونهٔ سایت", ownerPhone: "", password: crypto.randomBytes(18).toString("base64url"),
+        sample: true, days: 36500, plan: "demo", note: "منوی نمونهٔ زندهٔ سایت (دکمهٔ «منوی نمونه»)", reserved: true,
+      });
+      await log("ساختِ منوی نمونه", slug);
+    }
+    const host = `${slug}.${rootDomain()}`;
+    if ((await requestProto()) === "https" && process.env.AUTO_SSL === "1") await ensureCert(host);
+    return { slug, url: await tenantUrl(t, "/?table=1") };
+  });
+}
+
 /* ---------- مقاله‌ها ---------- */
 export async function adminArticlesAction() {
   return adminGuard((): Article[] => listArticles());
