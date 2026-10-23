@@ -1,5 +1,6 @@
 "use server";
 
+import { demoFail, demoHints, demoMode } from "@/lib/demo";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { assertNotLocked, checkCode, hit, issueCode } from "@/lib/limits";
@@ -62,6 +63,7 @@ export async function checkSlugAction(raw: string): Promise<{ ok: boolean; slug:
 }
 
 export async function signupOtpAction(rawPhone: string) {
+  if (demoMode()) return demoFail();
   return guard(async () => {
     const phone = normalizePhone(rawPhone);
     if (!isValidPhone(phone)) throw new Error("Invalid phone number — include the country code, e.g. +1 555 123 4567");
@@ -84,6 +86,7 @@ export interface SignupInput {
 }
 /** Create a venue + free trial; returns an auto-login link to the venue dashboard */
 export async function signupAction(input: SignupInput) {
+  if (demoMode()) return demoFail();
   return guard(async () => {
     const ps = platformSettings();
     if (!ps.allowSignup) throw new Error("Online signup is currently closed — please contact support");
@@ -145,10 +148,11 @@ async function adminGuard<T>(fn: () => Promise<T> | T) {
   });
 }
 
-export async function adminStatusAction(): Promise<{ authed: boolean; configured: boolean }> {
+export async function adminStatusAction(): Promise<{ authed: boolean; configured: boolean; demo?: { password: string; resetHours: number } | null }> {
   try {
     await assertPlatformHost();
-    return { authed: await isPlatformAdmin(), configured: platformAdminConfigured() };
+    const d = demoHints();
+    return { authed: await isPlatformAdmin(), configured: platformAdminConfigured(), demo: d ? { password: d.admin, resetHours: d.resetHours } : null };
   } catch {
     return { authed: false, configured: false };
   }
@@ -205,6 +209,7 @@ export async function adminDataAction() {
 }
 
 export async function adminCreateTenantAction(input: { slug: string; name: string; kind: BusinessKind; ownerName: string; phone: string; password: string; months: number; sample: boolean }) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const phone = input.phone ? normalizePhone(input.phone) : "";
     if (phone && !isValidPhone(phone)) throw new Error("Invalid phone number — include the country code, e.g. +1 555 123 4567");
@@ -220,6 +225,7 @@ export async function adminCreateTenantAction(input: { slug: string; name: strin
 }
 
 export async function adminUpdateTenantAction(slug: string, patch: { name?: string; ownerName?: string; ownerPhone?: string; status?: "active" | "suspended"; domain?: string; note?: string; kind?: BusinessKind }) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     if (patch.ownerPhone !== undefined && patch.ownerPhone) {
       patch.ownerPhone = normalizePhone(patch.ownerPhone);
@@ -233,6 +239,7 @@ export async function adminUpdateTenantAction(slug: string, patch: { name?: stri
 }
 /** Manual extension (months/days; negative days = subtract) or set the expiry date directly */
 export async function adminExtendAction(slug: string, opts: { months?: number; days?: number; until?: string; amount?: number }) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const t = getTenant(slug);
     if (!t) throw new Error("Venue not found");
@@ -255,6 +262,7 @@ export async function adminExtendAction(slug: string, opts: { months?: number; d
   });
 }
 export async function adminResetPasswordAction(slug: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     if (!getTenant(slug)) throw new Error("Venue not found");
     const pw = crypto.randomBytes(5).toString("hex");
@@ -272,6 +280,7 @@ export async function adminEnterAction(slug: string) {
   });
 }
 export async function adminDeleteTenantAction(slug: string, confirmSlug: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     if (slug !== confirmSlug) throw new Error("To delete, type the venue address exactly");
     deleteTenant(slug);
@@ -280,6 +289,7 @@ export async function adminDeleteTenantAction(slug: string, confirmSlug: string)
   });
 }
 export async function adminPaymentAction(id: string, approve: boolean, note = "") {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const p = getPayment(id);
     if (!p || p.status !== "pending") throw new Error("This payment is not awaiting review");
@@ -290,6 +300,7 @@ export async function adminPaymentAction(id: string, approve: boolean, note = ""
   });
 }
 export async function adminSaveSettingsAction(s: PlatformSettings) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const cur = platformSettings();
     const key = keepSecret(s.stripe?.secretKey, cur.stripe.secretKey);
@@ -305,9 +316,11 @@ export async function adminSaveSettingsAction(s: PlatformSettings) {
   });
 }
 export async function adminSetPasswordAction(pw: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { setPlatformAdminPassword(pw); await log("Admin password changed"); return { ok: true }; });
 }
 export async function adminTestSmsAction(rawPhone: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const phone = normalizePhone(rawPhone);
     if (!isValidPhone(phone)) throw new Error("Invalid phone number — include the country code, e.g. +1 555 123 4567");
@@ -323,9 +336,11 @@ export async function adminContentAction() {
   return adminGuard((): SiteContent => siteContent());
 }
 export async function adminSaveContentAction(c: SiteContent) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { const out = saveSiteContent(c); await log("Site content updated"); return out; });
 }
 export async function adminUploadLogoAction(fd: FormData) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const buf = await readUpload(fd);
     if (!buf) throw new Error("No image selected");
@@ -333,6 +348,7 @@ export async function adminUploadLogoAction(fd: FormData) {
   });
 }
 export async function adminUploadOgAction(fd: FormData) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const buf = await readUpload(fd);
     if (!buf) throw new Error("No image selected");
@@ -340,6 +356,7 @@ export async function adminUploadOgAction(fd: FormData) {
   });
 }
 export async function adminUploadCardImageAction(fd: FormData) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const buf = await readUpload(fd);
     if (!buf) throw new Error("No image selected");
@@ -351,9 +368,11 @@ export async function adminCitiesAction() {
   return adminGuard((): City[] => listCities());
 }
 export async function adminSaveCityAction(c: City, prevSlug?: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { const saved = saveCity(c, prevSlug); await log(prevSlug ? "City page updated" : "City page created", saved.slug, saved.name); return saved; });
 }
 export async function adminDeleteCityAction(slug: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { deleteCity(slug); await log("City page deleted", slug); return true; });
 }
 
@@ -366,6 +385,7 @@ export async function adminPartnersAction() {
   });
 }
 export async function adminSavePartnerAction(p: Partial<Partner> & { code: string }, prevCode?: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const saved = savePartner(p, prevCode);
     await log(prevCode ? "Partner updated" : "Partner created", saved.code, `${saved.name} · ${saved.percent}%`);
@@ -373,9 +393,11 @@ export async function adminSavePartnerAction(p: Partial<Partner> & { code: strin
   });
 }
 export async function adminDeletePartnerAction(code: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { deletePartner(code); await log("Partner deleted", code); return true; });
 }
 export async function adminPayoutAction(code: string, amount: number, note: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     if (!getPartner(code)) throw new Error("Partner not found");
     addPayout(code, amount, note);
@@ -387,6 +409,7 @@ export async function adminPayoutAction(code: string, amount: number, note: stri
 /* ---------- Live demo menu ---------- */
 /** Create the never-expiring "demo" venue with a sample menu (for the site's "Live demo" button) */
 export async function adminCreateDemoAction(kind: BusinessKind = "cafe") {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const slug = "demo";
     let t = getTenant(slug);
@@ -409,6 +432,7 @@ export async function adminArticlesAction() {
   return adminGuard((): Article[] => listArticles());
 }
 export async function adminSaveArticleAction(a: Article, prevSlug?: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const saved = saveArticle(a, prevSlug);
     await log(prevSlug ? "Article updated" : "Article created", saved.slug, saved.title);
@@ -416,15 +440,18 @@ export async function adminSaveArticleAction(a: Article, prevSlug?: string) {
   });
 }
 export async function adminDeleteArticleAction(slug: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { deleteArticle(slug); await log("Article deleted", slug); return true; });
 }
 export async function adminCouponsAction() {
   return adminGuard((): Coupon[] => listCoupons());
 }
 export async function adminSaveCouponAction(c: Partial<Coupon> & { code: string }) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { const code = saveCoupon(c); await log("Coupon saved", code, c.kind === "amount" ? fmtAmount(Number(c.value) || 0) : `${c.value}%`); return { code }; });
 }
 export async function adminDeleteCouponAction(code: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { deleteCoupon(code); await log("Coupon deleted", code); return { ok: true }; });
 }
 export interface NotifyData {
@@ -440,15 +467,19 @@ export async function adminNotifyAction() {
   }));
 }
 export async function adminSaveNotifyAction(n: NotifySettings) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { saveNotifySettings(n); await log("Renewal reminders updated", "", n.enabled ? "on" : "off"); return { ok: true }; });
 }
 export async function adminRunRemindersAction() {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => runReminders(true));
 }
 export async function adminSaveAnnouncementAction(a: Announcement) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { saveAnnouncement(a); await log(a.enabled ? "Announcement published" : "Announcement removed", "", a.text.slice(0, 80)); return { ok: true }; });
 }
 export async function adminOwnerSmsAction(message: string, audience: OwnerAudience, only?: string) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => {
     const r = startOwnerSms(message, audience, only);
     await log("SMS to venue owners", only || audience, `${r.total} recipients · ${message.slice(0, 60)}`);
@@ -468,5 +499,6 @@ export async function adminCustomersAction(slug = "") {
   });
 }
 export async function adminCustomersExportAction(slug: string, count: number) {
+  if (demoMode()) return demoFail();
   return adminGuard(async () => { await log("Exported customer numbers (CSV)", slug || "all", `${count} numbers`); return { ok: true }; });
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { demoFail, demoMode } from "@/lib/demo";
 import crypto from "node:crypto";
 import { isAuthed } from "@/lib/auth";
 import { withTenant, currentTenantRecord, tenantUrl } from "@/lib/tenant";
@@ -89,6 +90,7 @@ export async function staffBillingPayAction(planId: string, couponCode = "") {
 
 /** Bank transfer: upload the receipt → the subscription is renewed once the platform admin approves it */
 export async function staffBillingReceiptAction(planId: string, fd: FormData) {
+  if (demoMode()) return demoFail();
   return billingGuard(async () => {
     const t = currentTenantRecord()!;
     if (!platformSettings().card.number) throw new Error("Bank transfer is not enabled");

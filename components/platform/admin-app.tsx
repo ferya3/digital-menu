@@ -47,14 +47,17 @@ const NAV: { id: Section; label: string; icon: React.ComponentType<{ className?:
 ];
 
 export function AdminApp() {
-  const [status, setStatus] = useState<{ authed: boolean; configured: boolean } | null>(null);
+  const [status, setStatus] = useState<{ authed: boolean; configured: boolean; demo?: AdminDemo | null } | null>(null);
   useEffect(() => { adminStatusAction().then(setStatus); }, []);
   if (!status) return <div className="grid min-h-screen place-items-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
-  if (!status.authed) return <AdminLogin configured={status.configured} onDone={() => setStatus({ ...status, authed: true })} />;
-  return <AdminPanel onLogout={() => setStatus({ ...status, authed: false })} />;
+  if (!status.authed) return <AdminLogin configured={status.configured} demo={status.demo || null} onDone={() => setStatus({ ...status, authed: true })} />;
+  return <AdminPanel demo={status.demo || null} onLogout={() => setStatus({ ...status, authed: false })} />;
 }
 
-function AdminLogin({ configured, onDone }: { configured: boolean; onDone: () => void }) {
+/** Live-demo info (DEMO_MODE): password on the login screen and a banner in the panel */
+type AdminDemo = { password: string; resetHours: number };
+
+function AdminLogin({ configured, demo, onDone }: { configured: boolean; demo: AdminDemo | null; onDone: () => void }) {
   const [pw, setPw] = useState("");
   const [e, setE] = useState("");
   const [busy, setBusy] = useState(false);
@@ -73,12 +76,13 @@ function AdminLogin({ configured, onDone }: { configured: boolean; onDone: () =>
         <input type="password" autoFocus value={pw} onChange={(x) => setPw(x.target.value)} placeholder="Admin password" className={cn(fieldCls, "mt-5")} />
         {e && <p className="mt-2 text-sm font-semibold text-primary">{e}</p>}
         <Button type="submit" className="mt-4 h-11 w-full rounded-2xl" disabled={busy || !pw}>{busy ? <Loader2 className="animate-spin" /> : "Log in"}</Button>
+        {demo?.password && <p className="mt-4 rounded-xl bg-amber-400/20 px-3 py-2 text-center text-sm">Live demo password: <button type="button" onClick={() => setPw(demo.password)} className="font-bold underline">{demo.password}</button></p>}
       </form>
     </main>
   );
 }
 
-function AdminPanel({ onLogout }: { onLogout: () => void }) {
+function AdminPanel({ onLogout, demo }: { onLogout: () => void; demo: AdminDemo | null }) {
   const [data, setData] = useState<AdminData | null>(null);
   const [section, setSection] = useState<Section>("dashboard");
   const [openSlug, setOpenSlug] = useState<string | null>(null);
@@ -131,6 +135,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
           </aside>
         </div>
       )}
+      {demo && <div className="bg-amber-400 px-4 py-2 text-center text-[13px] font-bold text-amber-950">Live demo — the admin panel is read-only (browse everything, changes are disabled){demo.resetHours ? ` · data resets every ${demo.resetHours} h` : ""}</div>}
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-xl">
         <div className="flex items-center gap-2 px-4 py-3">
           <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Menu" onClick={() => setSide(true)}><MenuIcon /></Button>

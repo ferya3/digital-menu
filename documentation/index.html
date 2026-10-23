@@ -48,6 +48,7 @@
   <a href="#seo">SEO</a>
   <a href="#partners">Partner program</a>
   <a href="#maintenance">Updates &amp; backups</a>
+  <a href="#demo">Live demo mode</a>
   <a href="#env">Environment variables</a>
   <a href="#security">Security</a>
   <a href="#customize">Customization</a>
@@ -179,6 +180,17 @@ sudo DOMAIN=myrestaurant.com EMAIL=you@myrestaurant.com ADMIN_PASSWORD='a-strong
 </table>
 <p>All data (SQLite databases and uploads) lives in <code>data/</code>; the encryption key for secrets is <code>/etc/cafe-menu/data.key</code>. Never publish backups — they contain customer data.</p>
 
+<h2 id="demo">Live demo mode</h2>
+<p>Want to run a public demo of your platform (for example to show it to restaurant owners)? Demo mode keeps everything a visitor needs working — ordering, Stripe <i>test</i> payments, the kitchen flow, browsing every panel and entering venue dashboards — while settings, passwords, keys, deleting, uploads, site content, SMS and signups are disabled. Both panels show a demo banner and the login screens show the demo passwords.</p>
+<pre><code># 1) turn demo mode on (use the same passwords for the super admin and the demo venue)
+sudo DEMO_ADMIN_PASSWORD='DemoAdmin2026!' DEMO_STAFF_PASSWORD='Demo1234!' bash demo-reset.sh enable
+# 2) prepare the demo (demo venue, photos, a few orders) — then save it as the baseline
+sudo bash demo-reset.sh save
+# 3) reset the data to the baseline every 3 hours
+sudo bash demo-reset.sh cron 3
+# reset now: sudo bash demo-reset.sh restore · turn off: sudo bash demo-reset.sh disable</code></pre>
+<p class="note">Tip: prepare the demo data (step 2) before enabling demo mode, or temporarily disable it while you edit — in demo mode the admin panel is read-only.</p>
+
 <h2 id="env">Environment variables</h2>
 <table>
   <tr><th>Variable</th><th>Used by</th><th>Description</th></tr>
@@ -190,6 +202,7 @@ sudo DOMAIN=myrestaurant.com EMAIL=you@myrestaurant.com ADMIN_PASSWORD='a-strong
   <tr><td><code>APP_TIMEZONE</code></td><td>app</td><td>Default IANA time zone for reports (default UTC).</td></tr>
   <tr><td><code>DEFAULT_COUNTRY_CODE</code></td><td>app</td><td>Calling code for local phone numbers (e.g. 1, 44).</td></tr>
   <tr><td><code>APP_PORT</code></td><td>install.sh</td><td>Internal port (default 3000).</td></tr>
+  <tr><td><code>DEMO_MODE</code>, <code>DEMO_ADMIN_PASSWORD</code>, <code>DEMO_STAFF_PASSWORD</code>, <code>DEMO_RESET_HOURS</code></td><td>demo-reset.sh</td><td>Live demo mode (see above).</td></tr>
   <tr><td><code>BACKUP_PASSWORD</code>, <code>RESTORE</code></td><td>backup / install</td><td>Encrypted backups and restore during install.</td></tr>
 </table>
 <p>The installer writes these to <code>.env.production.local</code> in the app folder.</p>

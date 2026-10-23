@@ -1,3 +1,4 @@
+import { DEMO_MESSAGE, demoMode } from "@/lib/demo";
 import fs from "node:fs";
 import path from "node:path";
 import { isAuthed } from "@/lib/auth";
@@ -31,6 +32,7 @@ function json(body: unknown, status = 200) {
 
 /** Hero video upload: the request body is the file itself (Content-Type = video type) */
 export async function POST(req: Request) {
+  if (demoMode()) return Response.json({ error: DEMO_MESSAGE }, { status: 403 });
   return tenantRoute(async () => {
     if (!sameOrigin(req)) return json({ ok: false, error: "Invalid request" }, 403);
     if (!(await isAuthed())) return json({ ok: false, error: "Please sign in first" }, 401);
@@ -79,6 +81,7 @@ export async function POST(req: Request) {
 
 /** Remove the video → the hero falls back to the 3D scene */
 export async function DELETE(req: Request) {
+  if (demoMode()) return Response.json({ error: DEMO_MESSAGE }, { status: 403 });
   return tenantRoute(async () => {
     if (!sameOrigin(req)) return json({ ok: false, error: "Invalid request" }, 403);
     if (!(await isAuthed())) return json({ ok: false, error: "Please sign in first" }, 401);
@@ -92,6 +95,7 @@ export async function DELETE(req: Request) {
 
 /** Optimize the current video (for videos uploaded before this feature existed) */
 export async function PATCH(req: Request) {
+  if (demoMode()) return Response.json({ error: DEMO_MESSAGE }, { status: 403 });
   return tenantRoute(async () => {
     if (!sameOrigin(req)) return json({ ok: false, error: "Invalid request" }, 403);
     if (!(await isAuthed())) return json({ ok: false, error: "Please sign in first" }, 401);

@@ -6,6 +6,7 @@ import { publicPlatform } from "@/app/platform/public";
 import { onPlatformHost } from "@/lib/tenant";
 import { cookies } from "next/headers";
 import { REF_COOKIE, activeRef } from "@/lib/partners";
+import { demoMode } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Sign up and create your free menu", alternates: { canonical: "/signup" } };
@@ -17,6 +18,11 @@ export default async function SignupPage() {
   return (
     <PlatformShell p={p}>
       <main className="mx-auto max-w-xl px-4 py-10">
+        {demoMode() && (
+          <p className="mb-4 rounded-2xl bg-amber-400/20 p-4 text-center text-sm font-semibold">
+            Signup is disabled in this live demo. Explore the demo venue instead: open its menu from the homepage or sign in to its dashboard.
+          </p>
+        )}
         {p.allowSignup ? (
           <SignupForm root={p.root} otp={p.otp} kinds={KIND_LABEL} texts={p.c.signup} refCode={activeRef((await cookies()).get(REF_COOKIE)?.value)} />
         ) : (

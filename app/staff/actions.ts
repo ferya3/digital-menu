@@ -1,5 +1,6 @@
 "use server";
 
+import { DEMO_MESSAGE, demoFail, demoMode } from "@/lib/demo";
 import {
   checkAdmin,
   isAuthed,
@@ -89,6 +90,7 @@ export async function loginAction(password: string): Promise<{ ok: boolean; must
 }
 /** Replace a weak/default password (first sign-in) — the panel opens afterwards */
 export async function staffChangePasswordAction(newPassword: string): Promise<{ ok: boolean } | ActionFail> {
+  if (demoMode()) return demoFail();
   return guard(async () => {
   if (!(await needsPasswordChange()) && !(await isAuthed())) throw new Error("Please sign in first");
   setAdminPassword(String(newPassword || "").trim());
@@ -185,12 +187,14 @@ export async function staffMenuAction(): Promise<Menu> {
 }
 /** Add/edit a category; the icon can be an emoji or an uploaded image */
 export async function staffSaveCategoryAction(input: { id?: string; name: string; emoji?: string }, iconForm?: FormData | null) {
+  if (demoMode()) return demoFail();
   return guard(async () => {
   return saveCategory(input, iconForm);
   });
 }
 /** Full-width category promo banner: upload (FormData) or remove (null) */
 export async function staffCategoryBannerAction(id: string, bannerForm: FormData | null) {
+  if (demoMode()) return demoFail();
   return guard(async () => {
   await gate();
   const buf = await readUpload(bannerForm);
@@ -211,6 +215,7 @@ async function saveCategory(input: { id?: string; name: string; emoji?: string }
   return addCategory({ name: input.name, emoji });
 }
 export async function staffDeleteCategoryAction(id: string) {
+  if (demoMode()) return demoFail();
   return guard(async () => {
   await gate();
   return deleteCategory(id);
@@ -230,6 +235,7 @@ export async function staffSaveItemAction(input: {
   /** Create a new category together with the item */
   newCategory?: { name: string; emoji?: string };
 }, imageForm?: FormData | null) {
+  if (demoMode()) return demoFail();
   return guard(async () => {
   await gate();
   if (!input.name?.trim()) throw new Error("Enter an item name");
@@ -252,12 +258,14 @@ export async function staffSaveItemAction(input: {
 }
 /** Quick price edit from the list */
 export async function staffQuickPriceAction(id: string, price: number) {
+  if (demoMode()) return demoFail();
   return withTenant(async () => {
     await gate();
     return updateItem(id, { price });
   });
 }
 export async function staffDeleteItemAction(id: string) {
+  if (demoMode()) return demoFail();
   return withTenant(async () => {
     await gate();
     return deleteItem(id);
@@ -302,6 +310,7 @@ export async function staffUpdateSettingsAction(input: {
   payFirst?: boolean;
   newPassword?: string;
 }, logoForm?: FormData | null): Promise<{ ok: boolean } | ActionFail> {
+  if (demoMode()) return demoFail();
   return guard(async () => {
   await gate();
   const logoBuf = await readUpload(logoForm);
@@ -348,6 +357,7 @@ export async function staffUpdateSettingsAction(input: {
 
 /** Send a test SMS (after saving settings) */
 export async function staffTestSmsAction(phone: string): Promise<{ ok: boolean; detail: string }> {
+  if (demoMode()) return { ok: false, detail: DEMO_MESSAGE };
   return withTenant(async () => {
     await gate();
     try {
@@ -360,10 +370,12 @@ export async function staffTestSmsAction(phone: string): Promise<{ ok: boolean; 
 
 /* ---------- Bulk SMS ---------- */
 export async function staffSetOptOutAction(phone: string, optOut: boolean) {
+  if (demoMode()) return demoFail();
   return guard(async () => { await gate(); return setSmsOptOut(phone, optOut); });
 }
 /** Start sending to the selected numbers (registered, subscribed customers only) */
 export async function staffStartSmsCampaignAction(input: { message: string; phones: string[]; addCancel: boolean }) {
+  if (demoMode()) return demoFail();
   return guard(async () => { await gate(); return startCampaign(input.message, input.phones, input.addCancel); });
 }
 export async function staffSmsCampaignsAction(): Promise<Campaign[]> {
@@ -373,6 +385,7 @@ export async function staffSmsCampaignsAction(): Promise<Campaign[]> {
   });
 }
 export async function staffSmsControlAction(id: string, action: "resume" | "retry" | "cancel") {
+  if (demoMode()) return demoFail();
   return guard(async () => { await gate(); return controlCampaign(id, action); });
 }
 /** Send the same text to one number (e.g. the manager's phone) before the bulk send */

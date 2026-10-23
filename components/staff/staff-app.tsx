@@ -50,14 +50,17 @@ export interface SubscriptionInfo {
 
 export interface PanelAnnouncement { text: string; level: "info" | "warning" }
 
-export function StaffApp({ initialAuthed, subscription = null, announcement = null }: { initialAuthed: boolean; subscription?: SubscriptionInfo | null; announcement?: PanelAnnouncement | null }) {
+/** Live-demo info (DEMO_MODE): password shown on the login screen and a banner in the panel */
+export interface DemoInfo { password: string; resetHours: number }
+
+export function StaffApp({ initialAuthed, subscription = null, announcement = null, demo = null }: { initialAuthed: boolean; subscription?: SubscriptionInfo | null; announcement?: PanelAnnouncement | null; demo?: DemoInfo | null }) {
   const [authed, setAuthed] = useState(initialAuthed);
-  if (!authed) return <Login onDone={() => setAuthed(true)} />;
-  return <Dashboard onLogout={() => setAuthed(false)} subscription={subscription} announcement={announcement} />;
+  if (!authed) return <Login onDone={() => setAuthed(true)} demo={demo} />;
+  return <Dashboard onLogout={() => setAuthed(false)} subscription={subscription} announcement={announcement} demo={demo} />;
 }
 
 /* ===================== Login ===================== */
-function Login({ onDone }: { onDone: () => void }) {
+function Login({ onDone, demo = null }: { onDone: () => void; demo?: DemoInfo | null }) {
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
   // Installation password is weak/default → must be changed before the panel opens
@@ -92,13 +95,14 @@ function Login({ onDone }: { onDone: () => void }) {
         {mustChange && <input type="password" value={pass2} onChange={(e) => setPass2(e.target.value)} autoComplete="new-password" className={cn(inputCls, "mb-3 py-2.5 text-center")} placeholder="Repeat new password" />}
         {err && <p className="mb-3 text-sm text-primary">{err}</p>}
         <Button type="submit" size="lg" className="w-full rounded-xl" disabled={busy}>{busy ? <><Loader2 className="animate-spin" /> Please wait…</> : mustChange ? "Save & sign in" : "Sign in"}</Button>
+        {demo?.password && !mustChange && <p className="mt-4 rounded-xl bg-amber-400/20 px-3 py-2 text-sm">Live demo password: <button type="button" onClick={() => setPass(demo.password)} className="font-bold underline">{demo.password}</button></p>}
       </form>
     </div>
   );
 }
 
 /* ===================== Dashboard ===================== */
-function Dashboard({ onLogout, subscription, announcement }: { onLogout: () => void; subscription: SubscriptionInfo | null; announcement: PanelAnnouncement | null }) {
+function Dashboard({ onLogout, subscription, announcement, demo }: { onLogout: () => void; subscription: SubscriptionInfo | null; announcement: PanelAnnouncement | null ; demo: DemoInfo | null }) {
   // Once dismissed, the announcement stays hidden until its text changes
   const annKey = announcement ? "ann:" + announcement.text.slice(0, 120) : "";
   const [annHidden, setAnnHidden] = useState(true);
@@ -391,6 +395,7 @@ function Dashboard({ onLogout, subscription, announcement }: { onLogout: () => v
           </button>
         )}
 
+        {demo && <div className="bg-amber-400 px-4 py-2 text-center text-[13px] font-bold text-amber-950 print:hidden">Live demo — saving settings, deleting and sending SMS are disabled{demo.resetHours ? ` · data resets every ${demo.resetHours} h` : ""}</div>}
         {announcement && !annHidden && (
           <div className={cn("flex items-start gap-2 px-4 py-2.5 text-sm font-semibold print:hidden", announcement.level === "warning" ? "bg-amber-500/15 text-amber-900 dark:text-amber-200" : "bg-blue-600/10 text-blue-900 dark:text-blue-200")}>
             <span className="flex-1 whitespace-pre-line">📢 {announcement.text}</span>

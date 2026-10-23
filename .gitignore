@@ -11,3 +11,4 @@ data/
 
 # Encryption key for secrets (never committed)
 .data-key
+demo-snapshot/
