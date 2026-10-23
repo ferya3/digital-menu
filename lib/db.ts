@@ -6,7 +6,7 @@ import { seedMenu, type BusinessKind } from "@/lib/seeds";
 import { currentTenant } from "@/lib/tenant-context";
 import { sealExisting } from "@/lib/secret-box";
 
-// یک اتصال برای هر مجموعه؛ روی globalThis تا با هات‌ری‌لودِ Next دوباره باز نشود
+// One connection per venue; kept on globalThis so Next hot reload doesn't reopen it
 const g = globalThis as unknown as { __cafeDbs?: Map<string, DatabaseSync> };
 const dbs = (g.__cafeDbs ??= new Map());
 
@@ -43,7 +43,7 @@ function createDb(dir: string, init?: SeedOptions): DatabaseSync {
       first_seen TEXT, last_seen TEXT
     );
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
-    -- پیامک گروهی: هر ارسال یک «کمپین» است و برای هر شماره یک ردیف در صف (outbox) دارد
+    -- Bulk SMS: each send is a "campaign" with one outbox row per phone number
     CREATE TABLE IF NOT EXISTS sms_campaigns (
       id TEXT PRIMARY KEY, message TEXT NOT NULL, created_at TEXT, total INTEGER DEFAULT 0,
       status TEXT DEFAULT 'running', note TEXT DEFAULT ''
@@ -55,30 +55,30 @@ function createDb(dir: string, init?: SeedOptions): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_orders_tbl ON orders(tbl);
     CREATE INDEX IF NOT EXISTS idx_items_cat ON items(category_id);
   `);
-  // مهاجرت: ستون‌هایی که بعداً اضافه شده‌اند (روی دیتابیس‌های قدیمی)
+  // Migration: columns added later (for older databases)
   for (const sql of [
     "ALTER TABLE orders ADD COLUMN note TEXT DEFAULT ''",
     "ALTER TABLE categories ADD COLUMN banner TEXT DEFAULT ''",
-    // حسابداری: زمان و روشِ پرداخت
+    // Accounting: payment time and method
     "ALTER TABLE orders ADD COLUMN paid_at TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN pay_method TEXT DEFAULT ''",
-    // مشتریانی که نمی‌خواهند پیامکِ تبلیغاتی بگیرند
+    // Customers who opted out of marketing SMS
     "ALTER TABLE customers ADD COLUMN sms_optout INTEGER DEFAULT 0",
   ]) {
     try {
       db.exec(sql);
     } catch {
-      /* ستون از قبل هست */
+      /* column already exists */
     }
   }
-  // سفارش‌های پرداخت‌شدهٔ قدیمی: زمانِ پرداخت ≈ آخرین تغییر؛ روش از روی فیش
+  // Old paid orders: paid time ≈ last update; method inferred from the receipt
   db.exec(`UPDATE orders SET paid_at = updated_at,
              pay_method = CASE WHEN pay_method != '' THEN pay_method WHEN receipt != '' THEN 'receipt' ELSE 'counter' END
            WHERE paid = 1 AND (paid_at IS NULL OR paid_at = '')`);
-  // ارسالی که با ری‌استارتِ سرور نیمه‌کاره مانده را «قطع‌شده» علامت بزن (از پنل قابل ادامه است)
+  // Mark campaigns left half-done by a server restart as "interrupted" (can be resumed from the panel)
   db.exec("UPDATE sms_campaigns SET status='interrupted' WHERE status='running'");
   seed(db, init);
-  // اطلاعاتِ حساسِ ذخیره‌شده با نسخه‌های قبلی هم رمز شوند
+  // Encrypt sensitive data stored by earlier versions too
   sealExisting(db);
   return db;
 }
@@ -86,11 +86,11 @@ function createDb(dir: string, init?: SeedOptions): DatabaseSync {
 export interface SeedOptions {
   kind: BusinessKind;
   name: string;
-  /** منوی نمونه (قابل حذف از پنل) */
+  /** Sample menu (can be removed from the panel) */
   sample: boolean;
 }
 
-/** فقط یک‌بار (دیتابیسِ تازه): منوی نمونه + تنظیماتِ اولیه. اگر مدیر همهٔ محصولات را پاک کند دوباره پر نمی‌شود. */
+/** Runs once (fresh database): sample menu + initial settings. Not refilled if the owner deletes all products. */
 function seed(db: DatabaseSync, init?: SeedOptions) {
   const done = db.prepare("SELECT 1 FROM settings WHERE key = 'seeded'").get();
   if (done) return;
@@ -105,16 +105,16 @@ function seed(db: DatabaseSync, init?: SeedOptions) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
     );
     dishes.forEach((d, i) => insItem.run(d.id, d.category, d.name, d.desc, d.price, d.oldPrice ?? 0, d.emoji, d.tag ?? "", i));
-    // تنظیمات پیش‌فرض
+    // Default settings
     const s = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
     const logo = { cafe: "☕", restaurant: "🍽️", fastfood: "🍔", other: "🍴" }[kind];
-    s.run("cafe", JSON.stringify({ name: init?.name || "کافه آرتاویل", logo, tagline: "", currency: "toman", kind }));
+    s.run("cafe", JSON.stringify({ name: init?.name || "My Café", logo, tagline: "", currency: "USD", kind }));
     s.run("payment", JSON.stringify({ card: "", holder: "", note: "", link: "" }));
   }
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('seeded', 'true')").run();
 }
 
-/** دیتابیسِ مجموعهٔ همین درخواست */
+/** Database of the current request's venue */
 export function db(): DatabaseSync {
   const t = currentTenant();
   let d = dbs.get(t.slug);
@@ -125,7 +125,7 @@ export function db(): DatabaseSync {
   return d;
 }
 
-/** ساختِ دیتابیسِ مجموعهٔ تازه با منوی متناسب با نوعِ کسب‌وکار (باید داخلِ runAsTenant صدا زده شود) */
+/** Creates a new venue's database with a menu matching the business type (must be called inside runAsTenant) */
 export function initTenantDb(init: SeedOptions): DatabaseSync {
   const t = currentTenant();
   const d = createDb(t.dir, init);
@@ -133,7 +133,7 @@ export function initTenantDb(init: SeedOptions): DatabaseSync {
   return d;
 }
 
-/** بستنِ اتصال (قبل از جابه‌جایی/حذفِ پوشهٔ مجموعه) */
+/** Closes the connection (before moving/deleting the venue folder) */
 export function closeTenantDb(slug: string) {
   const d = dbs.get(slug);
   if (d) {

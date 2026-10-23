@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { DEFAULT_SLUG, rootDomain, runAsTenant, saasEnabled, currentTenant } from "@/lib/tenant-context";
 import { getTenant, tenantByDomain, tenantState, touchTenant, type Tenant } from "@/lib/platform";
 
-/** میزبانِ درخواست (بدونِ پورت). فقط سرآیندِ Host — که Nginx خودش می‌گذارد — معتبر است. */
+/** Request host (without port). Only the Host header — which Nginx sets itself — is trusted. */
 export async function requestHost(): Promise<{ host: string; port: string }> {
   const raw = ((await headers()).get("host") || "").toLowerCase();
   const m = raw.match(/^(.*?)(:\d+)?$/);
@@ -30,11 +30,11 @@ export function classifyHost(host: string): HostInfo {
 
 export class TenantUnavailableError extends Error {
   constructor(public reason: "missing" | "inactive", public tenant?: Tenant) {
-    super(reason === "missing" ? "این آدرس به هیچ منویی وصل نیست" : "اشتراکِ این مجموعه فعال نیست؛ منو موقتاً در دسترس نیست");
+    super(reason === "missing" ? "This address isn't connected to any menu" : "This venue's subscription isn't active, so the menu is temporarily unavailable");
   }
 }
 
-/** مجموعهٔ همین درخواست؛ در حالتِ تک‌مجموعه‌ای null */
+/** The current request's venue; null in single-venue mode */
 export async function resolveTenant(): Promise<Tenant | null> {
   if (!saasEnabled()) return null;
   const info = classifyHost((await requestHost()).host);
@@ -43,8 +43,8 @@ export async function resolveTenant(): Promise<Tenant | null> {
 }
 
 /**
- * اجرای کد در زمینهٔ مجموعهٔ همین درخواست (db، آپلودها، رویدادهای زنده و … همه به همان مجموعه می‌روند).
- * active: برای بخش‌های مشتری — اگر اشتراک تمام/تعلیق شده باشد خطا می‌دهد.
+ * Runs code in the context of the current request's venue (db, uploads, live events, etc. all target that venue).
+ * active: for customer-facing parts — throws if the subscription has expired or is suspended.
  */
 export async function withTenant<T>(fn: () => Promise<T> | T, opts: { active?: boolean } = {}): Promise<T> {
   const t = await resolveTenant();
@@ -54,13 +54,13 @@ export async function withTenant<T>(fn: () => Promise<T> | T, opts: { active?: b
   return runAsTenant(t.slug, fn);
 }
 
-/** رکوردِ مجموعهٔ جاری (داخلِ withTenant) */
+/** Current venue record (inside withTenant) */
 export function currentTenantRecord(): Tenant | null {
   if (!saasEnabled()) return null;
   return getTenant(currentTenant().slug);
 }
 
-/** آدرسِ پنل/منوی یک مجموعه با همان پروتکل و پورتِ درخواستِ فعلی */
+/** URL of a venue's panel/menu using the current request's protocol and port */
 export async function tenantUrl(t: Pick<Tenant, "slug" | "domain">, pathname = "/"): Promise<string> {
   const proto = await requestProto();
   const { port } = await requestHost();
@@ -72,7 +72,7 @@ export async function platformUrl(pathname = "/"): Promise<string> {
   return `${proto}://${rootDomain()}${port}${pathname}`;
 }
 
-/** route handler در زمینهٔ مجموعه؛ مجموعهٔ ناموجود/غیرفعال = ۴۰۴ */
+/** Route handler in the venue's context; missing/inactive venue = 404 */
 export async function tenantRoute(fn: () => Promise<Response> | Response, opts: { active?: boolean } = {}): Promise<Response> {
   try {
     return await withTenant(fn, opts);
@@ -82,7 +82,7 @@ export async function tenantRoute(fn: () => Promise<Response> | Response, opts: 
   }
 }
 
-/** آیا این درخواست روی دامنهٔ اصلیِ پلتفرم است (سایتِ معرفی/ثبت‌نام/مدیرِ کل)؟ */
+/** Is this request on the platform's root domain (landing/signup/super admin)? */
 export async function onPlatformHost(): Promise<boolean> {
   return saasEnabled() && classifyHost((await requestHost()).host).kind === "platform";
 }

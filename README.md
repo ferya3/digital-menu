@@ -1,206 +1,80 @@
-# کافه آرتاویل — نسخهٔ Next.js
+# MenuPilot — Digital QR Menu & Table Ordering SaaS
 
-بازنویسی کامل سایت با استک مدرن:
-**Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Framer Motion**
-(کامپوننت‌ها به سبک shadcn/ui با class-variance-authority، clsx، tailwind-merge و radix-slot · آیکون‌ها lucide-react · فونت Vazirmatn از `@fontsource-variable/vazirmatn`).
+A complete, self-hosted **digital menu platform** for cafés, restaurants, fast-food places, bakeries and juice bars.
+Run it for **one venue** (single-restaurant mode) or as a **multi-tenant SaaS** where every venue signs up, gets its own
+subdomain (`bella.yourdomain.com`), its own menu, staff dashboard and data — and pays you a subscription.
 
-## اجرا روی سیستم خودت
+**Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Node.js 22 built-in SQLite (`node:sqlite`) ·
+sharp · Framer Motion · GSAP · Lenis · Three.js (React Three Fiber) · Stripe Checkout · Twilio SMS.
+No external database server, no Redis, no paid services required to run.
 
-نیاز: **Node.js 22** (برای `node:sqlite` در فازهای بعد).
+Full documentation: open **`documentation/index.html`** in your browser.
 
+---
+
+## Features
+
+### For guests (the menu)
+- QR code per table — scanning opens the menu with the table number; no app install (iOS & Android).
+- Three display modes the guest can switch between: **3D carousel**, **grid** and **list** (remembered per device).
+- Photos, descriptions, tags (Bestseller, New…), discounts with a strike-through price, sold-out items blocked from ordering.
+- **Order at the table** with notes, live order status, **call the waiter** and **request the bill**.
+- Payments: **card online with Stripe**, **bank transfer with receipt upload**, or **card reader at the table**;
+  optional *pay before preparation* (orders reach the kitchen after payment).
+- Optional phone verification by SMS code (Twilio) — builds the venue's customer club.
+- Light/dark theme, welcome splash with a 3D scene or the venue's own video, product share pages, SEO (JSON-LD menu).
+
+### For venues (staff dashboard `/staff`)
+- Live orders with sound and tab-title alerts; kitchen flow *New → Preparing → Ready → Served*; printable invoices.
+- Requests (waiter / bill / card reader), cashier view by table, receipt approval with duplicate-receipt warning.
+- Menu manager: categories with emoji/icon and full-width promo banners, items with photos, quick price edits.
+- **Accounting:** today / yesterday / this month / last month, 30-day chart, monthly reports with CSV export,
+  revenue by payment method, best sellers, open bills — in the venue's own time zone.
+- **Customers & bulk SMS** (Twilio): segments (all, loyal, recent, inactive…), opt-out list, test send, live progress.
+- Settings: logo, hero video, address/map/Instagram, currency (any ISO code), time zone, payment methods, Stripe key,
+  Twilio, password. Printable QR codes for tables.
+- Subscription page (SaaS mode): pay online with Stripe or by bank transfer, coupons.
+
+### For you (platform owner, SaaS mode)
+- Marketing website with editable content: hero, feature carousel (with photos), display-modes demo, pricing carousel,
+  testimonials, FAQ, footer, legal pages, announcement bar — all from the admin panel, no code.
+- **SEO built in:** topic landing pages, blog with an editor, city landing pages, sitemap, robots, Open Graph image,
+  JSON-LD (Organization, SoftwareApplication, FAQ, BlogPosting, Breadcrumbs), Google Search Console verification and a
+  Google result preview.
+- **Live demo menu** for visitors (with a QR code on desktop), floating WhatsApp/call button.
+- **Super-admin panel `/admin`:** dashboard (revenue, MRR, signups, expiring subscriptions), venues (create, edit,
+  extend, suspend, enter their dashboard, custom domains), all customers, payments & receipts, coupons,
+  **partner/referral program** with commissions and a private report page per partner, notifications (announcement
+  banner, automatic renewal SMS, bulk SMS to owners), audit log, settings (plans, currency, Stripe, bank transfer, Twilio).
+- Automatic HTTPS for every subdomain and custom domain (Let's Encrypt).
+
+### Security
+scrypt password hashing, signed httpOnly cookies, per-IP rate limits and login lock-out stored on disk, strict CSP with
+per-request nonces, HSTS, AES-256-GCM encryption at rest for secrets (Stripe/Twilio keys, signing keys), payments are
+always verified server-to-server with Stripe, uploads re-encoded with sharp, encrypted backups.
+
+---
+
+## Requirements
+- A clean **Ubuntu 22.04 / 24.04** server (1 GB RAM minimum, 2 GB recommended) with root/sudo access.
+- For SaaS mode: a domain with three DNS **A records** pointing to the server: `@`, `www` and `*` (wildcard).
+- Optional: a Stripe account (online payments) and a Twilio account (SMS).
+
+The installer sets up everything else (Node.js 22, Nginx, ffmpeg, pm2, Certbot, swap).
+
+## Installation
+See `documentation/index.html` → *Installation* for the full guide (SaaS mode and single-restaurant mode).
+
+## Development
 ```bash
 npm install
-npm run dev     # http://localhost:3000
-```
-
-خروجی production:
-```bash
+npm run dev        # http://localhost:3000 (single-restaurant mode)
+npm run typecheck
 npm run build && npm start
 ```
+For SaaS mode locally, set `ROOT_DOMAIN=localhost` in `.env.local` and open `http://localhost:3000` (platform) and
+`http://<venue>.localhost:3000` (venues).
 
-بررسی نوع‌ها: `npm run typecheck`
-
-## چیزی که در این فاز ساخته شده (فاز ۱ — پایه و صفحهٔ منو)
-
-- پیکربندی کامل Next.js 15 + React 19 + Tailwind 4 (تم با متغیرهای HSL، دارک‌مود کلاس‌مبنا).
-- کامپوننت‌های پایهٔ shadcn (`Button`, `Card`) با cva + radix-slot.
-- فونت **Vazirmatn** به‌صورت محلی (بدون وابستگی به CDN — در ایران هم بدون فیلترشکن کار می‌کند).
-- **صفحهٔ منوی مشتری** با انیمیشن‌های Framer Motion: هیرو، ورودِ پلکانی کارت‌ها، هاوورِ کارت، نوار و کشوی سبد خرید با `AnimatePresence`.
-- دسته‌بندی‌ها، قیمت‌گذاری با تخفیف، اعداد فارسی، چیدمان کاملاً RTL، ریسپانسیو.
-
-## فاز ۲ — بک‌اند (✅ انجام شد)
-
-- **دیتابیس `node:sqlite`** (داخلی Node، بدون پکیج جداگانه): جدول‌های منو، سفارش، درخواست، نظر، مشتری و تنظیمات؛ خودش در اولین اجرا ساخته و با منوی نمونه پر می‌شود (`data/cafe.db`).
-- **Server Actions** برای همهٔ کارهای مشتری: ثبت سفارش (قیمت‌ها سمت سرور محاسبه می‌شود)، صورتحساب = **جمعِ همهٔ سفارش‌های پرداخت‌نشدهٔ میز**، آپلود رسید، درخواست گارسون/فاکتور، ثبت نظر.
-- **پردازش عکس با `sharp`**: رسیدِ آپلودی به **WebP** تبدیل و مهرِ ضدجعل روی آن حک می‌شود.
-- **رمزنگاری با `crypto`**: هش رمز با **scrypt** و نشستِ امضاشده با HMAC (آمادهٔ پنل مدیریت).
-- وضعیت سفارشِ زنده (polling)، اطلاعات پرداخت روی صورتحساب، چیدمان RTL.
-- `/?table=۵` شمارهٔ میز را از URL می‌گیرد (مثل QR هر میز).
-
-## فاز ۳ — پنل مدیریت (✅ انجام شد — مثل پنل نسخهٔ قبلی)
-
-مسیر `/staff` (رمز = همان `ADMIN_PASSWORD` نصب؛ اگر نداده باشید، نصب‌کننده یک رمزِ تصادفی می‌سازد و چاپ می‌کند. رمزِ ساده/کوتاه در اولین ورود باید عوض شود). منوی کناری (روی موبایل دکمهٔ ☰) با همان بخش‌های قبلی:
-- **سفارش‌ها** (+ ستون نظرها): میز و کد سفارش، یادداشت مشتری، شمارهٔ موبایل، فیش؛ دکمه‌های «شروع آماده‌سازی ← آماده شد ← سرو شد»، «پرداخت شد»، «لغو» و «چاپ فاکتور».
-- **درخواست‌ها**: گارسون / صورتحساب (با مبلغ و تعداد سفارش)، «چاپ صورتحساب» و «انجام شد».
-- **محصولات**: واحد پول (تومان/ریال)، دسته‌ها با ایموجی یا عکسِ آیکون و **بنرِ تبلیغاتیِ تمام‌عرض** (بالای همان دسته در منوی مشتری)، افزودن محصول (با ساختِ دستهٔ جدید از همان فرم)، لیست گروه‌بندی‌شده با **ویرایش سریع قیمت**.
-- **اول پرداخت، بعد آشپزخانه** (پیش‌فرض روشن، در تنظیمات ← پرداخت): سفارش تا تأیید پرداخت (فیش یا پرداخت در صندوق) به آشپزخانه نمی‌رود و به مشتری هم اعلام می‌شود؛ جلوی سفارشِ مزاحم با عکسِ QR از بیرونِ کافه را می‌گیرد. سفارشِ پرداخت‌نشده بعد از ۱ ساعت خودکار لغو می‌شود.
-- **روش‌های پرداخت مشتری**: کارت‌به‌کارت (ارسال رسید) و **کارت‌خوان سر میز** — صندوق اعلان می‌گیرد، فاکتور میز را چاپ می‌کند، سالن‌دار با فاکتور و کارت‌خوان می‌رود و با «پرداخت شد (کارت‌خوان)» سفارش به آشپزخانه می‌رود. هر روش در تنظیمات ← پرداخت قابل خاموش/روشن است.
-- **صندوق**: فیش‌ها بر اساس **میز** (کل صورتحساب با هم تأیید/رد می‌شود)، هشدارِ فیشِ تکراری، صورتحساب‌های بازِ بدون فیش (پرداخت نقدی/کارتخوان)، تأییدشده‌ها.
-- **حسابداری**: درآمد امروز/دیروز/این ماه/ماه قبل (با درصدِ تغییر)، نمودار درآمد ۳۰ روز اخیر، گزارش هر ماه (روزبه‌روز + خروجی اکسل)، سهمِ روش‌های پرداخت (کارت‌به‌کارت، کارت‌خوان سر میز، صندوق)، پرفروش‌ترین‌ها، طلبِ باز و درآمد ۱۲ ماه — همه با تقویم شمسی و ساعت تهران.
-- **پیامک گروهی** (مشتری‌ها ← «پیامک گروهی»): ارسال تخفیف/جشنواره به شمارهٔ مشتری‌ها با وایدی (wide.ir/afe.ir) یا کاوه‌نگار؛ انتخاب گیرندگان (همه، وفادار، فعال اخیر، غیرفعال، فقط یک‌بار آمده) و ویرایشِ فهرست، شمارشِ پیامک، افزودنِ «لغو 11»، ارسالِ آزمایشی، پیشرفتِ زنده، توقفِ خودکار اگر پنل خطا بدهد (مثلاً نبودِ اعتبار)، ادامه/تلاش دوباره، و فهرستِ «لغو کرده‌ها» که پیامک نمی‌گیرند.
-- **مشتری‌ها**: جدول شماره‌ها، میزها، دفعات و آخرین بازدید (+ خروجی اکسل).
-- **تنظیمات**: مشخصات و لوگو، ویدیوی هیرو، آدرس/نقشه/اینستاگرام، نمایش کد سفارش، پرداخت، **سامانهٔ پیامک (وایدی wide.ir / عصر فرا ارتباط afe.ir و نمایندگی‌ها، کاوه‌نگار) + تأیید شمارهٔ مشتری با کد** و دکمهٔ «ارسال آزمایشی»، درگاه‌های پرداخت، رمز.
-- **کدهای QR** میزها (۱ تا ۱۰۰) با چاپ؛ صفحهٔ چاپ فاکتور `/print`.
-- اعلانِ زنده با **صدا**، چشمک عنوان تب و پیام برای سفارش، درخواست، فیش و نظرِ جدید.
-
-## فاز ۴ — جلوه‌های ویژه (✅ انجام شد)
-
-- **Three.js + React Three Fiber + Drei**: صحنهٔ سه‌بعدی در هیرو (حلقه، قطره و دانه‌های قهوهٔ شناور + ذرات، با پارالاکسِ موس). روی دسکتاپ کنار متن و روی موبایل بالای متن. جدا (lazy) لود می‌شود تا صفحه سریع باز شود.
-- **ویدیوی هیرو (اختیاری)**: از پنل ← تنظیمات ← «ویدیوی صفحهٔ اول» یک MP4/WebM (تا ۱۰۰ مگابایت) آپلود کنید تا به‌جای صحنهٔ سه‌بعدی پخش شود؛ با حذفش صحنهٔ سه‌بعدی برمی‌گردد.
-- **GSAP**: پنلِ «منتخب باریستا» (با دکمهٔ هیرو باز می‌شود و همان‌جا می‌شود به سبد اضافه کرد) با ورودِ پلکانیِ کارت‌ها.
-- **Lenis**: اسکرولِ نرم در کل صفحه (هماهنگ با GSAP).
-- **Zustand**: وضعیتِ منوی موبایل (دکمهٔ همبرگری + کشوی کناری).
-- هیرو (نام کافه + سه‌بعدی یا ویدیو + دکمه‌های «مشاهدهٔ منو» و «منتخب باریستا») به‌صورت **پاپ‌آپِ خوش‌آمد** فقط بار اولِ بازکردنِ لینک/QR در هر نشست نمایش داده می‌شود؛ بعد صفحه مستقیم منو است (از منوی کناری هم دوباره باز می‌شود).
-
-## سرعت
-
-- عکس‌های منو به‌صورت خودکار در اندازهٔ مناسب (`/uploads/x.webp?w=480`) ساخته و کش می‌شوند و فقط وقتی به آن‌ها می‌رسید دانلود می‌شوند.
-- متن و دکمه‌های صفحهٔ خوش‌آمد بدون انتظار برای جاوااسکریپت نمایش داده می‌شوند؛ صحنهٔ سه‌بعدی بعد از آماده‌شدنِ صفحه لود می‌شود (روی گوشیِ ضعیف/اینترنتِ کند/حالت صرفه‌جویی، نسخهٔ سبکِ CSS می‌ماند).
-- ویدیوی صفحهٔ اول با **ffmpeg** خودکار سبک می‌شود (۷۲۰p، بی‌صدا، شروعِ پخشِ فوری + عکس کاور). برای ویدیوی قبلی، در تنظیمات دکمهٔ «سبک‌سازی» را بزنید.
-- سفارش‌ها و وضعیت‌ها با کانال زنده (Server-Sent Events) فوراً می‌رسند.
-
-## نصب روی سرور (فاز ۵ + همهٔ تغییراتِ بعدی)
-
-سرورِ **اوبونتو ۲۴ تمیز**، با root (یا sudo). همهٔ پیش‌نیازها (Node 22، Nginx، ffmpeg، pm2، swap) خودکار نصب می‌شوند.
-
-### ۱) نصبِ تازه با یک خط (بدون دامنه؛ روی IP سرور)
-
-```bash
-sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo ADMIN_PASSWORD='رمز-دلخواه' bash install.sh
-```
-
-### ۲) نصب با دامنه و HTTPS (دو رکورد A برای `دامنه` و `www` باید از قبل روی IP سرور باشد)
-
-```bash
-sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo DOMAIN=artavilstar.com EMAIL=you@mail.com ADMIN_PASSWORD='رمز-دلخواه' bash install.sh
-```
-
-(اگر هنوز DNS آماده نبود، سایت روی HTTP بالا می‌آید و بعداً با `sudo DOMAIN=artavilstar.com bash set-domain.sh` دامنه + HTTPS وصل می‌شود.)
-
-> `git clone` اگر پوشهٔ `/opt/cafe-next` از قبل باشد خطا می‌دهد؛ این عمدی است تا سهواً دادهٔ سرورِ فعلی پاک نشود. روی سرورِ فعلی از `sudo bash update.sh` استفاده کنید.
-
-### ۳) بک‌آپِ اساسی و انتقال به سرورِ جدید (با تمامِ داده‌ها)
-
-بک‌آپ شاملِ: منو و دسته‌ها، عکس‌ها و ویدیوی هیرو، تنظیمات (پرداخت، پیامک، دامنه…)، رمزِ پنل، مشتری‌ها، سفارش‌ها، حسابداری و تاریخچهٔ پیامک‌هاست.
-دیتابیس به‌صورتِ «نسخهٔ یکدست» گرفته می‌شود (سایت می‌تواند همان لحظه در حال کار باشد)، سلامتش بررسی می‌شود و کنارِ فایل یک `.sha256` برای تأییدِ سالم‌ماندن در انتقال ساخته می‌شود.
-
-**روی سرورِ قبلی** (یک دستور؛ هم بک‌آپ می‌گیرد هم به سرورِ جدید می‌فرستد):
-```bash
-cd /opt/cafe-next && sudo BACKUP_PASSWORD='یک-رمز-برای-بک‌آپ' bash backup.sh root@IP-سرور-جدید
-```
-(یا فقط بک‌آپ: `sudo bash backup.sh` ← فایل در `/root/cafe-backups`؛ بعد دستی با `scp` ببرید.)
-
-**روی سرورِ جدید — حالتِ الف: یک خط (نصب + بازیابی با هم):**
-```bash
-sudo apt-get update && sudo apt-get install -y git && sudo git clone -b nextjs https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo RESTORE=/root/data-XXXX.tar.gz.enc DOMAIN=artavilstar.com EMAIL=you@mail.com bash install.sh
-```
-**حالتِ ب: اول نصب کردید، بعداً بازیابی می‌کنید:**
-```bash
-cd /opt/cafe-next && sudo bash restore.sh /root/data-XXXX.tar.gz.enc
-```
-- قبل از بازیابی، دادهٔ فعلیِ آن سرور هم نگه داشته می‌شود (`/root/cafe-backups/before-restore-*.tar.gz`) و فایلِ خراب یا بی‌ربط رد می‌شود.
-- رمزِ پنل: همان رمزِ سرورِ قبلی می‌ماند (چه از پنل عوض کرده باشید چه رمزِ زمانِ نصب). فقط اگر در دستور `ADMIN_PASSWORD=...` بدهید همان اعمال می‌شود.
-- دیتابیس و عکس‌ها داخل `data/` هستند و عمداً داخل گیت نیستند (رمز و اطلاعاتِ مشتری‌ها دارند)؛ فایلِ بک‌آپ را جایی عمومی نگذارید.
-- اگر دامنه عوض شده: بعد از بازیابی `sudo DOMAIN=دامنهٔ-جدید bash set-domain.sh`.
-
-### نگهداری
-- به‌روزرسانی (با بک‌آپِ خودکار در `/root/cafe-backups`):  `cd /opt/cafe-next && sudo bash update.sh`
-- بک‌آپِ دستی:  `sudo bash backup.sh` · بازیابی:  `sudo bash restore.sh فایل` · وضعیت و لاگ:  `pm2 status` · `pm2 logs cafe`
-- اتصالِ دامنه + HTTPS بعد از نصب:  `sudo DOMAIN=artavilstar.com bash set-domain.sh`
-  (گواهی رایگانِ Let's Encrypt با تمدیدِ خودکار، HTTP/2، و هدایتِ IP/http/www به `https://دامنه` با حفظِ `?table=` — QRهای قدیمی خراب نمی‌شوند)
-
-## پلتفرمِ اشتراکی (چند مجموعه روی یک سرور) — شاخهٔ `saas`
-
-هر کافه/رستوران/فست‌فود ثبت‌نام می‌کند، اشتراک می‌خرد و منو و پنلِ **کاملاً جدا** روی زیردامنهٔ خودش می‌گیرد:
-
-| آدرس | چیست |
-|---|---|
-| `https://menuchii.ir` | سایتِ معرفی، تعرفه‌ها، ثبت‌نام و «ورود به پنل» |
-| `https://menuchii.ir/admin` | پنلِ مدیرِ کل (جزئیات پایین‌تر) |
-| `https://roya.menuchii.ir` | منوی مشتریِ مجموعهٔ «roya» (QRِ میزها) |
-| `https://roya.menuchii.ir/staff` | پنلِ مدیریتِ همان مجموعه + بخشِ «اشتراک» برای تمدید |
-
-- **جداسازی:** هر مجموعه دیتابیس (`data/tenants/<آدرس>/cafe.db`)، پوشهٔ عکس‌ها، رمزِ پنل، کانالِ زنده، تنظیماتِ پرداخت/پیامک و ظاهرِ خودش را دارد. نشستِ یک مجموعه روی مجموعهٔ دیگر معتبر نیست.
-- **ثبت‌نام:** نام، نوعِ کسب‌وکار (کافه، رستوران، فست‌فود، سایر — منوی نمونه و عنوان‌ها متناسب با آن)، آدرس، موبایل (با کدِ پیامکی اگر پیامکِ پلتفرم تنظیم شده) و رمز ← دورهٔ آزمایشیِ رایگان (پیش‌فرض ۱۴ روز) ← ورودِ خودکار به پنل.
-- **اشتراک:** طرح‌ها از پنلِ مدیرِ کل؛ پرداختِ آنلاین با **زرین‌پال** (تمدیدِ فوری) یا **کارت‌به‌کارت** با فیش (تمدید بعد از تأیید). اشتراکِ تمام‌شده/تعلیق‌شده: منوی مشتری «موقتاً در دسترس نیست» می‌شود ولی هیچ داده‌ای پاک نمی‌شود؛ پنل باز می‌ماند تا مدیر تمدید کند.
-- **HTTPS خودکار:** برای هر زیردامنه/دامنهٔ اختصاصیِ تازه گواهیِ Let's Encrypt گرفته و خودکار تمدید می‌شود.
-
-### پنلِ مدیرِ کل (`/admin`)
-
-- **داشبورد:** درآمدِ این ماه و ماهِ قبل، درآمدِ ماهانهٔ تکرارشونده، ثبت‌نام‌های ۷ و ۳۰ روز، نمودارِ درآمد و ثبت‌نامِ ۱۲ ماه (با نمایشِ جدولی)، اشتراک‌هایی که تا ۷ روزِ دیگر تمام می‌شوند (تمدیدِ یک‌کلیکی و پیامکِ یادآوری) و آخرین ثبت‌نام‌ها.
-- **مجموعه‌ها:** جستجو و فیلتر، خروجیِ اکسل، ساختِ دستی، ویرایشِ نام/نوع/صاحب/موبایل، ورود به پنلِ مجموعه، رمزِ جدید، تمدید (با ثبتِ مبلغِ دریافتیِ حضوری)، تعیینِ تاریخ، پیامک به صاحب، دامنهٔ اختصاصی، یادداشت، تعلیق و حذف.
-- **مشتریانِ مجموعه‌ها:** همهٔ شماره‌هایی که مشتریان در منوی هر مجموعه با کدِ پیامکی تأیید کرده‌اند — یک‌جا یا به تفکیکِ مجموعه، با جستجو، فیلترِ دفعاتِ مراجعه و وضعیتِ لغوِ پیامک، شمارشِ شماره‌های یکتا، کپی و خروجیِ اکسل (مشاهده و خروجی در گزارشِ فعالیت ثبت می‌شود).
-- **پرداخت‌ها:** تأیید/ردِ فیش‌ها، فیلتر بر اساسِ وضعیت و روش، جمعِ پرداخت‌شده، خروجیِ اکسل.
-- **کدهای تخفیف:** درصدی یا مبلغی، سقفِ استفاده، تاریخِ انقضا، محدود به طرح‌های خاص؛ مجموعه‌ها در بخشِ «اشتراک» واردش می‌کنند (کدِ ۱۰۰٪ = فعال‌سازیِ رایگان).
-- **محتوای سایت:** همهٔ متن‌های سایتِ اصلی — نام و لوگو و رنگِ برند، عنوان و توضیحِ گوگل، نوارِ اعلان، بالای صفحه، کارت‌های امکانات (با آیکون)، مراحل، تعرفه‌ها، سؤالاتِ رایج، پاورقی و راه‌های تماس، صفحه‌های ثبت‌نام و ورود (و تیکِ اجباریِ قوانین)، صفحه‌های قوانین (`/terms`) و حریمِ خصوصی (`/privacy`)، و پیام‌هایی که مشتریانِ یک مجموعهٔ ناموجود/منقضی می‌بینند. متغیرها: `{brand}`، `{trialDays}`، `{root}`.
-- **اطلاع‌رسانی:** اعلان بالای پنلِ همهٔ مجموعه‌ها، یادآوریِ خودکارِ پیامکیِ تمدید (چند روز قبل و روزِ پایان؛ هر ساعت بررسی، هر یادآوری یک‌بار)، پیامکِ گروهی به صاحبانِ مجموعه‌ها (همه / فعال / آزمایشی / منقضی / در حالِ اتمام) با متنِ شخصی‌سازی‌شده.
-- **گزارشِ فعالیت:** همهٔ کارهای مدیرِ کل، ورودهای ناموفق، ثبت‌نام‌ها، پرداخت‌ها و فیش‌ها — با جستجو و خروجیِ اکسل.
-- **تنظیمات:** روزهای آزمایشی، باز/بستنِ ثبت‌نام، طرح‌ها و قیمت‌ها، زرین‌پال، کارت‌به‌کارت، سامانهٔ پیامکِ پلتفرم، رمزِ مدیرِ کل.
-
-### راه‌اندازی روی سروری که الان منوی آرتاویل را دارد (پلتفرم روی menuchii.ir)
-
-۱) در پنلِ دامنهٔ **menuchii.ir** سه رکوردِ A روی IPِ سرور: `menuchii.ir`، `www` و **`*`** (همهٔ زیردامنه‌ها). رکوردهای `artavilstar.com` و `www` هم همان‌طور روی همین سرور بمانند.
-۲) روی سرور:
-```bash
-cd /opt/cafe-next && sudo BACKUP_PASSWORD='یک-رمز-برای-بک‌آپ' bash backup.sh
-sudo git fetch origin saas:refs/remotes/origin/saas && sudo git checkout -B saas origin/saas && sudo bash update.sh
-sudo ROOT_DOMAIN=menuchii.ir EMAIL=you@mail.com PLATFORM_ADMIN_PASSWORD='رمز-قوی-مدیر-کل' LEGACY_TENANT=artavil LEGACY_DOMAIN=artavilstar.com bash set-saas.sh
-```
-- `LEGACY_TENANT=artavil`: منو، سفارش‌ها، مشتری‌ها و رمزِ فعلی به مجموعهٔ `artavil` (بدونِ انقضا) منتقل می‌شود.
-- `LEGACY_DOMAIN=artavilstar.com`: همان دامنه دامنهٔ اختصاصیِ آرتاویل می‌شود؛ منو و پنل مثلِ قبل روی `artavilstar.com` و `artavilstar.com/staff` می‌مانند و **QRهای چاپ‌شده بدونِ هیچ تغییری** کار می‌کنند.
-- سایتِ معرفی و ثبت‌نام: `https://menuchii.ir` · مدیرِ کل: `https://menuchii.ir/admin` · هر مجموعهٔ تازه: `https://<آدرس>.menuchii.ir`.
-
-### نصبِ تازهٔ پلتفرم با یک خط
-```bash
-sudo apt-get update && sudo apt-get install -y git && sudo git clone -b saas https://github.com/ferya3/digital-menu.git /opt/cafe-next && cd /opt/cafe-next && sudo ROOT_DOMAIN=menuchii.ir EMAIL=you@mail.com PLATFORM_ADMIN_PASSWORD='رمز-قوی' bash install.sh
-```
-بک‌آپ/بازیابی (`backup.sh` / `restore.sh` / `RESTORE=` در نصب) همهٔ مجموعه‌ها و دیتابیسِ پلتفرم را با هم جابه‌جا می‌کند؛ بعد از بازیابی روی سرورِ جدید یک‌بار `sudo bash set-saas.sh`.
-
-**بدونِ `ROOT_DOMAIN` برنامه دقیقاً مثلِ قبل تک‌مجموعه‌ای است.**
-
-## سئو (گوگل و موتورهای جستجو)
-
-- **سایتِ اصلی:** عنوان و توضیح از «محتوای سایت» (با الگوی «صفحه | برند» برای زیرصفحه‌ها)، آدرسِ اصلی (canonical) هر صفحه، تگ‌های اشتراک‌گذاری (Open Graph و Twitter، زبانِ fa_IR)، تصویرِ پیش‌نمایشِ قابلِ آپلود یا خودکار (`/og.png`: رنگِ برند + لوگو)، کدِ تأییدِ Google Search Console، دادهٔ ساختاریافته (Organization، WebSite، SoftwareApplication با قیمتِ طرح‌ها، FAQPage).
-- **منوی هر مجموعه:** عنوانِ «منوی {نام} {شهر} | قیمت‌ها و سفارش آنلاین»، توضیحِ خودکار (یا دستی از تنظیمات)، آدرسِ اصلی بدونِ `?table=` (همهٔ QRها یک صفحه)، دادهٔ ساختاریافتهٔ کافه/رستوران/فست‌فود با آدرس و تلفن و **منوی کامل با قیمت‌ها** (Menu → MenuSection → MenuItem → Offer به ریال)، صفحهٔ هر محصول (`/p/…`) با MenuItem و مسیرِ راهنما (Breadcrumb)، لوگو به‌عنوانِ آیکونِ مرورگر. برای مجموعهٔ دارای دامنهٔ اختصاصی، آدرسِ اصلی همان دامنه است.
-- **robots.txt و sitemap.xml** جدا برای سایتِ اصلی و هر مجموعه (همهٔ محصولاتِ موجود در نقشهٔ سایت). پنل‌ها، چاپ، ورود و `/admin` با `noindex` و Disallow. مجموعهٔ منقضی/تعلیق‌شده از نتایج بیرون می‌رود (و با تمدید برمی‌گردد).
-- **در تنظیماتِ هر مجموعه:** شهر، تلفن، آدرس و «توضیحِ کوتاه برای گوگل».
-
-**بعد از راه‌اندازی:** در [Google Search Console](https://search.google.com/search-console) دامنه را اضافه کنید، کدِ تأیید را در «محتوای سایت ← برند و سئو» بگذارید و `https://دامنه/sitemap.xml` را ثبت کنید.
-
-## امنیت
-
-- **رمز:** رمزِ پیش‌فرضِ ثابت وجود ندارد؛ نصب‌کننده اگر `ADMIN_PASSWORD` ندهید رمزِ تصادفی می‌سازد. رمزِ کوتاه‌تر از ۸ نویسه یا ساده (مثل `cafe1234`) در اولین ورود **باید** عوض شود (تا آن موقع پنل باز نمی‌شود). رمزها با scrypt ذخیره می‌شوند.
-- **حدسِ رمز:** بعد از ۱۰ تلاشِ اشتباه از یک IP، ورود ۱۵ دقیقه قفل می‌شود (حتی با رمزِ درست). محدودیت‌ها و کدهای تأیید در `data/limits.db` روی دیسک‌اند و با ری‌استارت پاک نمی‌شوند.
-- **کد تأیید پیامکی:** ۶ رقمی، فقط هشِ آن ذخیره می‌شود، ۲ دقیقه اعتبار، ۵ تلاش برای هر کد و ۱۵ تلاش در ساعت برای هر شماره.
-- **سفارش‌ها:** هر مرورگر فقط سفارش‌ها/صورتحساب/کانالِ زندهٔ میزی را می‌بیند که خودش روی آن سفارش داده (کوکیِ امضاشدهٔ httpOnly، ۱۲ ساعت)؛ شناسهٔ سفارش ۹۶ بیت تصادفی است.
-- **ضدِ سیلِ درخواست:** صدا زدنِ گارسون/صورتحساب/کارت‌خوان ۵ بار در ۲ دقیقه برای هر گوشی (۸ برای هر میز)، سفارش ۱۰ در ۵ دقیقه، فیش و نظر هم محدود؛ اتصالِ زنده ۳۰ در دقیقه برای هر IP.
-- **لینک‌های ورودِ خودکار** (ثبت‌نام/پنلِ مدیرِ کل): یک‌بارمصرف، ۵ دقیقه، با ۱۲۸ بیت تصادفی و ثبت در `data/limits.db` (با ری‌استارت هم دوباره قابلِ استفاده نمی‌شوند).
-- **کوکی‌ها:** `httpOnly` + `SameSite=Lax`، و پشتِ HTTPS `Secure`. نشستِ هر مجموعه با کلیدِ همان مجموعه امضا می‌شود.
-- **سرآیندها (داخلِ خودِ برنامه، مستقل از Nginx):** CSPِ سخت‌گیرانه با nonceِ تازه برای هر درخواست (`script-src 'nonce-…' 'strict-dynamic'` — اسکریپتِ تزریق‌شده اجرا نمی‌شود)، HSTS روی HTTPS، `X-Content-Type-Options`، `X-Frame-Options`، `Referrer-Policy`، `Permissions-Policy`، COOP. سرآیندِ Host نامعتبر با ۴۰۰ رد می‌شود و برنامه فقط روی `127.0.0.1` گوش می‌دهد (فقط Nginx به آن می‌رسد).
-- **رمزگذاری روی دیسک:** اطلاعاتِ حساس در دیتابیس (رمز/کلیدِ سامانهٔ پیامک، درگاه‌های پرداخت، مرچنتِ زرین‌پال، کلیدهای امضا و هشِ رمزِ پنل‌ها) با AES-256-GCM رمز می‌شوند؛ کلید در `/etc/cafe-menu/data.key` است — **بیرون از پوشهٔ برنامه و `data/`** (پوشه ۷۰۰، فایل ۶۰۰، فقط root، خودکار ساخته می‌شود، در گیت نیست). مقدارهای قدیمیِ رمزنشده در اولین اجرا رمز و فایل بازنویسی می‌شود.
-- **بک‌آپ و کلید جدا:** بک‌آپِ معمولی کلید را **ندارد**. بک‌آپِ رمزدار (`sudo BACKUP_PASSWORD='رمز' bash backup.sh` ← فایلِ `.enc`، AES-256) کلید را داخلِ همان فایلِ رمزشده دارد و برای **انتقال به سرورِ جدید** همین را بگیرید (`restore.sh` رمز را می‌پرسد). بازیابیِ بک‌آپِ معمولی روی سرورِ دیگر کار می‌کند ولی رمزهای سامانهٔ پیامک/درگاه باید دوباره وارد شوند.
-- **فایل‌ها:** پوشهٔ `data/` فقط برای root (`chmod 700`)، فایل‌های بک‌آپ `600`. آپلودها با sharp از روی محتوا بررسی و به WebP تبدیل می‌شوند.
-- **پیشنهاد برای محیط‌های حساس:** رمزگذاریِ کاملِ دیسکِ سرور (LUKS یا گزینهٔ «Encrypted volume» در پنلِ ارائه‌دهندهٔ سرور).
-
-## نقشهٔ راه (فازهای بعد)
-
-- **فاز ۲ — بک‌اند**: ✅ انجام شد (`node:sqlite` + Server Actions + scrypt + sharp→WebP).
-- **فاز ۳ — پنل مدیریت**: ✅ انجام شد (`/staff`).
-- **فاز ۴ — تجربهٔ ویژه** (✅ انجام شد): انیمیشن‌ها با **GSAP + ScrollTrigger**، اسکرول نرم با **Lenis**، صحنهٔ سه‌بعدی با **Three.js + React Three Fiber + Drei**، منوی موبایل با **Zustand**.
-- **فاز ۵ — استقرار** (✅ انجام شد): اجرای دائمی با **pm2** روی سرور اوبونتو + Nginx + SSL.
-
-## استک کامل
-`next`, `react`, `react-dom`, `typescript`, `tailwindcss`, `@tailwindcss/postcss`,
-`class-variance-authority`, `clsx`, `tailwind-merge`, `@radix-ui/react-slot`,
-`lucide-react`, `@fontsource-variable/vazirmatn`, `framer-motion`, `zustand`.
-(GSAP, Lenis, Three.js/R3F/Drei و sharp در فازهای مربوطه اضافه می‌شوند.)
+## Credits
+Font: Inter (SIL Open Font License). Icons: Lucide (ISC). All bundled libraries are open source (MIT/Apache/ISC/BSD);
+see `package.json`. No stock photos are bundled — the sample menus use emoji and gradients.

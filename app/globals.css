@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* کلاس‌مبنا برای دارک‌مود (به‌جای فقط prefers-color-scheme) */
+/* Class-based dark mode (instead of prefers-color-scheme only) */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
@@ -55,7 +55,7 @@
   --radius-md: calc(var(--radius) - 0.25rem);
   --radius-sm: calc(var(--radius) - 0.5rem);
 
-  --font-sans: "Vazirmatn Variable", system-ui, "Segoe UI", Tahoma, sans-serif;
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 @layer base {
@@ -73,7 +73,7 @@
   }
 }
 
-/* اسکرول‌بارِ نامرئی برای ردیف‌های افقی */
+/* Hidden scrollbar for horizontal rows */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -82,7 +82,7 @@
   scrollbar-width: none;
 }
 
-/* ===== صحنهٔ کاروسل: کرم و کاراملیِ گرم (روز) / قهوه‌ایِ اسپرسو (شب) ===== */
+/* ===== Carousel stage: warm cream and caramel (light) / espresso brown (dark) ===== */
 .cf-stage {
   --cf-base: linear-gradient(160deg, #fdf7ef 0%, #f6e6d1 48%, #edd3b3 100%);
   --cf-glow-a: rgba(214, 150, 88, 0.38);
@@ -128,19 +128,19 @@
   background: radial-gradient(50% 50% at 50% 50%, var(--cf-floor), transparent 72%);
 }
 
-/* پاپ‌آپ خوش‌آمد اگر در این نشست دیده شده، قبل از hydrate هم نمایش داده نشود (بدون چشمک) */
+/* Hide the welcome popup before hydration if it was already seen this session (no flash) */
 .splash-seen #hero-splash {
   display: none;
 }
 
-/* ===== نسخهٔ سبکِ صحنهٔ هیرو (CSS خالص، قبل از لود Three.js یا روی گوشی ضعیف) ===== */
+/* ===== Lightweight hero scene (pure CSS, before Three.js loads or on low-end phones); positioned to match the 3D scene ===== */
 .hero-lite {
   --hx: 50%;
   --hy: 44%;
   --hs: 1;
 }
 @media (min-width: 640px) {
-  .hero-lite { --hx: 26%; --hy: 50%; --hs: 1.5; }
+  .hero-lite { --hx: 74%; --hy: 50%; --hs: 1.5; }
 }
 .hero-lite-ring,
 .hero-lite-ball {
@@ -176,7 +176,7 @@
   .hero-lite-ring, .hero-lite-ball { animation: none; }
 }
 
-/* ورودِ نرم با CSS خالص: از همان HTMLِ سرور اجرا می‌شود و منتظرِ جاوااسکریپت نمی‌ماند */
+/* Soft entrance in pure CSS: runs from the server HTML without waiting for JavaScript */
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(16px); }
 }
@@ -189,7 +189,7 @@
   .rise, .rise-down { animation: none; }
 }
 
-/* ===== سایتِ پلتفرم (صفحهٔ اصلی): پالتِ خنثی و حرفه‌ای؛ رنگِ اصلی از «محتوای سایت» ===== */
+/* ===== Platform site (landing): neutral, professional palette; primary color comes from "Site content" ===== */
 .platform {
   --background: 0 0% 100%;
   --foreground: 222 40% 10%;
@@ -231,8 +231,8 @@
   .pf-float, .pf-float-slow, .pf-rise { animation: none; }
 }
 
-/* زمینهٔ بیرونِ قابِ سایت (چیدمانِ باکسی، از lg): کمی تیره‌تر از خودِ سایت، با هالهٔ رنگِ برند و نقطه‌های ریز.
-   لایهٔ fixedِ جدا (نه background-attachment: fixed که در کروم هنگامِ اسکرول خوب رنگ نمی‌شود) */
+/* Backdrop outside the site frame (boxed layout, lg+): slightly darker than the site, with a brand-color glow and fine dots.
+   A separate fixed layer (not background-attachment: fixed, which repaints poorly in Chrome while scrolling) */
 .pf-backdrop {
   background-color: hsl(220 16% 93%);
   background-image:
@@ -249,7 +249,7 @@
     radial-gradient(hsl(0 0% 100% / 0.07) 1px, transparent 1px);
 }
 
-/* کاروسلِ امکانات: کارت‌ها با فنرِ کوتاه و سفت */
+/* Features carousel: cards move with a short, stiff spring */
 .platform {
   --spring-card-ms: 290ms;
   --spring-card: linear(0, 0.0055, 0.0206, 0.0435, 0.0727, 0.1067, 0.1445, 0.1848, 0.227, 0.2701, 0.3137, 0.3571, 0.3999, 0.4418, 0.4825, 0.5217, 0.5593, 0.5952, 0.6292, 0.6614, 0.6917, 0.7201, 0.7466, 0.7713, 0.7942, 0.8153, 0.8348, 0.8528, 0.8692, 0.8843, 0.898, 0.9104, 0.9217, 0.9318, 0.941, 0.9492, 0.9566, 0.9632, 0.969, 0.9742, 0.9787, 0.9827, 0.9862, 0.9893, 0.9919, 0.9942, 0.9962, 0.9978, 1);
@@ -265,6 +265,6 @@
 @media (prefers-reduced-motion: reduce) {
   .fc-card { transition-duration: 0.01ms; }
 }
-/* نوارِ زمانِ پخشِ خودکارِ حالت‌های نمایش */
+/* Autoplay progress bar for the menu display modes */
 @keyframes mm-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .mm-progress { animation: mm-progress linear both; }

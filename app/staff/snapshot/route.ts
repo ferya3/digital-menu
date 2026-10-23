@@ -4,7 +4,7 @@ import { tenantRoute } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
-/** وضعیت کامل داشبورد در یک درخواست (موازی، بدون صفِ Server Actions) */
+/** Full dashboard state in one request (parallel, not queued behind Server Actions) */
 export async function GET() {
   return tenantRoute(async () => {
     if (!(await isAuthed())) return Response.json({ error: "unauthorized" }, { status: 401 });

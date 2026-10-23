@@ -4,7 +4,7 @@ import { ASSETS_DIR } from "@/lib/platform-admin";
 
 export const dynamic = "force-dynamic";
 
-/** فایل‌های خودِ پلتفرم (لوگو) از data/platform-assets */
+/** Platform-owned files (logo) from data/platform-assets */
 export async function GET(_req: Request, { params }: { params: Promise<{ file: string }> }) {
   const name = path.basename((await params).file);
   if (!/^[\w.-]+\.webp$/.test(name)) return new Response("Not found", { status: 404 });

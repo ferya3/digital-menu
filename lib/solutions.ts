@@ -1,21 +1,21 @@
 /**
- * صفحه‌های موضوعی (لندینگِ هر کلیدواژه) برای سئو: منوی دیجیتالِ کافه، رستوران، فست‌فود و منوی QR.
- * هر صفحه تیتر، متن، مزایا و سؤالاتِ مخصوصِ خودش را دارد تا گوگل آن را صفحهٔ جدا و کامل ببیند، نه تکراریِ صفحهٔ اصلی.
- * در متن‌ها {brand} و {trialDays} جایگذاری می‌شوند.
+ * Topic landing pages for SEO (one per target keyword): café menu, restaurant menu, fast food menu and QR code menu.
+ * Each page has its own heading, copy, benefits and FAQ so search engines see it as a distinct, complete page rather than a copy of the home page.
+ * {brand} and {trialDays} are substituted in the texts.
  */
 export interface Solution {
   slug: string;
-  /** عنوانِ تبِ مرورگر و نتیجهٔ گوگل (بدونِ نامِ برند؛ الگوی سایت اضافه‌اش می‌کند) */
+  /** Browser tab / search result title (without the brand name; the site template appends it) */
   title: string;
   description: string;
-  /** برچسبِ کوتاه برای لینک‌ها و مسیرِ راهنما (breadcrumb) */
+  /** Short label for links and breadcrumbs */
   label: string;
   h1: string;
   highlight: string;
   intro: string[];
   benefitsTitle: string;
   benefits: { icon: string; title: string; text: string }[];
-  /** بخشِ متنیِ بلند (مارک‌داونِ ساده) */
+  /** Long-form text section (simple markdown) */
   body: string;
   faq: { q: string; a: string }[];
 }
@@ -23,156 +23,168 @@ export interface Solution {
 export const SOLUTIONS: Solution[] = [
   {
     slug: "cafe-menu",
-    label: "منوی دیجیتال کافه",
-    title: "منوی دیجیتال کافه و منوی QR کافی‌شاپ",
-    description: "منوی دیجیتال کافه با QR کد روی میز، سفارش آنلاین، عکسِ نوشیدنی‌ها و پنلِ مدیریت. بدونِ نصبِ برنامه؛ {trialDays} روز رایگان امتحان کنید.",
-    h1: "منوی دیجیتال کافه",
-    highlight: "منوی QR مخصوصِ کافی‌شاپ",
+    label: "Café digital menu",
+    title: "Digital Menu for Cafés & Coffee Shops with QR Ordering",
+    description: "A digital menu for cafés and coffee shops: QR codes on every table, drink photos, ordering from the table and an easy admin panel. Try it free for {trialDays} days.",
+    h1: "Digital menu for cafés",
+    highlight: "A QR menu made for coffee shops",
     intro: [
-      "مشتریِ کافه دوست دارد قبل از سفارش، شکلِ نوشیدنی را ببیند، قیمت را بداند و بدونِ معطل شدن سفارش بدهد. با منوی دیجیتالِ {brand}، مشتری کدِ QR روی میز را با دوربینِ گوشی اسکن می‌کند و منوی کافه با عکس، توضیح و قیمتِ به‌روز روی گوشی‌اش باز می‌شود؛ بدونِ نصبِ هیچ برنامه‌ای.",
-      "قیمتِ قهوه و شیر مدام عوض می‌شود. در منوی کاغذی هر بار باید دوباره چاپ کنید؛ در منوی دیجیتال قیمت را در پنل عوض می‌کنید و همان لحظه روی همهٔ میزها به‌روز است.",
+      "Coffee lovers like to see what they're ordering, know the price and order without waiting in line. With a {brand} digital menu, guests scan the QR code on their table with their phone camera and your café menu opens instantly, with photos, descriptions and up-to-date prices. No app to install.",
+      "Coffee, milk and pastry costs change often. With a printed menu, every change means a reprint. With a digital menu, you update the price in your panel and it's live on every table the same second.",
     ],
-    benefitsTitle: "چرا کافه‌ها منوی دیجیتال را انتخاب می‌کنند",
+    benefitsTitle: "Why cafés switch to a digital menu",
     benefits: [
-      { icon: "Coffee", title: "عکسِ واقعیِ نوشیدنی‌ها", text: "لاته‌آرت، کیک و دسرها با عکسِ بزرگ دیده می‌شوند؛ مشتری راحت‌تر انتخاب می‌کند و بیشتر سفارش می‌دهد." },
-      { icon: "Clock", title: "تغییرِ قیمت در چند ثانیه", text: "قیمت‌ها، موجودی و آیتم‌های فصلی را از پنل عوض کنید؛ دیگر هزینهٔ چاپِ دوباره ندارید." },
-      { icon: "Smartphone", title: "سفارش از سرِ میز", text: "سفارش مستقیم روی پنلِ بار و صندوق می‌نشیند؛ با شمارهٔ میز و صدای اعلان." },
-      { icon: "BellRing", title: "صدا زدنِ گارسون", text: "مشتری با یک لمس گارسون یا صورتحساب را درخواست می‌کند؛ شلوغیِ ساعتِ اوج کنترل می‌شود." },
-      { icon: "Users", title: "باشگاهِ مشتریان", text: "با تأییدِ پیامکیِ شماره، مشتری‌های کافه جمع می‌شوند و می‌توانید برای تخفیف و رویدادها پیامک بفرستید." },
-      { icon: "Palette", title: "هم‌رنگِ برندِ شما", text: "لوگو، رنگ، بنرِ دسته‌ها و ویدیوی خوش‌آمد؛ منو حسِ همان فضای کافه را می‌دهد." },
+      { icon: "Coffee", title: "Real photos of your drinks", text: "Latte art, cakes and pastries shown in large photos make it easier for guests to choose, and to add something extra." },
+      { icon: "Clock", title: "Update prices in seconds", text: "Change prices, mark items as sold out or add seasonal specials from your panel. No more reprinting costs." },
+      { icon: "Smartphone", title: "Order from the table", text: "Orders land on your bar and checkout panel with the table number and a sound alert." },
+      { icon: "BellRing", title: "Call a waiter in one tap", text: "Guests can call a waiter or request the bill with a single tap, which keeps peak hours under control." },
+      { icon: "Users", title: "Customer club", text: "Collect guest phone numbers with SMS verification, then send offers and event news with bulk SMS." },
+      { icon: "Palette", title: "Matches your brand", text: "Your logo, colors, category banners and a welcome video, so the menu feels like your café." },
     ],
-    body: `## منوی کافه چه چیزهایی باید داشته باشد؟
-یک منوی خوبِ کافه سریع باز می‌شود، دسته‌بندیِ روشن دارد (نوشیدنی گرم، سرد، کیک و دسر، صبحانه) و برای هر آیتم عکس و توضیحِ کوتاه دارد. در {brand} همهٔ این‌ها آماده است و مشتری می‌تواند منو را به سه حالتِ **کاروسلِ سه‌بعدی**، **شبکه‌ای** یا **لیستی** ببیند.
+    body: `## What makes a great café menu?
+A great café menu loads fast, has clear categories (hot coffee, cold coffee, tea, cakes and pastries, breakfast) and gives every item a photo and a short description. {brand} has all of this built in, and guests can browse your menu as a **3D carousel**, a **grid** or a **list**.
 
-## چطور منوی دیجیتالِ کافه را راه بیندازم؟
-1. در {brand} ثبت‌نام کنید و نوعِ کسب‌وکار را «کافه» انتخاب کنید؛ یک منوی نمونهٔ کافه برایتان ساخته می‌شود.
-2. نوشیدنی‌ها، قیمت‌ها و عکس‌های خودتان را جایگزین کنید.
-3. از پنل، کدِ QR هر میز را چاپ کنید و روی میزها بگذارید.
+## How do I set up a digital menu for my café?
+1. Sign up for {brand} and choose "Café" as your business type. A sample café menu is created for you.
+2. Replace the sample drinks, prices and photos with your own.
+3. Print a QR code for each table from your panel and place them on your tables.
 
-برای جزئیاتِ بیشتر، [آموزشِ ساختِ منوی QR](/blog/qr-menu-guide) را بخوانید.
+For a full walkthrough, read our [step-by-step QR code menu guide](/blog/qr-code-menu-guide).
 
-## منوی دیجیتال فروشِ کافه را بیشتر می‌کند؟
-وقتی مشتری عکسِ دسر را کنارِ قهوه‌اش می‌بیند، احتمالِ سفارشِ همراه بالا می‌رود. بخشِ «پیشنهادِ ما» و برچسب‌هایی مثل «پرفروش» هم توجه را به آیتم‌های سودآور می‌برد. در [ده نکتهٔ طراحیِ منو](/blog/menu-design-tips) روش‌های عملی‌اش را توضیح داده‌ایم.`,
+## Can a digital menu increase café sales?
+When guests see a photo of a cheesecake right next to their latte, they're more likely to add it to their order. A "Bestseller" or "New" tag and a discount shown with the old price crossed out draw attention to the items you want to sell. We cover practical techniques in [10 menu design tips that increase sales](/blog/menu-design-tips).
+
+## Payments that suit your café
+Let guests pay by card with Stripe, by bank transfer with a receipt upload, or with your card reader at the table or counter. For busy takeaway counters, turn on "pay before preparation" so orders only reach the bar once they're paid.`,
     faq: [
-      { q: "مشتری برای دیدنِ منوی کافه باید برنامه نصب کند؟", a: "نه. دوربینِ گوشی کدِ QR را می‌خواند و منو در مرورگر باز می‌شود؛ روی اندروید و آیفون." },
-      { q: "می‌توانم آیتم‌های تمام‌شده را موقتاً مخفی کنم؟", a: "بله؛ با یک کلید در پنل، آیتم «ناموجود» می‌شود و مشتری نمی‌تواند سفارشش بدهد." },
-      { q: "منوی کافه آدرسِ اختصاصی دارد؟", a: "بله؛ هر کافه یک زیردامنهٔ اختصاصی می‌گیرد و با هماهنگیِ پشتیبانی می‌تواند دامنهٔ خودش را هم وصل کند." },
-      { q: "هزینهٔ منوی دیجیتالِ کافه چقدر است؟", a: "{trialDays} روزِ اول رایگان است؛ بعد از آن یکی از طرح‌های اشتراکِ ماهانه، سه‌ماهه یا سالانه را انتخاب می‌کنید." },
+      { q: "Do guests need to install an app to see the café menu?", a: "No. The phone camera reads the QR code and the menu opens in the browser, on both iPhone and Android." },
+      { q: "Can I temporarily hide items that are sold out?", a: "Yes. One switch in the panel marks an item as unavailable, and guests can't order it until you switch it back." },
+      { q: "Does my café menu get its own address?", a: "Yes. Every café gets its own subdomain, and you can connect your own domain by contacting support." },
+      { q: "How much does a digital menu for a café cost?", a: "Your first {trialDays} days are free. After that, you choose a monthly or longer subscription plan, with every feature included." },
     ],
   },
   {
     slug: "restaurant-menu",
-    label: "منوی دیجیتال رستوران",
-    title: "منوی دیجیتال رستوران با سفارش آنلاین سر میز",
-    description: "منوی دیجیتال رستوران با QR کد، سفارش آنلاین سرِ میز، پرداخت و حسابداریِ روزانه. منوی آنلاینِ رستوران را در چند دقیقه بسازید؛ {trialDays} روز رایگان.",
-    h1: "منوی دیجیتال رستوران",
-    highlight: "از سفارش تا صورتحساب، روی گوشیِ مشتری",
+    label: "Restaurant digital menu",
+    title: "Restaurant Digital Menu with QR Code Table Ordering",
+    description: "A restaurant digital menu with QR codes, ordering at the table, card payments and daily accounting. Build your restaurant menu in minutes. Free for {trialDays} days.",
+    h1: "Digital menu for restaurants",
+    highlight: "From order to bill, on your guest's phone",
     intro: [
-      "در رستوران، زمانِ بینِ نشستنِ مشتری و ثبتِ سفارش مستقیماً روی تعدادِ میزهایی که در یک شب سرویس می‌گیرند اثر دارد. منوی دیجیتالِ {brand} این زمان را کوتاه می‌کند: مشتری منو را با QR باز می‌کند، غذا را انتخاب می‌کند و سفارش با شمارهٔ میز روی پنلِ آشپزخانه می‌آید.",
-      "منوی رستوران معمولاً بلند است؛ برای همین دسته‌بندیِ روشن و حالتِ نمایشِ لیستی کمک می‌کند مشتری در منوی پرآیتم گم نشود.",
+      "In a restaurant, the time between a guest sitting down and placing their order directly affects how many tables you can serve in an evening. A {brand} digital menu shortens that gap: guests open the menu with a QR code, choose their dishes, and the order arrives on your kitchen panel with the table number.",
+      "Restaurant menus are often long. Clear categories with their own banners, plus a compact list view, help guests find what they want without getting lost in dozens of dishes.",
     ],
-    benefitsTitle: "امکاناتی که رستوران‌ها لازم دارند",
+    benefitsTitle: "Features restaurants actually need",
     benefits: [
-      { icon: "UtensilsCrossed", title: "منوی پرآیتم، مرتب", text: "پیش‌غذا، غذای اصلی، نوشیدنی و دسر در دسته‌های جدا با بنرِ اختصاصی؛ مرورِ سریع حتی با صدها آیتم." },
-      { icon: "ChefHat", title: "سفارش مستقیم به آشپزخانه", text: "سفارش با شمارهٔ میز و توضیحاتِ مشتری (مثلاً «بدونِ پیاز») روی پنل می‌نشیند؛ خطای یادداشت‌برداری کم می‌شود." },
-      { icon: "CreditCard", title: "پرداخت قبل یا بعد از غذا", text: "کارت‌به‌کارت با فیش، کارت‌خوانِ سرِ میز یا درگاهِ اینترنتی؛ هر روشی که با رستورانِ شما جور است." },
-      { icon: "Calculator", title: "حسابداریِ روزانه و ماهانه", text: "فروشِ امروز، پرفروش‌ترین غذاها و درآمدِ ماه با تقویمِ شمسی." },
-      { icon: "BellRing", title: "درخواستِ گارسون و صورتحساب", text: "درخواست‌ها با شمارهٔ میز می‌رسد؛ هیچ میزی منتظر نمی‌ماند." },
-      { icon: "Printer", title: "QR هر میز، آمادهٔ چاپ", text: "برای همهٔ میزها کدِ QR جدا بسازید و چاپ کنید؛ سفارش‌ها خودکار به میزِ درست وصل می‌شوند." },
+      { icon: "UtensilsCrossed", title: "Long menus, neatly organized", text: "Starters, mains, drinks and desserts in separate categories with their own banners. Easy to browse, even with hundreds of items." },
+      { icon: "ChefHat", title: "Orders straight to the kitchen", text: "Orders arrive with the table number and the guest's notes (like \"no onions\"), so there are fewer handwriting mistakes." },
+      { icon: "CreditCard", title: "Pay before or after the meal", text: "Card payments with Stripe, bank transfer with receipt, or a card reader at the table. Whatever suits your restaurant." },
+      { icon: "Calculator", title: "Daily and monthly accounting", text: "Today's sales, your best-selling dishes and monthly revenue, always up to date." },
+      { icon: "BellRing", title: "Waiter calls and bill requests", text: "Requests arrive with the table number, so no table is left waiting." },
+      { icon: "Printer", title: "A print-ready QR for every table", text: "Create and print a separate QR code for each table. Orders are automatically linked to the right table." },
     ],
-    body: `## منوی آنلاینِ رستوران چه مزیتی نسبت به منوی چاپی دارد؟
-منوی چاپیِ رستوران گران است، زود کهنه می‌شود و با هر تغییرِ قیمت باید دوباره چاپ شود. منوی دیجیتال همیشه به‌روز است، عکسِ غذاها را نشان می‌دهد و مشتری می‌تواند همان‌جا سفارش بدهد. مقایسهٔ کامل را در [منوی کاغذی یا دیجیتال؟](/blog/paper-vs-digital-menu) ببینید.
+    body: `## Why choose an online restaurant menu over a printed one?
+Printed restaurant menus are expensive, wear out quickly and must be reprinted every time a price changes. A digital menu is always up to date, shows photos of your dishes and lets guests order right from the table. See the full comparison in [Paper vs digital menus](/blog/paper-vs-digital-menu).
 
-## سفارش سرِ میز در رستوران چطور کار می‌کند؟
-1. مشتری QR روی میز را اسکن می‌کند؛ شمارهٔ میز خودکار شناخته می‌شود.
-2. غذاها را به سبد اضافه می‌کند و سفارش را ثبت می‌کند.
-3. سفارش با صدای اعلان روی پنلِ رستوران می‌آید و وضعیتش برای مشتری نمایش داده می‌شود.
+## How does QR code table ordering work in a restaurant?
+1. The guest scans the QR code on the table. The table number is detected automatically.
+2. They add dishes to their cart, write any notes for the kitchen and place the order.
+3. The order appears on your restaurant panel with a sound alert, and the guest can follow its status on their phone.
 
-جزئیاتِ بیشتر در [راهنمای سفارش آنلاین سرِ میز](/blog/table-ordering).
+Learn more in our [guide to table ordering](/blog/table-ordering).
 
-## برای رستوران‌های شلوغ
-در ساعتِ اوج، گارسون به‌جای گرفتنِ سفارش روی سرویس‌دهی تمرکز می‌کند. سفارش‌ها دقیق و بدونِ دست‌خطِ ناخوانا به آشپزخانه می‌رسند و گزارشِ پایانِ روز هم آماده است.`,
+## Built for busy service
+During the rush, your servers can focus on hospitality instead of taking orders. Orders reach the kitchen accurately, with no hard-to-read handwriting, and your end-of-day report is ready when you close. Guests can still call a waiter or request the bill with a tap whenever they need to.
+
+## Your brand, your address
+Add your logo, brand color, category banners and a welcome video. Your menu lives on its own subdomain, and you can connect your own domain through support. Ready to start? Check the [pricing](/#pricing) or read [what a digital menu is](/blog/what-is-a-digital-menu) first.`,
     faq: [
-      { q: "مشتری بدونِ اسکنِ QR میز هم می‌تواند منو را ببیند؟", a: "بله؛ با آدرسِ اصلیِ منو، منو در حالتِ «فقط مشاهده» باز می‌شود و برای سفارش، QR روی میز اسکن می‌شود تا شمارهٔ میز معلوم باشد." },
-      { q: "مشتری می‌تواند توضیح برای سفارش بنویسد؟", a: "بله؛ مثلاً «بدونِ پیاز» یا «تند نباشد». توضیح همراهِ سفارش روی پنل نمایش داده می‌شود." },
-      { q: "برای چند میز می‌توانم QR بسازم؟", a: "محدودیتی ندارد؛ برای هر میز یک QR جدا ساخته و چاپ می‌شود." },
-      { q: "اطلاعاتِ رستوران من از بقیه جداست؟", a: "بله؛ هر مجموعه دیتابیس و پوشهٔ عکسِ جدای خودش را دارد." },
+      { q: "Can guests view the menu without scanning a table QR code?", a: "Yes. Your main menu address opens the menu in view-only mode. To order, guests scan the QR code on their table so the table number is known." },
+      { q: "Can guests add notes to their order?", a: "Yes, for example \"no onions\" or \"not too spicy\". Notes are shown with the order on your panel." },
+      { q: "How many tables can I create QR codes for?", a: "There is no limit. Each table gets its own QR code, ready to print." },
+      { q: "Is my restaurant's data kept separate from others?", a: "Yes. Each venue has its own database and image folder that no other venue can access." },
     ],
   },
   {
     slug: "fastfood-menu",
-    label: "منوی دیجیتال فست‌فود",
-    title: "منوی دیجیتال فست فود و سفارش آنلاین پیتزا و برگر",
-    description: "منوی دیجیتال فست‌فود با سفارش آنلاین سرِ میز، پرداختِ قبل از آماده‌سازی و QR کد. پیتزا، برگر و ساندویچ را با عکس بفروشید؛ {trialDays} روز رایگان.",
-    h1: "منوی دیجیتال فست‌فود",
-    highlight: "سفارشِ سریع، پرداختِ قبل از آماده‌سازی",
+    label: "Fast food digital menu",
+    title: "Fast Food Digital Menu for Pizza, Burgers & Takeaway",
+    description: "A fast food digital menu with QR ordering, pay-before-preparation and big food photos. Sell more pizza, burgers and wraps with less queuing. Free for {trialDays} days.",
+    h1: "Digital menu for fast food",
+    highlight: "Fast ordering, payment before preparation",
     intro: [
-      "در فست‌فود سرعت همه‌چیز است. با منوی دیجیتالِ {brand}، مشتری به‌جای ایستادن در صفِ صندوق، از روی گوشی سفارش می‌دهد و می‌تواند قبل از آماده‌سازی پرداخت کند؛ سفارش مستقیم روی پنلِ آشپزخانه می‌آید.",
-      "عکسِ بزرگِ پیتزا و برگر اشتها را باز می‌کند و پیشنهادهای ترکیبی (مثلاً سیب‌زمینی و نوشابه کنارِ ساندویچ) میانگینِ هر سفارش را بالا می‌برد.",
+      "In fast food, speed is everything. With a {brand} digital menu, guests order from their phone instead of waiting in line at the counter, and they can pay before their food is prepared. Orders go straight to your kitchen panel.",
+      "Big, mouth-watering photos of pizzas and burgers sell themselves, and placing sides and drinks right next to your mains makes it easy for guests to build a bigger order.",
     ],
-    benefitsTitle: "مناسب برای پیتزا، برگر و ساندویچ",
+    benefitsTitle: "Made for pizza, burgers and wraps",
     benefits: [
-      { icon: "Zap", title: "سفارشِ بدونِ صف", text: "مشتری از سرِ میز سفارش می‌دهد؛ صفِ صندوق در ساعتِ شلوغی کوتاه می‌شود." },
-      { icon: "CreditCard", title: "پرداخت قبل از آماده‌سازی", text: "سفارش بعد از تأییدِ پرداخت وارد آشپزخانه می‌شود؛ بدونِ سفارشِ لغوشده و ضرر." },
-      { icon: "Star", title: "برچسبِ پرفروش و تخفیف", text: "آیتم‌های ویژه و تخفیف‌دار را برجسته کنید تا بیشتر دیده شوند." },
-      { icon: "BarChart3", title: "گزارشِ پرفروش‌ها", text: "ببینید کدام ساندویچ و پیتزا بیشترین فروش را دارد و منو را بر اساسِ داده بچینید." },
-      { icon: "MessageSquareText", title: "پیامکِ تخفیف", text: "برای مشتری‌های قبلی کدِ تخفیف و جشنواره بفرستید تا دوباره برگردند." },
-      { icon: "QrCode", title: "QR روی میز و بیرون‌بر", text: "QR را روی میز، پیشخوان یا حتی پاکتِ بیرون‌بر بگذارید." },
+      { icon: "Zap", title: "Order without the queue", text: "Guests order from their table, so the line at the counter stays short during the rush." },
+      { icon: "CreditCard", title: "Pay before preparation", text: "Orders reach the kitchen only after payment is confirmed. No more losses from abandoned orders." },
+      { icon: "Star", title: "Bestseller tags and discounts", text: "Highlight specials and discounted items, with the old price crossed out, so they get noticed." },
+      { icon: "BarChart3", title: "Best-seller reports", text: "See which burgers and pizzas sell most and build your menu around real data." },
+      { icon: "MessageSquareText", title: "SMS offers", text: "Send discount codes and promotions to past customers by bulk SMS to bring them back." },
+      { icon: "QrCode", title: "QR codes everywhere", text: "Put QR codes on tables, at the counter, or even on your takeaway bags." },
     ],
-    body: `## چرا فست‌فودها به منوی دیجیتال نیاز دارند؟
-منوی فست‌فود پر از ترکیب و قیمتِ متغیر است و در ساعتِ شلوغی، صندوق گلوگاهِ اصلی است. وقتی سفارش و پرداخت به گوشیِ مشتری منتقل شود، صندوق‌دار و آشپزخانه روی آماده‌سازی تمرکز می‌کنند.
+    body: `## Why do fast food restaurants need a digital menu?
+Fast food menus are full of combos and changing prices, and at peak times the counter becomes the bottleneck. When ordering and payment move to the guest's phone, your cashier and kitchen can focus on getting food out.
 
-## پرداخت قبل از آماده‌سازی چطور کار می‌کند؟
-1. مشتری سفارش را ثبت می‌کند و روشِ پرداخت را می‌بیند.
-2. با کارت‌به‌کارت (و ارسالِ فیش)، کارت‌خوان یا درگاهِ اینترنتی پرداخت می‌کند.
-3. شما پرداخت را تأیید می‌کنید و سفارش برای آماده‌سازی می‌رود.
+## How does pay-before-preparation work?
+1. The guest places an order and sees the available payment methods.
+2. They pay by card with Stripe, by bank transfer (uploading a receipt), or with the card reader at the counter.
+3. You confirm the payment and the order goes to the kitchen.
 
-## فروشِ بیشتر با منوی درست
-عکسِ باکیفیت، توضیحِ کوتاه و برچسبِ «پرفروش» تأثیرِ مستقیم روی انتخابِ مشتری دارد. در [ده نکتهٔ طراحیِ منو](/blog/menu-design-tips) روش‌های عملی‌اش آمده است.`,
+## Sell more with the right menu
+High-quality photos, short descriptions and a "Bestseller" tag directly influence what guests choose. Show deals with the original price crossed out, and toggle items off instantly when they sell out. We share practical techniques in [10 menu design tips](/blog/menu-design-tips).
+
+## Quick to launch
+You don't need new hardware: a phone or laptop for the admin panel is enough. Follow our [QR code menu guide](/blog/qr-code-menu-guide) and you can be live today. See plans in the [pricing section](/#pricing).`,
     faq: [
-      { q: "می‌توانم سفارش را فقط بعد از پرداخت قبول کنم؟", a: "بله؛ گزینهٔ «پرداخت قبل از آماده‌سازی» دقیقاً برای همین است." },
-      { q: "قیمتِ سایزهای مختلفِ پیتزا را چطور وارد کنم؟", a: "هر سایز را می‌توانید یک آیتمِ جدا با قیمتِ خودش تعریف کنید یا در توضیح بنویسید." },
-      { q: "تخفیفِ روزانه را می‌توانم نمایش بدهم؟", a: "بله؛ قیمتِ قبلی خط می‌خورد و برچسبِ «تخفیف» روی آیتم نمایش داده می‌شود." },
-      { q: "برای شروع چه چیزی لازم است؟", a: "فقط یک گوشی یا لپ‌تاپ برای پنل؛ سخت‌افزارِ اضافه لازم نیست." },
+      { q: "Can I accept orders only after they're paid?", a: "Yes. The \"pay before preparation\" option is designed exactly for that." },
+      { q: "How do I list different pizza sizes?", a: "Add each size as a separate item with its own price, or mention the sizes in the item description." },
+      { q: "Can I show a daily discount?", a: "Yes. The old price is shown crossed out next to the new one, and you can add a tag to the item." },
+      { q: "What do I need to get started?", a: "Just a phone or laptop for the admin panel. No extra hardware is required." },
     ],
   },
   {
     slug: "qr-menu",
-    label: "منوی QR کد",
-    title: "ساخت منوی QR کد رایگان برای رستوران و کافه",
-    description: "منوی QR کد بسازید: مشتری با دوربینِ گوشی منو را می‌بیند و سفارش می‌دهد. ساختِ منوی QR برای کافه، رستوران و فست‌فود؛ {trialDays} روزِ اول رایگان.",
-    h1: "ساخت منوی QR کد",
-    highlight: "یک اسکن، منوی کامل روی گوشی",
+    label: "QR code menu",
+    title: "QR Code Menu Generator for Restaurants and Cafés",
+    description: "Create a QR code menu that guests open with their phone camera to browse and order. QR menus for cafés, restaurants and fast food. Your first {trialDays} days are free.",
+    h1: "QR code menu generator",
+    highlight: "One scan, the full menu on any phone",
     intro: [
-      "منوی QR یعنی یک کدِ مربعیِ کوچک روی میز که با دوربینِ گوشی اسکن می‌شود و منوی کاملِ مجموعه را باز می‌کند. با {brand}، منوی QR شما فقط یک فایلِ PDF نیست؛ یک منوی زنده است با عکس، دسته‌بندی، قیمتِ به‌روز و امکانِ سفارش.",
-      "هر میز QR مخصوصِ خودش را دارد؛ وقتی مشتری از روی میزِ ۴ سفارش می‌دهد، سفارش با همان شماره روی پنلِ شما می‌آید.",
+      "A QR code menu is a small square code on the table that guests scan with their phone camera to open your full menu. With {brand}, your QR menu is not just a PDF. It's a live menu with photos, categories, up-to-date prices and ordering built in.",
+      "Every table has its own QR code. When a guest orders from table 4, the order arrives on your panel marked as table 4.",
     ],
-    benefitsTitle: "منوی QR که فقط یک PDF نیست",
+    benefitsTitle: "A QR menu that's more than a PDF",
     benefits: [
-      { icon: "QrCode", title: "QR مخصوصِ هر میز", text: "شمارهٔ میز داخلِ کد است؛ سفارش و درخواستِ گارسون به میزِ درست می‌رسد." },
-      { icon: "Globe", title: "بدونِ نصبِ برنامه", text: "با دوربینِ اندروید و آیفون باز می‌شود؛ مشتری چیزی نصب نمی‌کند." },
-      { icon: "Clock", title: "همیشه به‌روز", text: "قیمت را در پنل عوض کنید؛ لازم نیست QRها را دوباره چاپ کنید." },
-      { icon: "ShieldCheck", title: "فقط برای همان مجموعه", text: "اگر کسی QR میزِ مجموعهٔ دیگری را اسکن کند، منو پیام می‌دهد؛ سفارشِ اشتباهی ثبت نمی‌شود." },
-      { icon: "Printer", title: "چاپِ آماده", text: "کدهای همهٔ میزها را از پنل یک‌جا چاپ کنید." },
-      { icon: "Sparkles", title: "سه حالتِ نمایش", text: "کاروسلِ سه‌بعدی، شبکه‌ای یا لیستی؛ مشتری هر کدام را دوست دارد انتخاب می‌کند." },
+      { icon: "QrCode", title: "A unique QR per table", text: "The table number is built into the code, so orders and waiter calls reach the right table." },
+      { icon: "Globe", title: "No app to install", text: "Opens with the camera on iPhone and Android. Guests don't need to download anything." },
+      { icon: "Clock", title: "Always up to date", text: "Change a price in your panel and it's live instantly. No need to reprint your QR codes." },
+      { icon: "ShieldCheck", title: "Locked to your venue", text: "If someone scans a QR code from another venue, the menu warns them, so no orders end up in the wrong place." },
+      { icon: "Printer", title: "Ready to print", text: "Print the QR codes for all your tables in one go from the panel." },
+      { icon: "Sparkles", title: "Three display modes", text: "3D carousel, grid or list. Guests pick the view they like best." },
     ],
-    body: `## منوی QR چطور ساخته می‌شود؟
-1. ثبت‌نام کنید و یک آدرس برای منو انتخاب کنید (مثلاً نامِ مجموعه‌تان).
-2. محصولات و قیمت‌ها را وارد کنید یا منوی نمونه را ویرایش کنید.
-3. در پنل، تعدادِ میزها را بدهید و QRها را چاپ کنید.
+    body: `## How do I create a QR code menu?
+1. Sign up and choose an address for your menu (for example, your venue's name).
+2. Add your items and prices, or edit the sample menu that's created for you.
+3. Enter the number of tables in your panel and print the QR codes.
 
-آموزشِ تصویری و کامل در [ساخت منوی QR قدم‌به‌قدم](/blog/qr-menu-guide).
+For a detailed walkthrough, see our [step-by-step QR code menu guide](/blog/qr-code-menu-guide).
 
-## QR منو را کجا بگذارم؟
-روی میز (استندِ رومیزی یا برچسب)، کنارِ صندوق، ویترین و حتی پاکتِ بیرون‌بر. QR باید در نورِ معمولیِ سالن خوانا باشد و اندازه‌اش حداقل حدودِ ۳ در ۳ سانتی‌متر.
+## Where should I place the QR codes?
+On every table (on a table stand or a sticker), next to the counter, in the window and even on takeaway bags. Make sure the code is easy to read in your normal lighting and is at least about 1.2 × 1.2 inches (3 × 3 cm).
 
-## فرقِ منوی QR با منوی PDF
-منوی PDF روی گوشی کوچک و سخت‌خوان است، قیمتش با هر تغییر باید دوباره ساخته شود و امکانِ سفارش ندارد. منوی QRِ {brand} برای گوشی طراحی شده، همیشه به‌روز است و سفارش را مستقیم به پنل می‌فرستد.`,
+## QR code menu vs PDF menu
+A PDF menu is small and hard to read on a phone, has to be recreated every time a price changes and can't take orders. A {brand} QR menu is designed for mobile, always shows your latest prices and sends orders straight to your panel. Guests can also call a waiter or request the bill from the same screen.
+
+## Which businesses is it for?
+Any venue where guests read a menu: [cafés](/cafe-menu), [restaurants](/restaurant-menu), [fast food](/fastfood-menu), bakeries, juice bars and ice cream shops. Learn more in [What is a digital menu?](/blog/what-is-a-digital-menu)`,
     faq: [
-      { q: "منوی QR رایگان است؟", a: "{trialDays} روزِ اول کاملاً رایگان است و همهٔ امکانات فعال‌اند؛ بعد از آن اشتراک تمدید می‌شود." },
-      { q: "اگر قیمت‌ها عوض شوند باید QR جدید چاپ کنم؟", a: "نه؛ QR به آدرسِ منو اشاره می‌کند و منو همیشه آخرین قیمت‌ها را نشان می‌دهد." },
-      { q: "با همهٔ گوشی‌ها کار می‌کند؟", a: "بله؛ دوربینِ گوشی‌های اندروید و آیفونِ امروزی QR را مستقیم می‌خوانند." },
-      { q: "می‌توانم QR را روی کارتِ ویزیت هم بگذارم؟", a: "بله؛ QRِ آدرسِ اصلیِ منو (بدونِ شمارهٔ میز) منو را در حالتِ «فقط مشاهده» باز می‌کند." },
+      { q: "Is the QR code menu free?", a: "Your first {trialDays} days are completely free with every feature enabled. After that, you choose a subscription plan." },
+      { q: "Do I need to reprint my QR codes when prices change?", a: "No. The QR code points to your menu address, and the menu always shows your latest prices." },
+      { q: "Does it work with all phones?", a: "Yes. The built-in camera on modern iPhone and Android phones reads QR codes directly." },
+      { q: "Can I put the QR code on business cards or flyers?", a: "Yes. A QR code for your main menu address (without a table number) opens the menu in view-only mode." },
     ],
   },
 ];

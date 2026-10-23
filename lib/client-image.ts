@@ -1,10 +1,10 @@
-/** فهرستِ فرمت‌های قابل‌قبول برای همهٔ ورودی‌های عکس (webp و بقیه صریحاً نام برده شده‌اند تا انتخابگرِ فایل همه را نشان دهد) */
+/** Accepted formats for all image inputs (webp etc. are listed explicitly so the file picker shows them all) */
 export const IMAGE_ACCEPT = "image/*,.webp,.avif,.heic,.heif,.png,.jpg,.jpeg,.gif,.bmp";
 
 const toBlob = (c: HTMLCanvasElement, type: string, q?: number) =>
   new Promise<Blob | null>((res) => c.toBlob((b) => res(b), type, q));
 
-/** تصویر را با هر راهی که مرورگر دارد باز می‌کند (Image، سپس createImageBitmap) */
+/** Decodes the image any way the browser can (Image, then createImageBitmap) */
 async function decode(file: Blob): Promise<{ src: CanvasImageSource; w: number; h: number; close: () => void } | null> {
   const url = URL.createObjectURL(file);
   try {
@@ -25,16 +25,16 @@ async function decode(file: Blob): Promise<{ src: CanvasImageSource; w: number; 
 }
 
 /**
- * عکس را قبل از آپلود روی دستگاهِ کاربر کوچک و فشرده می‌کند (عکس ۵ مگابایتیِ گوشی ← چند صد کیلوبایت).
- * - webp / png / avif / gif / heic و … : هر چه مرورگر بتواند باز کند
- * - عکسِ شفاف (لوگوی بدونِ پس‌زمینه) شفاف می‌ماند (WebP/PNG)، عکسِ معمولی JPEG می‌شود
- * - اگر مرورگر فرمت را نتواند باز کند (مرورگرِ قدیمی)، خودِ فایل فرستاده می‌شود و سرور با sharp تبدیلش می‌کند
+ * Resizes and compresses an image on the user's device before upload (5 MB phone photo → a few hundred KB).
+ * - webp / png / avif / gif / heic, etc.: whatever the browser can decode
+ * - Transparent images (logos without background) stay transparent (WebP/PNG); regular photos become JPEG
+ * - If the browser can't decode the format (old browser), the original file is sent and the server converts it with sharp
  */
 export async function compressImage(file: File, max = 1600, quality = 0.85): Promise<Blob> {
   const d = await decode(file);
   if (!d) {
-    if (file.size > 10 * 1024 * 1024) throw new Error("این فرمت روی این مرورگر باز نمی‌شود و حجمش بیش از ۱۰ مگابایت است");
-    return file; // سرور تبدیل می‌کند
+    if (file.size > 10 * 1024 * 1024) throw new Error("This browser can't open this image format and the file is larger than 10 MB");
+    return file; // the server converts it
   }
   try {
     const scale = Math.min(1, max / Math.max(d.w, d.h));
@@ -44,9 +44,9 @@ export async function compressImage(file: File, max = 1600, quality = 0.85): Pro
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("مرورگر از پردازش تصویر پشتیبانی نمی‌کند");
+    if (!ctx) throw new Error("Your browser doesn't support image processing");
     ctx.drawImage(d.src, 0, 0, w, h);
-    // شفاف است؟ (نمونه‌برداری از یک نسخهٔ کوچک)
+    // Transparent? (sample a small copy)
     let alpha = false;
     try {
       const s = document.createElement("canvas");
@@ -62,7 +62,7 @@ export async function compressImage(file: File, max = 1600, quality = 0.85): Pro
       const pg = await toBlob(canvas, "image/png");
       if (pg) return pg;
     }
-    // عکسِ معمولی: زمینهٔ سفید زیرش + JPEG
+    // Regular photo: white background + JPEG
     const out = document.createElement("canvas");
     out.width = w; out.height = h;
     const oc = out.getContext("2d")!;
@@ -72,13 +72,13 @@ export async function compressImage(file: File, max = 1600, quality = 0.85): Pro
     const jpg = await toBlob(out, "image/jpeg", quality);
     if (jpg) return jpg;
     if (file.size <= 10 * 1024 * 1024) return file;
-    throw new Error("فشرده‌سازی تصویر ناموفق بود");
+    throw new Error("Image compression failed");
   } finally {
     d.close();
   }
 }
 
-/** فایل را در FormData می‌گذارد تا به Server Action فرستاده شود */
+/** Wraps the file in FormData to send to a Server Action */
 export function imageForm(blob: Blob, extra: Record<string, string> = {}): FormData {
   const ext = /webp/.test(blob.type) ? "webp" : /png/.test(blob.type) ? "png" : /jpe?g/.test(blob.type) ? "jpg" : "img";
   const fd = new FormData();

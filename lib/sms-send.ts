@@ -1,22 +1,21 @@
 import "server-only";
-import { sendAfeSms } from "@/lib/sms-afe";
 import type { SmsSettings } from "@/lib/types";
 
-/** ارسالِ پیامکِ متنی با تنظیماتِ داده‌شده (هم برای هر مجموعه و هم برای خودِ پلتفرم) */
+/** Send a plain-text SMS with the given settings (used for each restaurant and for the platform itself). */
 export async function sendSmsWith(sms: SmsSettings, phone: string, text: string): Promise<string> {
-  if (sms.provider === "wide") {
-    return sendAfeSms({ username: sms.username || "", password: sms.password || "", sender: sms.sender || "", domain: sms.domain }, phone, text);
-  }
-  if (sms.provider === "kavenegar") {
-    if (!sms.apiKey) throw new Error("کلید API کاوه‌نگار ثبت نشده است");
-    const body = new URLSearchParams({ receptor: phone, message: text });
-    if (sms.sender) body.set("sender", sms.sender);
-    const res = await fetch(`https://api.kavenegar.com/v1/${encodeURIComponent(sms.apiKey)}/sms/send.json`, {
-      method: "POST", body, cache: "no-store", signal: AbortSignal.timeout(15000),
-    });
-    const data = (await res.json().catch(() => ({}))) as { return?: { status?: number; message?: string } };
-    if (data?.return?.status !== 200) throw new Error(data?.return?.message || "ارسال با کاوه‌نگار انجام نشد");
-    return "ارسال شد";
-  }
-  throw new Error("سامانهٔ پیامک انتخاب نشده — از تنظیمات ← سامانهٔ پیامک، «وایدی» یا «کاوه‌نگار» را انتخاب کنید");
+  if (sms.provider !== "twilio") throw new Error("No SMS provider configured — go to Settings → SMS and set up Twilio");
+  if (!sms.accountSid || !sms.authToken || !sms.from) throw new Error("Twilio Account SID, Auth Token and sender are required");
+  const body = new URLSearchParams({ To: phone, Body: text });
+  if (/^MG[0-9a-f]{32}$/i.test(sms.from)) body.set("MessagingServiceSid", sms.from);
+  else body.set("From", sms.from);
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sms.accountSid)}/Messages.json`, {
+    method: "POST",
+    headers: { Authorization: "Basic " + Buffer.from(`${sms.accountSid}:${sms.authToken}`).toString("base64") },
+    body,
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  const data = (await res.json().catch(() => ({}))) as { sid?: string; message?: string; code?: number };
+  if (!res.ok || !data.sid) throw new Error(data.message ? `Twilio: ${data.message}` : `Twilio error (${res.status})`);
+  return "Sent";
 }

@@ -13,16 +13,16 @@ import { ArticleView, BlogIndex, CityIndex, CityView, SolutionView, cityFaq, pag
 import { tenantUrl } from "@/lib/tenant";
 
 /**
- * مسیرهای سئوی سایتِ پلتفرم: صفحه‌های موضوعی (/cafe-menu و …)، فهرستِ مقالات (/blog) و هر مقاله.
- * روی زیردامنهٔ مجموعه‌ها وجود ندارند (۴۰۴).
+ * SEO routes of the platform site: solution pages (/cafe-menu, …), the blog index (/blog), each article and city pages.
+ * They don't exist on venue subdomains (404).
  */
 const og = (title: string, description: string, url: string, image: string, type: "website" | "article" = "website", extra: Record<string, unknown> = {}) => ({
   title, description, alternates: { canonical: url },
-  openGraph: { type, locale: "fa_IR", url, title, description, images: [{ url: image, ...(image === "/og.png" ? { width: 1200, height: 630 } : {}) }], ...extra },
+  openGraph: { type, locale: "en_US", url, title, description, images: [{ url: image, ...(image === "/og.png" ? { width: 1200, height: 630 } : {}) }], ...extra },
   twitter: { card: "summary_large_image" as const, title, description, images: [image] },
 });
 
-/* ---------- صفحهٔ موضوعی ---------- */
+/* ---------- Solution page ---------- */
 export async function solutionMetadata(slug: string): Promise<Metadata> {
   if (!(await onPlatformHost())) return {};
   const s = solutionBySlug(slug)!;
@@ -47,11 +47,11 @@ export async function SolutionRoute({ slug }: { slug: string }) {
   );
 }
 
-/* ---------- وبلاگ ---------- */
+/* ---------- Blog ---------- */
 export async function blogMetadata(): Promise<Metadata> {
   if (!(await onPlatformHost())) return {};
   const p = publicPlatform();
-  return og("مقالات و آموزش‌های منوی دیجیتال", `راهنمای ساختِ منوی QR، سفارش آنلاین سرِ میز و طراحیِ منو برای کافه و رستوران — مجلهٔ ${p.c.brand.name}.`, "/blog", p.c.brand.ogImage || "/og.png");
+  return og("Digital Menu Guides & Articles", `Practical guides to QR code menus, ordering at the table and menu design for cafés and restaurants — the ${p.c.brand.name} blog.`, "/blog", p.c.brand.ogImage || "/og.png");
 }
 export async function BlogRoute() {
   if (!(await onPlatformHost())) notFound();
@@ -59,7 +59,7 @@ export async function BlogRoute() {
   const origin = await siteOrigin();
   return (
     <>
-      <JsonLd data={breadcrumbLd(origin, [{ name: p.c.brand.name, path: "/" }, { name: "مقالات" }])} />
+      <JsonLd data={breadcrumbLd(origin, [{ name: p.c.brand.name, path: "/" }, { name: "Blog" }])} />
       <BlogIndex p={p} articles={publishedArticles()} />
     </>
   );
@@ -85,18 +85,18 @@ export async function ArticleRoute({ slug }: { slug: string }) {
   return (
     <>
       <JsonLd data={articleLd(origin, filled, p.c.brand.name, p.c.brand.logo)} />
-      <JsonLd data={breadcrumbLd(origin, [{ name: p.c.brand.name, path: "/" }, { name: "مقالات", path: "/blog" }, { name: filled.title }])} />
+      <JsonLd data={breadcrumbLd(origin, [{ name: p.c.brand.name, path: "/" }, { name: "Blog", path: "/blog" }, { name: filled.title }])} />
       <ArticleView p={p} a={a} related={publishedArticles().filter((x) => x.slug !== a.slug)} />
     </>
   );
 }
 
-/* ---------- صفحه‌های شهری ---------- */
+/* ---------- City pages ---------- */
 const publishedCities = () => listCities().filter((c) => c.published);
 export async function cityIndexMetadata(): Promise<Metadata> {
   if (!(await onPlatformHost())) return {};
   const p = publicPlatform();
-  return og("منوی دیجیتال در شهرهای ایران", `ساختِ منوی دیجیتال و منوی QR برای کافه و رستوران در تهران، مشهد، اصفهان، شیراز و همهٔ شهرها — ${p.c.brand.name}.`, "/city", p.c.brand.ogImage || "/og.png");
+  return og("Digital Menus by City", `Create a digital QR code menu for your café or restaurant, wherever you are — set up online in minutes with ${p.c.brand.name}.`, "/city", p.c.brand.ogImage || "/og.png");
 }
 export async function CityIndexRoute() {
   if (!(await onPlatformHost())) notFound();
@@ -104,7 +104,7 @@ export async function CityIndexRoute() {
   const origin = await siteOrigin();
   return (
     <>
-      <JsonLd data={breadcrumbLd(origin, [{ name: p.c.brand.name, path: "/" }, { name: "شهرها" }])} />
+      <JsonLd data={breadcrumbLd(origin, [{ name: p.c.brand.name, path: "/" }, { name: "Cities" }])} />
       <CityIndex p={p} cities={publishedCities()} />
     </>
   );
@@ -114,8 +114,8 @@ export async function cityMetadata(slug: string): Promise<Metadata> {
   const c = getCity(slug);
   if (!c || !c.published) return {};
   const p = publicPlatform();
-  return og(`منوی دیجیتال ${c.name} | منوی QR کافه و رستوران در ${c.name}`,
-    `ساختِ منوی دیجیتال و منوی QR برای کافه، رستوران و فست‌فودهای ${c.name} با سفارش آنلاین سرِ میز و پنلِ مدیریت؛ راه‌اندازیِ آنلاین در چند دقیقه، ${pageVars(p).trialDays} روز رایگان.`,
+  return og(`Digital Menu in ${c.name} | QR Code Menu for Restaurants & Cafés`,
+    `Create a digital QR code menu for cafés, restaurants and fast-food spots in ${c.name}, with ordering at the table and an easy dashboard. Set up online in minutes — ${pageVars(p).trialDays}-day free trial.`,
     `/city/${c.slug}`, p.c.brand.ogImage || "/og.png");
 }
 export async function CityRoute({ slug }: { slug: string }) {
@@ -132,12 +132,12 @@ export async function CityRoute({ slug }: { slug: string }) {
       <JsonLd data={{
         "@context": "https://schema.org",
         "@graph": [
-          { "@type": "Service", "@id": `${origin}/city/${city.slug}#service`, name: `منوی دیجیتال ${city.name}`, serviceType: "منوی دیجیتال و منوی QR",
+          { "@type": "Service", "@id": `${origin}/city/${city.slug}#service`, name: `Digital Menu in ${city.name}`, serviceType: "Digital menu and QR code menu",
             areaServed: { "@type": "City", name: city.name }, provider: { "@type": "Organization", "@id": `${origin}/#org`, name: p.c.brand.name }, url: `${origin}/city/${city.slug}` },
           { "@type": "FAQPage", mainEntity: faq.map((q) => ({ "@type": "Question", name: q.q, acceptedAnswer: { "@type": "Answer", text: q.a } })) },
         ],
       }} />
-      <JsonLd data={breadcrumbLd(origin, [{ name: p.c.brand.name, path: "/" }, { name: "شهرها", path: "/city" }, { name: city.name }])} />
+      <JsonLd data={breadcrumbLd(origin, [{ name: p.c.brand.name, path: "/" }, { name: "Cities", path: "/city" }, { name: city.name }])} />
       <CityView p={p} city={city} cities={publishedCities()} menus={menus} articles={publishedArticles()} demo={await demoInfo(p.c.hero.demoSlug, p.c.hero.demoLabel)} />
     </>
   );

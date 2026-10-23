@@ -1,27 +1,42 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { toFa } from "@/lib/utils";
+import { getSetting } from "@/lib/queries";
+import type { CafeInfo } from "@/lib/types";
 import type { OrderItem } from "@/lib/types";
 
-/** گزارش‌ها با تقویمِ شمسی و ساعتِ تهران (روزِ کاری از ۰۰:۰۰ تا ۲۴:۰۰ به وقتِ ایران) */
-const TZ = "Asia/Tehran";
+/**
+ * Reports use the Gregorian calendar in the restaurant's time zone
+ * (Settings → time zone; falls back to the APP_TIMEZONE environment variable, then UTC).
+ */
 const DAY = 86_400_000;
-export const MONTHS_FA = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
+export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-const jFmt = new Intl.DateTimeFormat("en-US-u-ca-persian-nu-latn", { timeZone: TZ, year: "numeric", month: "numeric", day: "numeric" });
-const wdFmt = new Intl.DateTimeFormat("fa-IR", { timeZone: TZ, weekday: "long" });
+function tz(): string {
+  const t = getSetting<Partial<CafeInfo>>("cafe", {}).timezone || process.env.APP_TIMEZONE || "UTC";
+  try { new Intl.DateTimeFormat("en-US", { timeZone: t }); return t; } catch { return "UTC"; }
+}
+let TZ = "UTC";
+let partsFmt = new Intl.DateTimeFormat("en-US", { timeZone: TZ, year: "numeric", month: "numeric", day: "numeric" });
+let wdFmt = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" });
+function useZone(zone: string) {
+  if (zone === TZ) return;
+  TZ = zone;
+  partsFmt = new Intl.DateTimeFormat("en-US", { timeZone: TZ, year: "numeric", month: "numeric", day: "numeric" });
+  wdFmt = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" });
+}
 
 function jParts(d: Date) {
-  const p = Object.fromEntries(jFmt.formatToParts(d).map((x) => [x.type, x.value]));
+  const p = Object.fromEntries(partsFmt.formatToParts(d).map((x) => [x.type, x.value]));
   return { y: Number(p.year), m: Number(p.month), d: Number(p.day) };
 }
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => { const j = jParts(d); return `${j.y}-${pad(j.m)}-${pad(j.d)}`; };
 const monthKey = (d: Date) => { const j = jParts(d); return `${j.y}-${pad(j.m)}`; };
-const monthLabel = (key: string) => { const [y, m] = key.split("-").map(Number); return `${MONTHS_FA[m - 1]} ${toFa(y)}`; };
+const monthLabel = (key: string) => { const [y, m] = key.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; };
 function prevMonth(key: string) { let [y, m] = key.split("-").map(Number); m -= 1; if (m === 0) { m = 12; y -= 1; } return `${y}-${pad(m)}`; }
 
-export type Method = "receipt" | "pos" | "counter";
+/** receipt = bank transfer, pos = card reader at the table, counter = cashier, online = Stripe */
+export type Method = "receipt" | "pos" | "counter" | "online";
 export interface Totals { revenue: number; orders: number; items: number }
 export interface DayRow extends Totals { key: string; day: number; weekday: string }
 export interface MonthRow extends Totals { key: string; label: string; byMethod: Record<Method, number> }
@@ -40,14 +55,15 @@ export interface Accounting {
     byMethod: Record<Method, number>;
     topItems: { name: string; qty: number; revenue: number }[];
   };
-  /** صورتحساب‌های بازِ پرداخت‌نشده (طلب) */
+  /** Open, unpaid bills (receivables) */
   openDebt: { revenue: number; orders: number };
 }
 
 const zero = (): Totals => ({ revenue: 0, orders: 0, items: 0 });
-const zeroM = (): Record<Method, number> => ({ receipt: 0, pos: 0, counter: 0 });
+const zeroM = (): Record<Method, number> => ({ receipt: 0, pos: 0, counter: 0, online: 0 });
 
 export function getAccounting(selectedMonth?: string): Accounting {
+  useZone(tz());
   const now = new Date();
   const since = new Date(now.getTime() - 400 * DAY).toISOString();
   const rows = db()
@@ -68,7 +84,7 @@ export function getAccounting(selectedMonth?: string): Accounting {
     byDay.set(dk, d);
     const m = byMonth.get(mk) || { ...zero(), byMethod: zeroM() };
     m.revenue += r.total; m.orders += 1; m.items += n;
-    const method = (["receipt", "pos", "counter"].includes(r.pay_method) ? r.pay_method : "counter") as Method;
+    const method = (["receipt", "pos", "counter", "online"].includes(r.pay_method) ? r.pay_method : "counter") as Method;
     m.byMethod[method] += r.total;
     byMonth.set(mk, m);
     const im = itemsByMonth.get(mk) || new Map();
@@ -90,18 +106,18 @@ export function getAccounting(selectedMonth?: string): Accounting {
   const lastMk = prevMonth(thisMk);
   const todayKey = dayKey(now);
 
-  // ۳۰ روزِ اخیر (قدیمی → امروز)
+  // Last 30 days (oldest → today)
   const last30: DayRow[] = [];
   for (let i = 29; i >= 0; i--) last30.push(dayRow(new Date(now.getTime() - i * DAY)));
 
-  // ۱۲ ماهِ اخیر (جدید → قدیمی)
+  // Last 12 months (newest → oldest)
   const months: MonthRow[] = [];
   for (let i = 0, k = thisMk; i < 12; i++, k = prevMonth(k)) {
     const m = byMonth.get(k);
     months.push({ key: k, label: monthLabel(k), ...(m ? { revenue: m.revenue, orders: m.orders, items: m.items } : zero()), byMethod: m ? m.byMethod : zeroM() });
   }
 
-  // ماهِ انتخاب‌شده: روزهایش تا امروز
+  // Selected month: its days up to today
   const sel = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth) && months.some((m) => m.key === selectedMonth) ? selectedMonth : thisMk;
   const days: DayRow[] = [];
   for (let i = 0; i < 400; i++) {
@@ -121,7 +137,7 @@ export function getAccounting(selectedMonth?: string): Accounting {
     .get() as unknown as { s: number; c: number };
 
   return {
-    today: { ...(byDay.get(todayKey) || zero()), label: `${wdFmt.format(now)} ${toFa(jParts(now).d)} ${MONTHS_FA[jParts(now).m - 1]}` },
+    today: { ...(byDay.get(todayKey) || zero()), label: `${wdFmt.format(now)}, ${MONTHS[jParts(now).m - 1]} ${jParts(now).d}` },
     yesterday: byDay.get(dayKey(new Date(now.getTime() - DAY))) || zero(),
     thisMonth: { ...totalsOf(thisMk), label: monthLabel(thisMk), key: thisMk },
     lastMonth: { ...totalsOf(lastMk), label: monthLabel(lastMk) },

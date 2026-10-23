@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Banknote, CheckCircle2, CreditCard, Loader2, Phone, Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, faDateTime, orderCode, toFa } from "@/lib/utils";
+import { cn, fmtDateTime, orderCode, num } from "@/lib/utils";
 import type { Order } from "@/lib/types";
 import { staffSettleTableAction, staffTablePayAction } from "@/app/staff/actions";
 import { Empty, Panel, TableBadge, useStaff } from "@/components/staff/kit";
@@ -18,7 +18,7 @@ interface Group {
   lastAt: number;
 }
 
-/** گروه‌بندیِ سفارش‌ها بر اساس میز (هر کارت = کلِ صورتحسابِ یک میز) */
+/** Group orders by table (each card = one table's whole bill) */
 function groupByTable(list: Order[]): Group[] {
   const map = new Map<string, Order[]>();
   for (const o of list) map.set(o.table, [...(map.get(o.table) || []), o]);
@@ -40,31 +40,31 @@ function groupByTable(list: Order[]): Group[] {
 
 export function CashierSection({ orders, onRefresh }: { orders: Order[]; onRefresh: () => void }) {
   const pending = groupByTable(orders.filter((o) => o.payStatus === "pending"));
-  // مشتری «کارت‌خوان سر میز» خواسته: فاکتور چاپ شود و سالن‌دار با کارت‌خوان برود
+  // Customer asked for a card reader: print the bill and a server brings the card reader
   const pos = groupByTable(orders.filter((o) => !o.paid && o.status !== "cancelled" && o.payStatus === "pos"));
-  // صورتحساب‌های باز بدون فیش (برای پرداخت نقدی/کارتخوان)
+  // Open bills without a receipt (paid in cash or by card at the counter)
   const open = groupByTable(orders.filter((o) => !o.paid && o.status !== "cancelled" && o.payStatus !== "pending" && o.payStatus !== "pos"));
   const confirmed = groupByTable(orders.filter((o) => o.paid)).slice(0, 30);
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <Panel title="پرداخت‌های در انتظار تأیید" icon={<CreditCard className="size-5 text-primary" />} count={toFa(pending.length)}>
-        {pending.length === 0 ? <Empty text="پرداختی در انتظار نیست" /> : (
+      <Panel title="Payments awaiting approval" icon={<CreditCard className="size-5 text-primary" />} count={num(pending.length)}>
+        {pending.length === 0 ? <Empty text="No pending payments" /> : (
           <div className="grid gap-3 md:grid-cols-2">{pending.map((g) => <BillCard key={g.table} g={g} kind="pending" onDone={onRefresh} />)}</div>
         )}
       </Panel>
       {pos.length > 0 && (
-        <Panel title="کارت‌خوان سر میز" icon={<Printer className="size-5 text-blue-600" />} count={toFa(pos.length)} className="border-blue-600/30">
-          <p className="-mt-1 mb-3 text-xs text-muted-foreground">فاکتور را چاپ کنید تا سالن‌دار با فاکتور و کارت‌خوان سر میز برود؛ بعد از کشیدن کارت «پرداخت شد» را بزنید.</p>
+        <Panel title="Card reader at the table" icon={<Printer className="size-5 text-blue-600" />} count={num(pos.length)} className="border-blue-600/30">
+          <p className="-mt-1 mb-3 text-xs text-muted-foreground">Print the bill so a server can take it to the table with the card reader; tap “Paid” once the card has been charged.</p>
           <div className="grid gap-3 md:grid-cols-2">{pos.map((g) => <BillCard key={g.table} g={g} kind="pos" onDone={onRefresh} />)}</div>
         </Panel>
       )}
-      <Panel title="صورتحساب‌های باز (بدون فیش)" icon={<Banknote className="size-5 text-amber-600" />} count={toFa(open.length)}>
-        {open.length === 0 ? <Empty text="صورتحساب بازی نیست" /> : (
+      <Panel title="Open bills (no receipt)" icon={<Banknote className="size-5 text-amber-600" />} count={num(open.length)}>
+        {open.length === 0 ? <Empty text="No open bills" /> : (
           <div className="grid gap-3 md:grid-cols-2">{open.map((g) => <BillCard key={g.table} g={g} kind="open" onDone={onRefresh} />)}</div>
         )}
       </Panel>
-      <Panel title="تأییدشده‌ها" icon={<CheckCircle2 className="size-5 text-green-600" />}>
+      <Panel title="Paid" icon={<CheckCircle2 className="size-5 text-green-600" />}>
         {confirmed.length === 0 ? <Empty text="—" /> : (
           <div className="grid gap-3 md:grid-cols-2">{confirmed.map((g) => <BillCard key={g.table} g={g} kind="paid" onDone={onRefresh} />)}</div>
         )}
@@ -82,66 +82,66 @@ function BillCard({ g, kind, onDone }: { g: Group; kind: "pending" | "open" | "p
     try {
       if (kind === "pending") await staffTablePayAction(g.table, "confirmed");
       else await staffSettleTableAction(g.table);
-      flash(`پرداخت میز ${toFa(g.table)} تأیید شد ✅`);
+      flash(`Payment for Table ${num(g.table)} confirmed ✅`);
       onDone();
-    } catch (e) { flash(e instanceof Error ? e.message : "خطا"); } finally { setBusy(""); }
+    } catch (e) { flash(e instanceof Error ? e.message : "Error"); } finally { setBusy(""); }
   }
   async function rejectAll() {
-    const reason = await ask("عدم تأیید فیش", "دلیل (اختیاری) به مشتری نشان داده می‌شود و عکس فیش حذف می‌شود.");
+    const reason = await ask("Reject receipt", "The reason (optional) is shown to the customer and the receipt image is deleted.");
     if (reason === null) return;
     setBusy("no");
-    try { await staffTablePayAction(g.table, "rejected", reason); flash("فیش رد شد"); onDone(); }
-    catch (e) { flash(e instanceof Error ? e.message : "خطا"); } finally { setBusy(""); }
+    try { await staffTablePayAction(g.table, "rejected", reason); flash("Receipt rejected"); onDone(); }
+    catch (e) { flash(e instanceof Error ? e.message : "Error"); } finally { setBusy(""); }
   }
 
   return (
     <article className={cn("rounded-2xl border bg-background p-3.5", kind === "pending" ? "border-amber-500/40" : kind === "pos" ? "border-blue-600/40" : kind === "paid" ? "border-green-600/30 opacity-80" : "border-border")}>
       <div className="mb-2 flex items-center justify-between">
-        <TableBadge table={toFa(g.table)} />
-        <span className="text-xs text-muted-foreground">{toFa(g.orders.length)} سفارش</span>
+        <TableBadge table={num(g.table)} />
+        <span className="text-xs text-muted-foreground">{num(g.orders.length)} {g.orders.length === 1 ? "order" : "orders"}</span>
       </div>
       <ul className="mb-2 space-y-0.5 text-sm">
         {g.orders.map((o) => (
           <li key={o.id} className="flex justify-between gap-2">
-            <span className="text-muted-foreground"><span dir="ltr">{orderCode(o, codeMode)}</span> · {faDateTime(o.createdAt)}</span>
+            <span className="text-muted-foreground"><span>{orderCode(o, codeMode)}</span> · {fmtDateTime(o.createdAt)}</span>
             <span>{money(o.total)}</span>
           </li>
         ))}
       </ul>
       <div className="flex items-center justify-between border-t border-border pt-2">
-        <span className="text-xs text-muted-foreground">{kind === "paid" ? "جمع پرداختی" : "جمع بدهی"}</span>
+        <span className="text-xs text-muted-foreground">{kind === "paid" ? "Total paid" : "Amount due"}</span>
         <strong className="text-lg text-primary">{money(g.total)}</strong>
       </div>
-      {g.phone && <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground"><Phone className="size-3.5" /><span dir="ltr">{toFa(g.phone)}</span></p>}
+      {g.phone && <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground"><Phone className="size-3.5" /><span>{g.phone}</span></p>}
       {g.reused && kind === "pending" && (
         <p className="mt-2 flex gap-1.5 rounded-xl bg-amber-500/15 p-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
-          <AlertTriangle className="size-4 shrink-0" /> این تصویر قبلاً استفاده شده — احتمالاً اسکرین‌شات تکراری است. با دقت بررسی کنید.
+          <AlertTriangle className="size-4 shrink-0" /> This image was used before — possibly a duplicate screenshot. Please check carefully.
         </p>
       )}
       {kind === "pending" && (g.receipt ? (
-        <button onClick={() => viewImage(g.receipt)} className="mt-2 block w-full overflow-hidden rounded-xl border border-border" aria-label="مشاهدهٔ فیش">
+        <button onClick={() => viewImage(g.receipt)} className="mt-2 block w-full overflow-hidden rounded-xl border border-border" aria-label="View receipt">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={g.receipt} alt="فیش پرداخت" className="max-h-56 w-full object-contain bg-muted" />
+          <img src={g.receipt} alt="Payment receipt" className="max-h-56 w-full object-contain bg-muted" />
         </button>
-      ) : <p className="mt-2 text-xs text-muted-foreground">بدون فیش</p>)}
+      ) : <p className="mt-2 text-xs text-muted-foreground">No receipt</p>)}
       <div className="mt-3 flex flex-wrap gap-1.5">
         {kind === "pending" && (
           <>
-            <Button size="sm" className="h-8 flex-1 rounded-xl bg-green-600 text-white hover:bg-green-600/90" disabled={!!busy} onClick={confirmAll}>{busy === "ok" ? <Loader2 className="animate-spin" /> : "✅ تأیید پرداخت"}</Button>
-            <Button size="sm" variant="outline" className="h-8 rounded-xl text-primary" disabled={!!busy} onClick={rejectAll}>{busy === "no" ? <Loader2 className="animate-spin" /> : <><X className="size-3.5" /> عدم تأیید</>}</Button>
+            <Button size="sm" className="h-8 flex-1 rounded-xl bg-green-600 text-white hover:bg-green-600/90" disabled={!!busy} onClick={confirmAll}>{busy === "ok" ? <Loader2 className="animate-spin" /> : "✅ Approve payment"}</Button>
+            <Button size="sm" variant="outline" className="h-8 rounded-xl text-primary" disabled={!!busy} onClick={rejectAll}>{busy === "no" ? <Loader2 className="animate-spin" /> : <><X className="size-3.5" /> Reject</>}</Button>
           </>
         )}
         {kind === "open" && (
-          <Button size="sm" className="h-8 flex-1 rounded-xl" disabled={!!busy} onClick={() => { if (confirm(`کل صورتحساب میز ${toFa(g.table)} پرداخت شد؟`)) confirmAll(); }}>{busy ? <Loader2 className="animate-spin" /> : <><Banknote className="size-3.5" /> پرداخت شد (نقدی/کارتخوان)</>}</Button>
+          <Button size="sm" className="h-8 flex-1 rounded-xl" disabled={!!busy} onClick={() => { if (confirm(`Was the full bill for Table ${num(g.table)} paid?`)) confirmAll(); }}>{busy ? <Loader2 className="animate-spin" /> : <><Banknote className="size-3.5" /> Paid (cash/card)</>}</Button>
         )}
         {kind === "pos" && (
           <>
-            <Button size="sm" className="h-8 flex-1 rounded-xl" onClick={() => print("table=" + encodeURIComponent(g.table))}><Printer className="size-3.5" /> چاپ فاکتور</Button>
-            <Button size="sm" className="h-8 flex-1 rounded-xl bg-green-600 text-white hover:bg-green-600/90" disabled={!!busy} onClick={() => { if (confirm(`مبلغ میز ${toFa(g.table)} با کارت‌خوان دریافت شد؟`)) confirmAll(); }}>{busy ? <Loader2 className="animate-spin" /> : "پرداخت شد (کارت‌خوان)"}</Button>
+            <Button size="sm" className="h-8 flex-1 rounded-xl" onClick={() => print("table=" + encodeURIComponent(g.table))}><Printer className="size-3.5" /> Print bill</Button>
+            <Button size="sm" className="h-8 flex-1 rounded-xl bg-green-600 text-white hover:bg-green-600/90" disabled={!!busy} onClick={() => { if (confirm(`Was Table ${num(g.table)} paid with the card reader?`)) confirmAll(); }}>{busy ? <Loader2 className="animate-spin" /> : "Paid (card reader)"}</Button>
           </>
         )}
-        {kind === "paid" && <span className="flex items-center gap-1 text-sm font-semibold text-green-600 dark:text-green-400"><CheckCircle2 className="size-4" /> پرداخت تأیید شد</span>}
-        {kind !== "pos" && <Button size="sm" variant="ghost" className="h-8 rounded-xl" onClick={() => print("orders=" + g.orders.map((o) => o.id).join(","))}><Printer className="size-3.5" /> چاپ صورتحساب</Button>}
+        {kind === "paid" && <span className="flex items-center gap-1 text-sm font-semibold text-green-600 dark:text-green-400"><CheckCircle2 className="size-4" /> Payment confirmed</span>}
+        {kind !== "pos" && <Button size="sm" variant="ghost" className="h-8 rounded-xl" onClick={() => print("orders=" + g.orders.map((o) => o.id).join(","))}><Printer className="size-3.5" /> Print bill</Button>}
       </div>
     </article>
   );

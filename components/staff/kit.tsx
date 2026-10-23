@@ -4,18 +4,19 @@ import { createContext, useContext } from "react";
 import { cn } from "@/lib/utils";
 import type { OrderCodeMode } from "@/lib/types";
 
-/** اطلاعات مشترکِ پنل (واحد پول، حالت کد سفارش، پیام کوتاه) */
+/** Shared panel context (currency, order code mode, flash messages) */
 export interface StaffCtx {
   cafeName: string;
   money: (n: number) => string;
-  currency: "toman" | "rial";
+  /** ISO 4217 code, e.g. "USD" */
+  currency: string;
   codeMode: OrderCodeMode;
   flash: (m: string) => void;
-  /** پنجرهٔ چاپ فاکتور/صورتحساب */
+  /** Print window for invoices/bills */
   print: (q: string) => void;
-  /** نمایش بزرگِ عکس فیش */
+  /** Full-size receipt image viewer */
   viewImage: (src: string) => void;
-  /** دیالوگِ متن (مثلاً دلیلِ رد)؛ null یعنی لغو */
+  /** Text prompt dialog (e.g. rejection reason); null means cancelled */
   ask: (title: string, hint?: string) => Promise<string | null>;
 }
 export const Ctx = createContext<StaffCtx | null>(null);
@@ -61,7 +62,7 @@ export function Empty({ text }: { text: string }) {
 }
 
 export function TableBadge({ table }: { table: string }) {
-  return <span className="rounded-full bg-foreground px-2.5 py-0.5 text-xs font-bold text-background">میز {table}</span>;
+  return <span className="rounded-full bg-foreground px-2.5 py-0.5 text-xs font-bold text-background">Table {table}</span>;
 }
 
 export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -74,14 +75,14 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
         onClick={() => onChange(!checked)}
         className={cn("relative h-6 w-11 shrink-0 rounded-full transition", checked ? "bg-primary" : "bg-muted-foreground/30")}
       >
-        <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-all", checked ? "right-[22px]" : "right-0.5")} />
+        <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-all", checked ? "left-[22px]" : "left-0.5")} />
       </button>
       {label}
     </label>
   );
 }
 
-/** آیکون دسته: ایموجی یا عکسِ آپلودی */
+/** Category icon: emoji or uploaded image */
 export const isImgSrc = (s: string) => /^https?:|^data:|^blob:|^\/uploads\//.test(s || "");
 export function CatIcon({ icon, className }: { icon: string; className?: string }) {
   return isImgSrc(icon) ? (

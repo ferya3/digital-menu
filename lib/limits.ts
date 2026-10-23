@@ -6,8 +6,8 @@ import { DatabaseSync } from "node:sqlite";
 import { DATA_DIR } from "@/lib/tenant-context";
 
 /**
- * محدودیتِ تعدادِ درخواست و کدهای یک‌بارمصرف — روی دیسک (data/limits.db)، نه در حافظه؛
- * با ری‌استارت/به‌روزرسانیِ سرور از بین نمی‌رود و بین پروسه‌ها مشترک است.
+ * Rate limits and one-time codes — stored on disk (data/limits.db), not in memory;
+ * survives server restarts/updates and is shared between processes.
  */
 const g = globalThis as unknown as { __limitsDb?: DatabaseSync };
 function ldb(): DatabaseSync {
@@ -25,8 +25,8 @@ function ldb(): DatabaseSync {
   return d;
 }
 
-/** شمارشِ تلاش در یک پنجرهٔ زمانی؛ بیش از max ← خطا */
-export function hit(key: string, max: number, windowMs: number, message = "تعداد تلاش زیاد است؛ کمی بعد دوباره امتحان کنید") {
+/** Counts attempts in a time window; more than max → error */
+export function hit(key: string, max: number, windowMs: number, message = "Too many attempts. Please try again in a little while") {
   const d = ldb();
   const now = Date.now();
   const r = d.prepare("SELECT n, t FROM hits WHERE key = ?").get(key) as unknown as { n: number; t: number } | undefined;
@@ -36,12 +36,12 @@ export function hit(key: string, max: number, windowMs: number, message = "تع�
     .run(key, n, fresh ? now : r!.t);
   if (n > max) throw new Error(message);
 }
-/** قفل بودن بدونِ شمردنِ تلاشِ تازه (قبل از بررسیِ رمز؛ تا حدسِ درست هم در زمانِ قفل رد شود) */
-export function assertNotLocked(key: string, max: number, windowMs: number, message = "تعداد تلاش زیاد است؛ کمی بعد دوباره امتحان کنید") {
+/** Lock check without counting a new attempt (before checking the password, so even a correct guess is rejected while locked) */
+export function assertNotLocked(key: string, max: number, windowMs: number, message = "Too many attempts. Please try again in a little while") {
   const r = ldb().prepare("SELECT n, t FROM hits WHERE key = ?").get(key) as unknown as { n: number; t: number } | undefined;
   if (r && Date.now() - r.t <= windowMs && r.n >= max) throw new Error(message);
 }
-/** توکنِ یک‌بارمصرف: بارِ اول true، از آن به بعد (حتی بعد از ری‌استارت) false */
+/** One-time token: true the first time, false afterwards (even after a restart) */
 export function consumeOnce(key: string, ttlMs: number): boolean {
   const r = ldb().prepare("INSERT OR IGNORE INTO used (key, exp) VALUES (?, ?)").run(key, Date.now() + ttlMs);
   return Number(r.changes) > 0;
@@ -52,26 +52,26 @@ export function clearHits(key: string) {
 
 const sha = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
 
-/** کدِ عددیِ تازه (۶ رقم) — فقط هشِ آن ذخیره می‌شود. cooldownMs: فاصلهٔ حداقل بین دو ارسال */
+/** New numeric code (6 digits) — only its hash is stored. cooldownMs: minimum gap between two sends */
 export function issueCode(key: string, ttlMs: number, cooldownMs = 60_000): string {
   const d = ldb();
   const prev = d.prepare("SELECT last_sent FROM codes WHERE key = ?").get(key) as unknown as { last_sent: number } | undefined;
-  if (prev && Date.now() - prev.last_sent < cooldownMs) throw new Error("لطفاً یک دقیقه صبر کنید و دوباره تلاش کنید");
+  if (prev && Date.now() - prev.last_sent < cooldownMs) throw new Error("Please wait a minute and try again");
   const code = String(crypto.randomInt(100000, 1000000));
   d.prepare("INSERT INTO codes (key, hash, exp, attempts, last_sent) VALUES (?, ?, ?, 0, ?) ON CONFLICT(key) DO UPDATE SET hash=excluded.hash, exp=excluded.exp, attempts=0, last_sent=excluded.last_sent")
     .run(key, sha(key + ":" + code), Date.now() + ttlMs, Date.now());
   return code;
 }
 
-/** بررسیِ کد: حداکثر ۵ تلاش برای هر کد؛ کدِ درست یک‌بار مصرف می‌شود */
+/** Checks a code: at most 5 attempts per code; a correct code is consumed */
 export function checkCode(key: string, input: string) {
   const d = ldb();
   const r = d.prepare("SELECT hash, exp, attempts FROM codes WHERE key = ?").get(key) as unknown as { hash: string; exp: number; attempts: number } | undefined;
-  if (!r) throw new Error("ابتدا کد تأیید را درخواست کنید");
-  if (Date.now() > r.exp) { d.prepare("DELETE FROM codes WHERE key = ?").run(key); throw new Error("کد منقضی شده؛ دوباره درخواست دهید"); }
-  if (r.attempts >= 5) { d.prepare("DELETE FROM codes WHERE key = ?").run(key); throw new Error("تعداد تلاش زیاد است؛ دوباره درخواست دهید"); }
+  if (!r) throw new Error("Please request a verification code first");
+  if (Date.now() > r.exp) { d.prepare("DELETE FROM codes WHERE key = ?").run(key); throw new Error("The code has expired. Please request a new one"); }
+  if (r.attempts >= 5) { d.prepare("DELETE FROM codes WHERE key = ?").run(key); throw new Error("Too many attempts. Please request a new code"); }
   d.prepare("UPDATE codes SET attempts = attempts + 1 WHERE key = ?").run(key);
   const a = Buffer.from(sha(key + ":" + input)), b = Buffer.from(r.hash);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new Error("کد واردشده نادرست است");
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new Error("The code you entered is incorrect");
   d.prepare("DELETE FROM codes WHERE key = ?").run(key);
 }

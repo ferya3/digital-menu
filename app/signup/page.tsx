@@ -8,10 +8,10 @@ import { cookies } from "next/headers";
 import { REF_COOKIE, activeRef } from "@/lib/partners";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "ثبت‌نام و ساختِ منوی رایگان", alternates: { canonical: "/signup" } };
+export const metadata = { title: "Sign up and create your free menu", alternates: { canonical: "/signup" } };
 
 export default async function SignupPage() {
-  // فقط روی دامنهٔ اصلیِ پلتفرم؛ روی زیردامنهٔ مجموعه‌ها وجود ندارد
+  // Platform root domain only; does not exist on venue subdomains
   if (!(await onPlatformHost())) notFound();
   const p = publicPlatform();
   return (
@@ -20,7 +20,7 @@ export default async function SignupPage() {
         {p.allowSignup ? (
           <SignupForm root={p.root} otp={p.otp} kinds={KIND_LABEL} texts={p.c.signup} refCode={activeRef((await cookies()).get(REF_COOKIE)?.value)} />
         ) : (
-          <p className="rounded-3xl border border-border bg-card p-6 text-center">ثبت‌نامِ آنلاین فعلاً بسته است{p.c.footer.phone ? `؛ پشتیبانی: ${p.c.footer.phone}` : "."}</p>
+          <p className="rounded-3xl border border-border bg-card p-6 text-center">Online signup is currently closed{p.c.footer.phone ? `. Contact support: ${p.c.footer.phone}` : "."}</p>
         )}
       </main>
     </PlatformShell>

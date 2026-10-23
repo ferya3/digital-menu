@@ -26,7 +26,7 @@ function Scene() {
   useFrame((state, dt) => {
     if (!group.current) return;
     group.current.rotation.y += dt * 0.22;
-    // پارالاکسِ ملایم با حرکت موس
+    // Subtle parallax following the pointer
     const px = state.pointer.x * 0.25;
     const py = state.pointer.y * 0.2;
     group.current.rotation.x += (py - group.current.rotation.x) * 0.05;
@@ -43,20 +43,21 @@ function Scene() {
 
   const { viewport } = useThree();
   const wide = viewport.width > 7;
-  const base: [number, number, number] = wide ? [-viewport.width * 0.24, 0, 0] : [0, viewport.height * 0.09, -1.5];
+  // Wide screens: scene on the right, headline on the left (LTR)
+  const base: [number, number, number] = wide ? [viewport.width * 0.24, 0, 0] : [0, viewport.height * 0.09, -1.5];
   const scale = wide ? 1 : 0.62;
 
   return (
     <group position={base} scale={scale}>
     <group ref={group}>
-      {/* حلقهٔ مرکزی */}
+      {/* Center ring */}
       <Float speed={1.2} rotationIntensity={0.6} floatIntensity={1}>
         <mesh rotation={[Math.PI / 2.6, 0, 0]}>
           <torusGeometry args={[1.35, 0.17, 32, 100]} />
           <meshStandardMaterial color={RED} roughness={0.25} metalness={0.5} />
         </mesh>
       </Float>
-      {/* قطرهٔ مرکزی */}
+      {/* Center drop */}
       <Float speed={2} floatIntensity={1.4}>
         <mesh>
           <sphereGeometry args={[0.55, 48, 48]} />

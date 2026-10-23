@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 const txt = (body: string) => new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
 
-/** robots.txt جدا برای سایتِ پلتفرم و هر مجموعه (پنل‌ها و صفحه‌های داخلی ایندکس نمی‌شوند) */
+/** Separate robots.txt for the platform site and each venue (dashboards and internal pages are not indexed) */
 export async function GET() {
   const origin = await siteOrigin();
   if (saasEnabled()) {

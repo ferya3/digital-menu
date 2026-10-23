@@ -5,15 +5,15 @@ import Lenis from "lenis";
 
 export function SmoothScroll({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    // Lenis خودش حلقهٔ requestAnimationFrame را می‌گرداند (بدون نیاز به GSAP در بارگذاری اول)
+    // Lenis runs its own requestAnimationFrame loop (no GSAP needed on first load)
     const lenis = new Lenis({
       duration: 1.1,
       smoothWheel: true,
-      // روی لمس، اسکرولِ بومی طبیعی‌تر است
+      // On touch, native scrolling feels more natural
       touchMultiplier: 1.5,
       autoRaf: true,
     });
-    // در دسترسِ بقیهٔ کامپوننت‌ها برای اسکرول نرم به لنگرها
+    // Exposed to other components for smooth scrolling to anchors
     (window as unknown as { __lenis?: Lenis }).__lenis = lenis;
     return () => {
       lenis.destroy();
@@ -23,7 +23,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** اسکرول نرم به یک المنت (با Lenis اگر فعال باشد) */
+/** Smooth-scroll to an element (via Lenis when active) */
 export function scrollToId(id: string, offset = -60) {
   const el = document.getElementById(id);
   if (!el) return;

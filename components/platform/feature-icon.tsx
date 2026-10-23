@@ -3,7 +3,7 @@ import {
   Percent, Printer, QrCode, ShieldCheck, Smartphone, Sparkles, Star, Store, Truck, Users, UtensilsCrossed, Zap,
 } from "lucide-react";
 
-/** فقط آیکون‌های مجازِ کارت‌های امکانات (FEATURE_ICONS) — نه کلِ کتابخانهٔ آیکون */
+/** Only the icons allowed for feature cards (FEATURE_ICONS) — not the whole icon library */
 const MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   QrCode, Smartphone, CreditCard, BellRing, Calculator, Users, MessageSquareText, Palette, Store, Sparkles, Clock,
   ShieldCheck, Truck, Coffee, UtensilsCrossed, ChefHat, Printer, Globe, Heart, Star, Zap, BarChart3, Gift, Percent,

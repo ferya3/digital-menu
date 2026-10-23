@@ -23,7 +23,7 @@ export function Landing({
   otp?: boolean;
   payFirst?: boolean;
 }) {
-  // میز می‌تواند بدونِ بارگذاریِ دوبارهٔ صفحه عوض شود (بعد از اسکنِ QR داخلِ سایت → فوری)
+  // The table can change without a page reload (instant after an in-site QR scan)
   const [table, setTable] = useState(initialTable);
   const openTable = useCallback((t: string) => {
     try { sessionStorage.removeItem("cafe_browse"); } catch {}
@@ -37,14 +37,14 @@ export function Landing({
       <MobileMenu cafeName={cafe.name} table={table} kind={cafe.kind} />
 
       {table ? (
-        // هیرو (سه‌بعدی یا ویدیو) به‌صورت پاپ‌آپِ خوش‌آمد — فقط بار اولِ هر نشست
+        // Hero (3D or video) as a welcome splash — only the first time in each session
         <HeroSplash cafe={cafe} table={table} />
       ) : (
-        // بدون شمارهٔ میز: صفحهٔ «QR میز را اسکن کنید»
+        // No table number: the "Scan your table QR" screen
         <ScanGate cafe={cafe} onTable={openTable} />
       )}
 
-      {/* ===== MENU + ordering (پنل منتخب‌ها هم داخل همین است تا به همان سبد اضافه شود) ===== */}
+      {/* ===== MENU + ordering (the picks panel lives here too, so it shares the same cart) ===== */}
       <div id="menu">
         <MenuView menu={menu} table={table} cafe={cafe} payment={payment} otp={otp} payFirst={payFirst} />
       </div>

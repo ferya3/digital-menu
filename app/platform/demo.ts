@@ -6,13 +6,13 @@ import { tenantUrl } from "@/lib/tenant";
 export interface DemoInfo { url: string; qr: string; label: string }
 
 /**
- * منوی نمونهٔ زنده برای صفحه‌های سایت: آدرس (با میزِ ۱ تا سفارش هم امتحان شود) + QRِ SVG برای اسکن از روی مانیتور.
- * اگر منوی نمونه تعیین نشده یا فعال نیست، null (دکمه‌ها نمایش داده نمی‌شوند).
+ * Live sample menu for the site pages: URL (with table 1 so ordering can be tried too) + an SVG QR to scan from the screen.
+ * Returns null when no sample menu is set or it isn't active (the buttons are then hidden).
  */
 export async function demoInfo(slug: string, label: string): Promise<DemoInfo | null> {
   const t = slug ? getTenant(slug) : null;
   if (!t || !tenantState(t).active) return null;
   const url = await tenantUrl(t, "/?table=1");
   const qr = await QRCode.toString(url, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#0f172a", light: "#ffffff" } });
-  return { url, qr, label: label || "منوی نمونه را زنده ببینید" };
+  return { url, qr, label: label || "See the live sample menu" };
 }

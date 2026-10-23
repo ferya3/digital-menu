@@ -4,70 +4,41 @@ import { checkCode, hit, issueCode } from "@/lib/limits";
 import { clientIp, cookieOpts } from "@/lib/security";
 import { addCustomer, getSetting } from "@/lib/queries";
 import { readSigned, signData } from "@/lib/auth";
-import { sendAfeSms } from "@/lib/sms-afe";
+import { sendSmsWith } from "@/lib/sms-send";
+import { isValidPhone, normalizePhone } from "@/lib/phone";
 import type { CafeInfo, SmsSettings } from "@/lib/types";
 import { currentTenant } from "@/lib/tenant-context";
 
-export const DEFAULT_SMS: SmsSettings = {
-  provider: "none", apiKey: "", template: "verify", otpEnabled: false,
-  username: "", password: "", sender: "", domain: "wide.ir",
-};
+export const DEFAULT_SMS: SmsSettings = { provider: "none", accountSid: "", authToken: "", from: "", otpEnabled: false };
 const COOKIE = "cafe_phone";
 const VERIFIED_TTL = 12 * 3600 * 1000;
 
-/** نرمال‌سازی شماره (ارقام فارسی، +98، 0098 …) به 09xxxxxxxxx */
-export function normalizePhone(raw: string): string {
-  let p = String(raw || "")
-    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
-    .replace(/\D/g, "");
-  if (p.startsWith("0098")) p = "0" + p.slice(4);
-  else if (p.startsWith("98") && p.length === 12) p = "0" + p.slice(2);
-  if (p.length === 10 && p.startsWith("9")) p = "0" + p;
-  return p;
-}
-export const isValidPhone = (p: string) => /^09\d{9}$/.test(p);
+export { normalizePhone, isValidPhone };
+
+const smsSettings = () => ({ ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) });
+const cafeName = () => getSetting<CafeInfo>("cafe", { name: "Our café", logo: "", tagline: "", currency: "USD" }).name;
 
 async function sendSms(phone: string, code: string): Promise<{ demo: boolean }> {
-  const sms = { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) };
-  if (sms.provider === "wide") {
-    const cafe = getSetting<CafeInfo>("cafe", { name: "کافه", logo: "", tagline: "", currency: "toman" });
+  const sms = smsSettings();
+  if (sms.provider === "twilio") {
     try {
-      await sendAfeSms(
-        { username: sms.username || "", password: sms.password || "", sender: sms.sender || "", domain: sms.domain },
-        phone,
-        `${cafe.name}\nکد تأیید شما: ${code}`
-      );
+      await sendSmsWith(sms, phone, `${cafeName()}: your verification code is ${code}`);
     } catch (e) {
-      console.error("[OTP] wide:", e instanceof Error ? e.message : e);
-      throw new Error("ارسال پیامک انجام نشد؛ کمی بعد دوباره تلاش کنید");
+      console.error("[OTP] twilio:", e instanceof Error ? e.message : e);
+      throw new Error("Could not send the SMS — please try again in a moment");
     }
     return { demo: false };
   }
-  if (sms.provider === "kavenegar" && sms.apiKey) {
-    const url =
-      `https://api.kavenegar.com/v1/${encodeURIComponent(sms.apiKey)}/verify/lookup.json` +
-      `?receptor=${encodeURIComponent(phone)}&token=${encodeURIComponent(code)}` +
-      `&template=${encodeURIComponent(sms.template || "verify")}`;
-    try {
-      const res = await fetch(url, { cache: "no-store" });
-      const data = (await res.json().catch(() => ({}))) as { return?: { status?: number } };
-      if (data?.return?.status !== 200) throw new Error();
-    } catch {
-      throw new Error("ارسال پیامک انجام نشد؛ کمی بعد دوباره تلاش کنید");
-    }
-    return { demo: false };
-  }
-  // حالت آزمایشی: کد فقط روی صفحه نمایش داده می‌شود
-  console.log(`[OTP] کد ${code} برای ${phone} (حالت آزمایشی)`);
+  // Demo mode (no SMS provider): the code is shown on screen only
+  console.log(`[OTP] code ${code} for ${phone} (demo mode)`);
   return { demo: true };
 }
 
 export async function requestOtp(raw: string): Promise<{ ok: boolean; demoCode?: string }> {
   const phone = normalizePhone(raw);
-  if (!isValidPhone(phone)) throw new Error("شماره موبایل نامعتبر است");
+  if (!isValidPhone(phone)) throw new Error("Invalid phone number — include your country code, e.g. +1 555 123 4567");
   const slug = currentTenant().slug;
-  // محدودیت روی دیسک (با ری‌استارت پاک نمی‌شود): هر IP ۶ و هر شماره ۵ درخواست در ۱۰ دقیقه
+  // Persistent rate limits (survive restarts): 6 per IP and 5 per number every 10 minutes
   hit(`otp-ip:${slug}:${await clientIp()}`, 6, 10 * 60_000);
   hit(`otp-phone:${slug}:${phone}`, 5, 10 * 60_000);
   const code = issueCode(`otp:${slug}:${phone}`, 2 * 60_000);
@@ -78,36 +49,25 @@ export async function requestOtp(raw: string): Promise<{ ok: boolean; demoCode?:
 export async function verifyOtp(raw: string, input: string, table: string): Promise<{ ok: boolean; phone: string }> {
   const phone = normalizePhone(raw);
   const slug = currentTenant().slug;
-  // جدا از ۵ تلاش برای هر کد: حداکثر ۱۵ تلاشِ اشتباه در ساعت برای هر شماره
+  // On top of 5 attempts per code: at most 15 wrong attempts per hour per number
   hit(`otp-verify:${slug}:${phone}`, 15, 3600_000);
-  checkCode(`otp:${slug}:${phone}`, normalizePhone(input));
+  checkCode(`otp:${slug}:${phone}`, String(input || "").replace(/\D/g, ""));
   addCustomer(phone, table);
   (await cookies()).set(COOKIE, signData({ phone }, VERIFIED_TTL), await cookieOpts(VERIFIED_TTL / 1000));
   return { ok: true, phone };
 }
 
-/** آیا این شماره در همین مرورگر با کد پیامکی تأیید شده؟ */
+/** Has this number been verified with an SMS code in this browser? */
 export async function isVerifiedPhone(raw: string): Promise<boolean> {
   const data = readSigned<{ phone: string }>((await cookies()).get(COOKIE)?.value);
   return !!data && data.phone === normalizePhone(raw);
 }
 
-/** پیامکِ آزمایشی از پنلِ مدیر (با همان سامانهٔ تنظیم‌شده) */
+/** Test SMS from the staff panel (uses the configured provider) */
 export async function sendTestSms(raw: string): Promise<string> {
   const phone = normalizePhone(raw);
-  if (!isValidPhone(phone)) throw new Error("شماره موبایل نامعتبر است");
-  const sms = { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) };
-  const cafe = getSetting<CafeInfo>("cafe", { name: "کافه", logo: "", tagline: "", currency: "toman" });
-  if (sms.provider === "wide") {
-    return sendAfeSms(
-      { username: sms.username || "", password: sms.password || "", sender: sms.sender || "", domain: sms.domain },
-      phone,
-      `${cafe.name}\nپیامک آزمایشی سامانهٔ منو ✅`
-    );
-  }
-  if (sms.provider === "kavenegar") {
-    await sendSms(phone, "12345");
-    return "پیامک آزمایشی (الگوی کد تأیید با کد ۱۲۳۴۵) ارسال شد";
-  }
-  throw new Error("سامانهٔ پیامک انتخاب نشده (حالت آزمایشی)");
+  if (!isValidPhone(phone)) throw new Error("Invalid phone number — include your country code, e.g. +1 555 123 4567");
+  const sms = smsSettings();
+  if (sms.provider !== "twilio") throw new Error("No SMS provider configured (demo mode)");
+  return sendSmsWith(sms, phone, `${cafeName()}: test message from your digital menu ✅`);
 }

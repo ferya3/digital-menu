@@ -5,8 +5,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const table = req.nextUrl.searchParams.get("table") || "1";
-  // پشتِ Nginx: آدرسِ واقعی (دامنه + https) از هدرهای پراکسی
-  // فقط Host (که Nginx می‌گذارد)؛ X-Forwarded-Host را کاربر می‌تواند جعل کند
+  // Behind a reverse proxy: build the real origin (domain + https) from proxy headers.
+  // Only Host (set by the proxy) is trusted; X-Forwarded-Host can be spoofed by the client
   const host = req.headers.get("host") || req.nextUrl.host;
   const proto = (req.headers.get("x-forwarded-proto") || req.nextUrl.protocol.replace(":", "")).split(",")[0].trim();
   const origin = `${proto}://${host}`;
@@ -20,6 +20,6 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch {
-    return NextResponse.json({ error: "خطا در تولید QR" }, { status: 500 });
+    return NextResponse.json({ error: "Couldn't generate the QR code" }, { status: 500 });
   }
 }

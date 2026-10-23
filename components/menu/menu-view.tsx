@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingBag, X, Coffee, Star, Trash2, BellRing, Moon, Sun, QrCode,
-  ReceiptText, Upload, Loader2, ClipboardList, Check, CheckCircle2, Menu as MenuIcon,
+  ReceiptText, Upload, Loader2, ClipboardList, Check, CheckCircle2, Menu as MenuIcon, CreditCard, Landmark, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, thumb, toFa, formatMoney } from "@/lib/utils";
+import { cn, thumb, num, formatMoney } from "@/lib/utils";
 import type { Bill, CafeInfo, Menu, MenuCategory, MenuItem, Order, PaymentInfo } from "@/lib/types";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useUI } from "@/store/ui";
@@ -20,35 +20,44 @@ import { CatIcon } from "@/components/staff/kit";
 import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
 import {
   placeOrderAction, billAction, ordersAction, uploadReceiptAction, posRequestAction,
-  requestAction, feedbackAction,
+  requestAction, feedbackAction, onlinePayAction,
 } from "@/app/actions";
 import { unwrap } from "@/lib/action-result";
 import { picksTitle } from "@/lib/seeds";
 
-/** گزینه‌های سریعِ درخواست از گارسون (مثل نسخهٔ قبلی) */
+/** Quick requests for the waiter */
 const QUICK_REQUESTS = [
-  { icon: "🍴", label: "قاشق و چنگال", text: "قاشق و چنگال" },
-  { icon: "🪑", label: "صندلی اضافه", text: "صندلی اضافه" },
-  { icon: "🧻", label: "دستمال", text: "دستمال کاغذی" },
-  { icon: "💧", label: "آب", text: "یک لیوان آب" },
-  { icon: "🍬", label: "شکر", text: "شکر" },
-  { icon: "🧽", label: "تمیز کردن میز", text: "تمیز کردن میز" },
-  { icon: "📋", label: "منوی کاغذی", text: "منوی کاغذی" },
+  { icon: "🍴", label: "Cutlery", text: "Cutlery" },
+  { icon: "🪑", label: "Extra chair", text: "An extra chair" },
+  { icon: "🧻", label: "Napkins", text: "Napkins" },
+  { icon: "💧", label: "Water", text: "A glass of water" },
+  { icon: "🍬", label: "Sugar", text: "Sugar" },
+  { icon: "🧽", label: "Clean the table", text: "Clean the table" },
+  { icon: "📋", label: "Paper menu", text: "A paper menu" },
 ];
+const REQ_SEP = ", ";
 
-// پنل منتخب‌ها (با GSAP) جدا و بعد از بارگذاری صفحه لود می‌شود
+/** Messages shown after returning from online payment (?pay=…) */
+const PAY_RESULT: Record<string, string> = {
+  ok: "Payment successful — thank you!",
+  pending: "Payment is being confirmed…",
+  fail: "Payment failed — please try again or choose another method",
+  cancel: "Payment cancelled",
+};
+
+// The picks panel (GSAP) is code-split and loaded after the page
 const PicksSheet = dynamic(() => import("@/components/menu/picks-sheet").then((m) => m.PicksSheet), { ssr: false });
 
 const STATUS_STEPS = ["new", "preparing", "ready", "served"] as const;
-const STATUS_FA: Record<string, string> = {
-  new: "در انتظار تأیید آشپزخانه",
-  preparing: "در حال آماده‌سازی ☕",
-  ready: "آماده است! ✅",
-  served: "سرو شد",
-  cancelled: "لغو شد",
+const STATUS_LABEL: Record<string, string> = {
+  new: "Waiting for the kitchen",
+  preparing: "Being prepared ☕",
+  ready: "Ready! ✅",
+  served: "Served",
+  cancelled: "Cancelled",
 };
 const STATUS_SHORT: Record<string, string> = {
-  new: "ثبت شد", preparing: "آماده‌سازی", ready: "آماده", served: "سرو شد", cancelled: "لغو",
+  new: "Placed", preparing: "Preparing", ready: "Ready", served: "Served", cancelled: "Cancelled",
 };
 
 
@@ -59,17 +68,17 @@ export function MenuView({
   table: string;
   cafe: CafeInfo;
   payment: PaymentInfo;
-  /** تأیید شمارهٔ مشتری با کد پیامکی (از تنظیمات) */
+  /** Verify the customer's phone with an SMS code (from settings) */
   otp?: boolean;
-  /** سفارش فقط بعد از تأیید پرداخت به آشپزخانه می‌رود */
+  /** Orders go to the kitchen only after payment is confirmed */
   payFirst?: boolean;
 }) {
   const money = useCallback((n: number) => formatMoney(n, cafe.currency), [cafe.currency]);
   const openMobileMenu = useUI((s) => s.setMenu);
-  // بدون شمارهٔ میز = فقط مشاهدهٔ منو (سفارش فقط با اسکنِ QR روی میز)
+  // No table number = view-only menu (ordering requires scanning the table QR)
   const viewOnly = !table;
-  // هدر با اسکرول به پایین پنهان می‌شود و فقط وقتی به بالای صفحه برگردیم دوباره دیده می‌شود
-  // (نه با هر حرکتِ کوچکِ رو به بالا — روی گوشی با برگشتِ انگشت زود ظاهر می‌شد)
+  // The header hides on scroll down and only reappears near the top of the page
+  // (not on every small upward scroll — on phones it popped back too eagerly)
   const HDR_TOP = 120;
   const [hideHdr, setHideHdr] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
@@ -83,7 +92,7 @@ export function MenuView({
   const picksOpen = useUI((s) => s.picksOpen);
   const setPicks = useUI((s) => s.setPicks);
   const closePicks = useCallback(() => setPicks(false), [setPicks]);
-  // منتخب‌ها: آیتم‌های برچسب‌دار (اگر حداقل ۳ تا باشند) وگرنه چند آیتمِ اول
+  // Picks: tagged items (if there are at least 3), otherwise the first few items
   const featured = useMemo(() => {
     const avail = menu.items.filter((i) => i.available);
     const tagged = avail.filter((i) => i.tag);
@@ -107,7 +116,9 @@ export function MenuView({
   const [billLoading, setBillLoading] = useState(false);
   const [payMethod, setPayMethod] = useState<"card" | "pos" | null>(null);
   const [posSending, setPosSending] = useState(false);
-  // روش‌های پرداختِ فعال: کارت‌به‌کارت (اگر کارت/لینک تعریف شده) و کارت‌خوان سر میز
+  const [onlineSending, setOnlineSending] = useState(false);
+  // Enabled payment methods: online card (Stripe), bank transfer (if details/link are set) and card reader at the table
+  const onlineOK = !!payment.online;
   const cardOK = payment.allowCard !== false && !!(payment.card || payment.link);
   const posOK = payment.allowPos !== false;
   const [reqOpen, setReqOpen] = useState(false);
@@ -128,7 +139,7 @@ export function MenuView({
     toastTimer.current = window.setTimeout(() => setToast(""), ms);
   };
 
-  // منو به‌صورت بخش‌های دسته‌بندی (مثل نسخهٔ قبل)؛ محصولات ناموجود به مشتری نشان داده نمی‌شوند
+  // Menu rendered as category sections; unavailable items are hidden from customers
   const sections = useMemo(
     () =>
       menu.categories
@@ -137,7 +148,7 @@ export function MenuView({
     [menu]
   );
 
-  // حالت نمایش انتخاب‌شده یادش می‌ماند
+  // Remember the chosen view mode
   useEffect(() => {
     try {
       const v = localStorage.getItem("cafe_view") as ViewMode | null;
@@ -149,7 +160,7 @@ export function MenuView({
     try { localStorage.setItem("cafe_view", v); } catch {}
   };
 
-  // دسته‌ای که الان روی صفحه است، در نوار دسته‌ها پررنگ می‌شود
+  // Highlight the category currently on screen in the category bar
   useEffect(() => {
     const els = sections.map((sec) => document.getElementById(`cat-${sec.cat.id}`)).filter(Boolean) as HTMLElement[];
     if (!els.length) return;
@@ -164,7 +175,7 @@ export function MenuView({
     return () => io.disconnect();
   }, [sections, view]);
 
-  // نوارِ دسته‌ها همیشه دکمهٔ دستهٔ فعال را وسطِ دید نگه می‌دارد (با اسکرول یا کلیک)
+  // Keep the active category chip centered in the bar (on scroll or click)
   useEffect(() => {
     const box = chipsRef.current;
     const chip = document.getElementById(`chip-${activeCat}`);
@@ -176,7 +187,7 @@ export function MenuView({
 
   const goToCategory = (id: string) => {
     setActiveCat(id);
-    // اگر مقصد پایین‌تر از بالای صفحه باشد هدر پنهان است (فقط نوارِ دسته‌ها می‌ماند)
+    // If the target is below the top area the header is hidden (only the category bar stays)
     const el = document.getElementById(`cat-${id}`);
     const bar = barRef.current?.offsetHeight ?? 60;
     const target = window.scrollY + (el?.getBoundingClientRect().top ?? 0) - (bar + 12);
@@ -185,7 +196,7 @@ export function MenuView({
 
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   async function share(item: MenuItem) {
-    // لینکِ صفحهٔ خودِ محصول: در واتساپ/تلگرام پیش‌نمایشِ عکس و قیمت نشان می‌دهد
+    // Link to the product page: WhatsApp/Telegram show a preview with photo and price
     const url = `${window.location.origin}/p/${encodeURIComponent(item.id)}`;
     const text = [
       `${item.name} — ${money(item.price)}`,
@@ -201,7 +212,7 @@ export function MenuView({
 
 
   const add = (id: string) => {
-    if (viewOnly) return flash("برای سفارش، QR روی میزتان را اسکن کنید 📷", 3500);
+    if (viewOnly) return flash("Scan the QR code on your table to order 📷", 3500);
     setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
   };
   const dec = (id: string) =>
@@ -219,7 +230,7 @@ export function MenuView({
   }, 0);
   const activeOrders = myOrders.filter((o) => o.status !== "served" && o.status !== "cancelled").length;
 
-  /* وضعیت سفارش‌ها: کانال زنده برای همین میز + پشتیبانِ کند */
+  /* Order status: live channel for this table + slow polling fallback */
   const billOpenRef = useRef(false);
   billOpenRef.current = billOpen;
   const myOrdersRef = useRef<Order[]>([]);
@@ -228,7 +239,7 @@ export function MenuView({
   const payFirstRef = useRef(payFirst);
   payFirstRef.current = payFirst;
   useEffect(() => {
-    // هر بار اسکنِ دوبارهٔ QR (تبِ تازه) = حضورِ جدید: سفارش‌های تمام‌شدهٔ قبلی نمایش داده نمی‌شوند
+    // Each new QR scan (fresh tab) = new visit: finished orders from before are hidden
     const visitKey = `cafe_visit_t${table}`;
     let freshVisit = false;
     try {
@@ -244,10 +255,10 @@ export function MenuView({
               const next = pruneOrders(all, freshVisit);
               freshVisit = false;
               try { localStorage.setItem(ordersKey, JSON.stringify(next.map((o) => o.id))); } catch {}
-              // پرداخت تأیید شد → سفارش رفت برای سرآشپز
+              // Payment confirmed → order sent to the kitchen
               const was = new Map(myOrdersRef.current.map((o) => [o.id, o]));
               const justPaid = next.find((o) => o.paid && was.get(o.id) && !was.get(o.id)!.paid && o.status !== "cancelled");
-              if (justPaid && payFirstRef.current) flash(`✅ پرداخت تأیید شد — سفارش #${toFa(justPaid.number)} برای سرآشپز ارسال شد`, 6000);
+              if (justPaid && payFirstRef.current) flash(`✅ Payment confirmed — order #${num(justPaid.number)} was sent to the kitchen`, 6000);
               setMyOrders(next);
             })
             .catch(() => {});
@@ -255,7 +266,7 @@ export function MenuView({
       if (billOpenRef.current) billAction(table).then(setBill).catch(() => {});
     };
     refresh();
-    // سفارشِ تمام‌شده بعد از مدتی خودش از لیست می‌رود
+    // Finished orders drop off the list after a while
     const prune = window.setInterval(() => setMyOrders((l) => pruneOrders(l, false)), 60_000);
     let timer: number | undefined;
     const soon = () => { window.clearTimeout(timer); timer = window.setTimeout(refresh, 80); };
@@ -268,7 +279,7 @@ export function MenuView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table]);
 
-  // کانالِ زنده فقط بعد از ثبتِ سفارش از همین گوشی (سرور هم فقط به صاحبِ سفارشِ همین میز اجازه می‌دهد)
+  // Live channel only after ordering from this phone (the server also only allows the order owner)
   const hasOrders = myOrders.length > 0;
   useEffect(() => {
     if (!table || !hasOrders) return;
@@ -295,14 +306,14 @@ export function MenuView({
       setCartOpen(false);
       setPlaced(ord.number);
       if (payFirst) {
-        // اول پرداخت: صورتحساب و اطلاعات پرداخت همان لحظه باز می‌شود
-        flash(`سفارش #${toFa(ord.number)} ثبت شد — بعد از پرداخت برای سرآشپز ارسال می‌شود`, 5000);
+        // Pay first: open the bill and payment options right away
+        flash(`Order #${num(ord.number)} placed — it goes to the kitchen once paid`, 5000);
         window.setTimeout(() => openBill(), 350);
       } else {
-        flash(`سفارش شماره ${toFa(ord.number)} ثبت شد`);
+        flash(`Order #${num(ord.number)} placed`);
       }
     } catch (e) {
-      flash(e instanceof Error ? e.message : "خطا در ثبت سفارش");
+      flash(e instanceof Error ? e.message : "Could not place the order");
     } finally {
       setSubmitting(false);
     }
@@ -312,14 +323,38 @@ export function MenuView({
     setPosSending(true);
     try {
       unwrap(await posRequestAction(table));
-      flash("درخواست کارت‌خوان ثبت شد ✅ — با فاکتور و کارت‌خوان سر میز می‌آییم", 5000);
+      flash("Card reader requested ✅ — we'll bring the bill and a card reader to your table", 5000);
       setBill(await billAction(table));
     } catch (e) {
-      flash(e instanceof Error ? e.message : "خطا");
+      flash(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setPosSending(false);
     }
   }
+
+  async function payOnline() {
+    setOnlineSending(true);
+    try {
+      const { url } = unwrap(await onlinePayAction(table));
+      window.location.href = url;
+    } catch (e) {
+      flash(e instanceof Error && e.message ? e.message : "Couldn't start the payment — please try again", 4000);
+      setOnlineSending(false);
+    }
+  }
+
+  // Back from online checkout (?pay=ok|pending|fail|cancel): show the result once and clean the URL (keep ?table)
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const pay = url.searchParams.get("pay");
+      if (!pay) return;
+      url.searchParams.delete("pay");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+      if (PAY_RESULT[pay]) flash(PAY_RESULT[pay], pay === "ok" ? 5000 : 6000);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function openBill() {
     setPayMethod(null);
@@ -338,10 +373,10 @@ export function MenuView({
     try {
       const blob = await compressImage(f, 1600);
       const r = unwrap(await uploadReceiptAction(imageForm(blob, { table })));
-      flash(r.reused ? "⚠️ این رسید قبلاً استفاده شده" : "رسید ارسال شد؛ منتظر تأیید صندوق");
+      flash(r.reused ? "⚠️ This receipt has already been used" : "Receipt sent — waiting for the cashier to confirm");
       setBill(await billAction(table));
     } catch {
-      flash("خطا در ارسال رسید");
+      flash("Could not upload the receipt");
     }
   }
   async function sendRequest(type: "waiter" | "invoice") {
@@ -350,10 +385,10 @@ export function MenuView({
       unwrap(await requestAction(table, type, type === "waiter" ? reqNote : ""));
       setReqOpen(false);
       if (type === "waiter") setReqNote("");
-      flash(type === "waiter" ? "گارسون به‌زودی می‌آید 🙋" : "درخواست فاکتور ارسال شد 🧾");
+      flash(type === "waiter" ? "A waiter is on the way 🙋" : "Bill requested 🧾");
     } catch (e) {
-      // پیامِ سرور (مثلاً «درخواست‌ها زیاد است…») نشان داده شود
-      flash(e instanceof Error && e.message ? e.message : "ارسال نشد؛ دوباره تلاش کنید");
+      // Show the server message (e.g. "Too many requests…")
+      flash(e instanceof Error && e.message ? e.message : "Couldn't send — please try again");
     } finally {
       setReqSending(null);
     }
@@ -365,7 +400,7 @@ export function MenuView({
       setFbOpen(false);
       setFbComment("");
       setFbRating(5);
-      flash("نظرت ثبت شد، ممنون 🙏");
+      flash("Thanks for your feedback 🙏");
     } finally {
       setFbSending(false);
     }
@@ -377,10 +412,10 @@ export function MenuView({
     <div className="min-h-screen pb-44 sm:pb-28">
       {/* header */}
       <header className={cn("sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl transition-transform duration-300", hideHdr && "-translate-y-full")}>
-        {/* منو سمت راست، لوگو و نام کافه وسط، دکمه‌های دسکتاپ سمت چپ */}
+        {/* Menu button on the left, logo and name centered, desktop buttons on the right */}
         <div className="mx-auto grid h-[92px] max-w-5xl grid-cols-[1fr_auto_1fr] items-center px-3">
           <div className="flex justify-start">
-            <Button variant="ghost" size="icon" className="size-11 rounded-2xl" onClick={() => openMobileMenu(true)} aria-label="منو">
+            <Button variant="ghost" size="icon" className="size-11 rounded-2xl" onClick={() => openMobileMenu(true)} aria-label="Menu">
               <MenuIcon className="size-6" />
             </Button>
           </div>
@@ -394,37 +429,37 @@ export function MenuView({
               </span>
             )}
             <h1 className="mt-1 max-w-[56vw] truncate text-base font-extrabold tracking-tight sm:max-w-none">{cafe.name}</h1>
-            <p className="text-[10px] text-muted-foreground">{cafe.tagline || "منوی دیجیتال"} · {viewOnly ? "فقط مشاهده" : `میز ${toFa(table)}`}</p>
+            <p className="text-[10px] text-muted-foreground">{cafe.tagline || "Digital menu"} · {viewOnly ? "View only" : `Table ${num(table)}`}</p>
           </div>
           <div className={cn("flex items-center justify-end gap-1", viewOnly && "invisible")}>
-            {/* روی موبایل این دکمه‌ها در نوارِ پایین هستند */}
-            <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={() => setReqOpen(true)} aria-label="درخواست">
+            {/* On mobile these buttons live in the bottom bar */}
+            <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={() => setReqOpen(true)} aria-label="Requests">
               <BellRing />
             </Button>
             {myOrders.length > 0 && (
-              <button onClick={() => setStatusOpen(true)} className="relative hidden size-10 sm:grid place-items-center rounded-full bg-muted hover:bg-muted/70" aria-label="وضعیت سفارش">
+              <button onClick={() => setStatusOpen(true)} className="relative hidden size-10 sm:grid place-items-center rounded-full bg-muted hover:bg-muted/70" aria-label="Order status">
                 <ClipboardList className="size-5" />
                 {activeOrders > 0 && (
-                  <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-green-600 px-1 text-[11px] font-bold text-white">{toFa(activeOrders)}</span>
+                  <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-green-600 px-1 text-[11px] font-bold text-white">{num(activeOrders)}</span>
                 )}
               </button>
             )}
-            <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={openBill} aria-label="صورتحساب"><ReceiptText /></Button>
+            <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={openBill} aria-label="Bill"><ReceiptText /></Button>
             <span className="hidden sm:contents"><ThemeToggle /></span>
-            <button onClick={() => setCartOpen(true)} className="relative hidden size-10 sm:grid place-items-center rounded-full bg-muted hover:bg-muted/70" aria-label="سبد خرید">
+            <button onClick={() => setCartOpen(true)} className="relative hidden size-10 sm:grid place-items-center rounded-full bg-muted hover:bg-muted/70" aria-label="Cart">
               <ShoppingBag className="size-5" />
               {count > 0 && (
-                <motion.span key={count} initial={{ scale: 0.4 }} animate={{ scale: 1 }} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">{toFa(count)}</motion.span>
+                <motion.span key={count} initial={{ scale: 0.4 }} animate={{ scale: 1 }} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">{num(count)}</motion.span>
               )}
             </button>
           </div>
         </div>
       </header>
 
-      {/* نوارِ چسبان: حالت نمایش منو + دسته‌ها (با پنهان‌شدنِ هدر، همین نوار بالا می‌ماند) */}
+      {/* Sticky bar: view mode + categories (stays on top when the header hides) */}
       <div ref={barRef} className={cn("sticky top-[92px] z-30 border-b border-border/40 bg-background/80 pb-2.5 pt-2 backdrop-blur-xl transition-transform duration-300", hideHdr && "-translate-y-[92px]")}>
         <div className="mx-auto mb-2 flex max-w-5xl flex-col items-center gap-1 px-4">
-          <span className="text-[11px] font-bold text-muted-foreground">حالت نمایش منو</span>
+          <span className="text-[11px] font-bold text-muted-foreground">Menu view</span>
           <ViewToggle value={view} onChange={changeView} compact />
         </div>
         <div ref={chipsRef} className="no-scrollbar mx-auto flex max-w-5xl gap-2 overflow-x-auto scroll-smooth px-4">
@@ -445,9 +480,9 @@ export function MenuView({
         </div>
       </div>
 
-      {/* بخش‌های منو */}
+      {/* Menu sections */}
       <main className="mx-auto max-w-5xl space-y-10 px-4 pt-5">
-        {sections.length === 0 && <p className="py-20 text-center text-muted-foreground">منو هنوز خالی است.</p>}
+        {sections.length === 0 && <p className="py-20 text-center text-muted-foreground">The menu is empty for now.</p>}
         {sections.map(({ cat: c, items }) => {
           const actions = {
             money,
@@ -497,7 +532,7 @@ export function MenuView({
         onMenu={() => { setPicks(false); window.setTimeout(() => scrollToId("menu"), 80); }}
       />
 
-      {/* بزرگ‌نمایی عکس */}
+      {/* Image lightbox */}
       <AnimatePresence>
         {lightbox?.image && (
           <motion.div
@@ -521,14 +556,14 @@ export function MenuView({
         {count > 0 && !cartOpen && !billOpen && (
           <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: "spring", stiffness: 380, damping: 32 }} className="fixed inset-x-0 bottom-0 z-40 hidden border-t border-border bg-background/85 backdrop-blur-xl sm:block">
             <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-              <div className="text-sm"><span className="font-bold">{toFa(count)}</span><span className="text-muted-foreground"> کالا · </span><span className="font-extrabold text-primary">{money(total)}</span></div>
-              <Button onClick={() => setCartOpen(true)} size="lg" className="rounded-full">مشاهدهٔ سبد</Button>
+              <div className="text-sm"><span className="font-bold">{num(count)}</span><span className="text-muted-foreground"> {count === 1 ? "item" : "items"} · </span><span className="font-extrabold text-primary">{money(total)}</span></div>
+              <Button onClick={() => setCartOpen(true)} size="lg" className="rounded-full">View cart</Button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* موبایل: جمعِ سبد به‌صورتِ یک قرصِ کوچک بالای دکمهٔ سبد */}
+      {/* Mobile: cart total as a small pill above the cart button */}
       <AnimatePresence>
         {count > 0 && !cartOpen && !billOpen && (
           <motion.button
@@ -536,13 +571,13 @@ export function MenuView({
             onClick={() => setCartOpen(true)}
             className="fixed bottom-[calc(98px+env(safe-area-inset-bottom))] left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-background/95 px-4 py-2 text-sm shadow-lg backdrop-blur sm:hidden"
           >
-            <span className="font-bold">{toFa(count)}</span><span className="text-muted-foreground">کالا ·</span>
+            <span className="font-bold">{num(count)}</span><span className="text-muted-foreground">{count === 1 ? "item" : "items"} ·</span>
             <span className="font-extrabold text-primary">{money(total)}</span>
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* نوارِ پایینِ موبایل (با دکمهٔ گردِ سبد در وسط) */}
+      {/* Mobile bottom bar (round cart button in the middle) */}
       <MobileTabBar
         count={count}
         activeOrders={activeOrders}
@@ -552,7 +587,7 @@ export function MenuView({
         onBill={openBill}
         viewOnly={viewOnly}
         onScan={() => {
-          // بدون میز: صفحهٔ اسکنِ QR (با دکمهٔ دوربین)
+          // No table: go to the QR scan screen (with the camera button)
           try { sessionStorage.removeItem("cafe_browse"); } catch {}
           window.location.href = "/";
         }}
@@ -562,7 +597,7 @@ export function MenuView({
       <AnimatePresence>
         {placed !== null && (
           <motion.button initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setPlaced(null); setStatusOpen(true); }} className="fixed inset-x-0 bottom-[calc(146px+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit sm:bottom-20 items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-xl">
-            <CheckCircle2 className="size-5 text-green-500" /> سفارش #{toFa(placed)} ثبت شد — پیگیری وضعیت
+            <CheckCircle2 className="size-5 text-green-500" /> Order #{num(placed)} placed — track status
           </motion.button>
         )}
       </AnimatePresence>
@@ -570,9 +605,9 @@ export function MenuView({
       <input ref={fileRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={onReceiptFile} />
 
       {/* ===== drawers ===== */}
-      <Drawer open={cartOpen} onClose={() => setCartOpen(false)} title="سبد خرید">
+      <Drawer open={cartOpen} onClose={() => setCartOpen(false)} title="Your cart">
         {count === 0 ? (
-          <p className="py-12 text-center text-muted-foreground">سبد خالی است.</p>
+          <p className="py-12 text-center text-muted-foreground">Your cart is empty.</p>
         ) : (
           <>
             <div className="space-y-3">
@@ -590,7 +625,7 @@ export function MenuView({
             {payFirst && (
               <p className="mt-4 flex gap-2 rounded-xl bg-amber-500/10 p-2.5 text-xs leading-6 text-amber-800 dark:text-amber-300">
                 <span>💳</span>
-                <span>سفارش شما <b>بعد از پرداخت</b> برای سرآشپز ارسال می‌شود. پس از ثبت، مبلغ را کارت‌به‌کارت کنید و رسید را بفرستید، یا در صندوق پرداخت کنید.</span>
+                <span>Your order goes to the kitchen <b>after payment</b>. Once it's placed, pay with one of the options in your bill, or at the cashier.</span>
               </p>
             )}
             <textarea
@@ -598,30 +633,30 @@ export function MenuView({
               onChange={(e) => setNote(e.target.value)}
               maxLength={300}
               rows={2}
-              placeholder="یادداشت برای آشپزخانه (اختیاری) — مثلاً شیر کم‌چرب، بدون شکر"
+              placeholder="Note for the kitchen (optional) — e.g. oat milk, no sugar"
               className="mt-4 w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
-            <div className="mt-3 flex items-center justify-between border-t border-border pt-4"><span className="text-muted-foreground">مجموع</span><span className="text-xl font-black text-primary">{money(total)}</span></div>
+            <div className="mt-3 flex items-center justify-between border-t border-border pt-4"><span className="text-muted-foreground">Total</span><span className="text-xl font-black text-primary">{money(total)}</span></div>
             <div className="mt-3 flex gap-2">
               <Button variant="outline" size="icon" onClick={() => setCart({})}><Trash2 /></Button>
-              <Button size="lg" className="flex-1 rounded-xl" onClick={submitOrder} disabled={submitting}>{submitting ? <Loader2 className="animate-spin" /> : payFirst ? "ثبت سفارش و پرداخت" : "ثبت سفارش"}</Button>
+              <Button size="lg" className="flex-1 rounded-xl" onClick={submitOrder} disabled={submitting}>{submitting ? <Loader2 className="animate-spin" /> : payFirst ? "Place order & pay" : "Place order"}</Button>
             </div>
           </>
         )}
       </Drawer>
 
-      <Drawer open={reqOpen} onClose={() => setReqOpen(false)} title="درخواست‌ها">
-        <p className="mb-3 text-sm text-muted-foreground">درخواستتان را بنویسید یا از گزینه‌های سریع استفاده کنید:</p>
+      <Drawer open={reqOpen} onClose={() => setReqOpen(false)} title="Requests">
+        <p className="mb-3 text-sm text-muted-foreground">Type your request or pick a quick option:</p>
         <div className="mb-3 flex flex-wrap gap-2">
           {QUICK_REQUESTS.map((q) => {
-            const on = reqNote.split("، ").includes(q.text);
+            const on = reqNote.split(REQ_SEP).includes(q.text);
             return (
               <button
                 key={q.text}
                 onClick={() =>
                   setReqNote((cur) => {
-                    const parts = cur.split("، ").map((x) => x.trim()).filter(Boolean);
-                    return (on ? parts.filter((x) => x !== q.text) : [...parts, q.text]).join("، ");
+                    const parts = cur.split(REQ_SEP).map((x) => x.trim()).filter(Boolean);
+                    return (on ? parts.filter((x) => x !== q.text) : [...parts, q.text]).join(REQ_SEP);
                   })
                 }
                 className={cn(
@@ -640,125 +675,147 @@ export function MenuView({
           onChange={(e) => setReqNote(e.target.value)}
           maxLength={200}
           rows={2}
-          placeholder="مثلاً: یک قاشق اضافه لطفاً…"
+          placeholder="e.g. An extra spoon, please…"
           className="mb-3 w-full resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
         />
         <Button size="lg" className="h-12 w-full rounded-xl text-base" onClick={() => sendRequest("waiter")} disabled={reqSending !== null}>
-          {reqSending === "waiter" ? <Loader2 className="animate-spin" /> : <><BellRing className="size-5" /> صدا زدن گارسون</>}
+          {reqSending === "waiter" ? <Loader2 className="animate-spin" /> : <><BellRing className="size-5" /> Call a waiter</>}
         </Button>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <Button variant="outline" className="h-11 rounded-xl" onClick={() => sendRequest("invoice")} disabled={reqSending !== null}>
-            {reqSending === "invoice" ? <Loader2 className="animate-spin" /> : <><ReceiptText className="size-4" /> درخواست فاکتور</>}
+            {reqSending === "invoice" ? <Loader2 className="animate-spin" /> : <><ReceiptText className="size-4" /> Request the bill</>}
           </Button>
           <Button variant="outline" className="h-11 rounded-xl" onClick={() => { setReqOpen(false); openBill(); }}>
-            💳 صورتحساب و پرداخت
+            💳 Bill & payment
           </Button>
         </div>
       </Drawer>
 
-      <Drawer open={statusOpen} onClose={() => setStatusOpen(false)} title="وضعیت سفارش">
+      <Drawer open={statusOpen} onClose={() => setStatusOpen(false)} title="Order status">
         {myOrders.length === 0 ? (
-          <p className="py-10 text-center text-muted-foreground">هنوز سفارشی ثبت نکرده‌ای.</p>
+          <p className="py-10 text-center text-muted-foreground">You haven't placed any orders yet.</p>
         ) : (
           <div className="space-y-4">
             {myOrders.map((o) => <OrderTracker key={o.id} order={o} money={money} payFirst={payFirst} onPay={() => { setStatusOpen(false); openBill(); }} />)}
-            <Button variant="outline" className="w-full rounded-xl" onClick={() => { setStatusOpen(false); setFbOpen(true); }}><Star /> ثبت نظر و امتیاز</Button>
-            <p className="pt-1 text-center text-[11px] text-muted-foreground">وضعیت هر چند ثانیه یک‌بار به‌روز می‌شود.</p>
+            <Button variant="outline" className="w-full rounded-xl" onClick={() => { setStatusOpen(false); setFbOpen(true); }}><Star /> Rate your experience</Button>
+            <p className="pt-1 text-center text-[11px] text-muted-foreground">Status updates automatically.</p>
           </div>
         )}
       </Drawer>
 
-      <Drawer open={billOpen} onClose={() => setBillOpen(false)} title="صورتحساب میز">
+      <Drawer open={billOpen} onClose={() => setBillOpen(false)} title="Table bill">
         {billLoading ? (
           <div className="grid place-items-center py-12 text-muted-foreground"><Loader2 className="size-6 animate-spin" /></div>
         ) : !bill || bill.count === 0 ? (
-          <p className="py-10 text-center text-muted-foreground">صورتحساب بازی برای این میز نیست.</p>
+          <p className="py-10 text-center text-muted-foreground">There's no open bill for this table.</p>
         ) : (
           <>
             {payFirst && bill.payStatus !== "pending" && (
               <div className="mb-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm leading-7 text-amber-900 dark:text-amber-200">
-                💳 <b>سفارش شما بعد از تأیید پرداخت برای سرآشپز ارسال می‌شود.</b>
+                💳 <b>Your order goes to the kitchen once payment is confirmed.</b>
                 <br />
-                <span className="text-xs">{cardOK && posOK ? "کارت‌به‌کارت کنید و رسید را بفرستید، یا «کارت‌خوان سر میز» را بزنید." : posOK ? "«کارت‌خوان سر میز» را بزنید تا با فاکتور و کارت‌خوان بیاییم." : "مبلغ را کارت‌به‌کارت کنید و رسید را بفرستید، یا در صندوق پرداخت کنید."}</span>
+                <span className="text-xs">
+                  {onlineOK
+                    ? "Pay online with your card, or choose another method below."
+                    : cardOK && posOK
+                      ? "Pay by bank transfer and upload the receipt, or tap \"Card reader at the table\"."
+                      : posOK
+                        ? "Tap \"Card reader at the table\" and we'll bring the bill and a card reader."
+                        : "Pay by bank transfer and upload the receipt, or pay at the cashier."}
+                </span>
               </div>
             )}
-            <p className="mb-3 text-xs text-muted-foreground">{toFa(bill.count)} سفارش پرداخت‌نشده روی این میز — همه با هم:</p>
+            <p className="mb-3 text-xs text-muted-foreground">{num(bill.count)} unpaid {bill.count === 1 ? "order" : "orders"} at this table — paid together:</p>
             <div className="space-y-3">
               {bill.orders.map((o) => (
                 <div key={o.id} className="rounded-2xl border border-border p-3">
-                  <div className="mb-2 flex items-center justify-between"><span className="text-sm font-bold">سفارش #{toFa(o.number)}</span><span className="text-sm font-extrabold text-primary">{money(o.total)}</span></div>
+                  <div className="mb-2 flex items-center justify-between"><span className="text-sm font-bold">Order #{num(o.number)}</span><span className="text-sm font-extrabold text-primary">{money(o.total)}</span></div>
                   <ul className="space-y-0.5 text-xs text-muted-foreground">
-                    {o.items.map((it, i) => (<li key={i} className="flex justify-between"><span>{it.name} × {toFa(it.qty)}</span><span>{money(it.price * it.qty)}</span></li>))}
+                    {o.items.map((it, i) => (<li key={i} className="flex justify-between"><span>{it.name} × {num(it.qty)}</span><span>{money(it.price * it.qty)}</span></li>))}
                   </ul>
                 </div>
               ))}
             </div>
-            <div className="mt-5 flex items-center justify-between border-t border-border pt-4"><span className="text-muted-foreground">جمع کل بدهی</span><span className="text-2xl font-black text-primary">{money(bill.total)}</span></div>
-            {bill.payStatus === "pending" && <div className="mt-3 rounded-xl bg-amber-500/15 px-3 py-2 text-center text-sm text-amber-600 dark:text-amber-400">رسید ارسال شد؛ در انتظار تأیید صندوق.{payFirst && " بعد از تأیید، سفارش برای سرآشپز ارسال می‌شود."}</div>}
-            {bill.payStatus === "rejected" && <div className="mt-3 rounded-xl bg-primary/10 px-3 py-2 text-center text-sm text-primary">فیش قبلی رد شد{bill.rejectedReason ? `: ${bill.rejectedReason}` : ""}. دوباره پرداخت کن.</div>}
+            <div className="mt-5 flex items-center justify-between border-t border-border pt-4"><span className="text-muted-foreground">Total due</span><span className="text-2xl font-black text-primary">{money(bill.total)}</span></div>
+            {bill.payStatus === "pending" && <div className="mt-3 rounded-xl bg-amber-500/15 px-3 py-2 text-center text-sm text-amber-600 dark:text-amber-400">Receipt sent — waiting for the cashier to confirm.{payFirst && " Once confirmed, your order goes to the kitchen."}</div>}
+            {bill.payStatus === "rejected" && <div className="mt-3 rounded-xl bg-primary/10 px-3 py-2 text-center text-sm text-primary">Your previous receipt was rejected{bill.rejectedReason ? `: ${bill.rejectedReason}` : ""}. Please pay again.</div>}
             {bill.payStatus === "pos" && (
               <div className="mt-3 rounded-2xl border border-primary/30 bg-primary/5 p-3 text-center text-sm leading-7">
-                🧾 <b>درخواست کارت‌خوان ثبت شد.</b>
+                🧾 <b>Card reader requested.</b>
                 <br />
-                همکاران ما با فاکتور و کارت‌خوان سر میز می‌آیند.{payFirst && " بعد از پرداخت، سفارش برای سرآشپز ارسال می‌شود."}
+                Our staff will bring the bill and a card reader to your table.{payFirst && " Once paid, your order goes to the kitchen."}
+              </div>
+            )}
+            {/* Online card payment (Stripe) — the fastest option, shown first */}
+            {onlineOK && bill.payStatus !== "pending" && (
+              <div className="mt-4">
+                <Button className="h-12 w-full rounded-xl text-base" onClick={payOnline} disabled={onlineSending}>
+                  {onlineSending ? <Loader2 className="animate-spin" /> : <><CreditCard className="size-5" /> Pay online with card · {money(bill.total)}</>}
+                </Button>
+                <p className="mt-1.5 text-center text-[11px] text-muted-foreground">Secure checkout powered by Stripe</p>
               </div>
             )}
             {bill.payStatus !== "pos" && bill.payStatus !== "pending" && cardOK && posOK && (
               <div className="mt-4">
-                <div className="mb-2 text-sm font-bold">روش پرداخت</div>
+                <div className="mb-2 text-sm font-bold">{onlineOK ? "Or pay another way" : "Payment method"}</div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setPayMethod("card")} className={cn("rounded-2xl border-2 p-3 text-center text-sm font-bold transition", payMethod === "card" ? "border-primary bg-primary/5" : "border-border")}>
-                    <span className="mb-1 block text-2xl">💳</span>کارت‌به‌کارت
-                    <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">ارسال رسید</span>
+                    <span className="mb-1 block text-2xl">🏦</span>Bank transfer
+                    <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">Upload your receipt</span>
                   </button>
                   <button onClick={() => setPayMethod("pos")} className={cn("rounded-2xl border-2 p-3 text-center text-sm font-bold transition", payMethod === "pos" ? "border-primary bg-primary/5" : "border-border")}>
-                    <span className="mb-1 block text-2xl">🧾</span>کارت‌خوان سر میز
-                    <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">با فاکتور می‌آییم</span>
+                    <span className="mb-1 block text-2xl">🧾</span>Card reader at the table
+                    <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">We bring the bill</span>
                   </button>
                 </div>
               </div>
             )}
             {bill.payStatus !== "pos" && posOK && (payMethod === "pos" || !cardOK) && bill.payStatus !== "pending" && (
               <div className="mt-3 rounded-2xl border border-border bg-muted/40 p-3 text-sm">
-                <p className="mb-2 text-xs leading-6 text-muted-foreground">صندوق فاکتور میز را چاپ می‌کند و همکاران ما با کارت‌خوان سر میز می‌آیند.</p>
-                <Button className="h-11 w-full rounded-xl text-base" onClick={requestPos} disabled={posSending}>{posSending ? <Loader2 className="animate-spin" /> : "🧾 درخواست کارت‌خوان سر میز"}</Button>
+                <p className="mb-2 text-xs leading-6 text-muted-foreground">The cashier prints your bill and our staff bring a card reader to your table.</p>
+                <Button variant={onlineOK ? "outline" : "default"} className="h-11 w-full rounded-xl text-base" onClick={requestPos} disabled={posSending}>{posSending ? <Loader2 className="animate-spin" /> : "🧾 Request card reader at the table"}</Button>
               </div>
             )}
             {cardOK && (payMethod === "card" || !posOK || bill.payStatus === "pending" || bill.payStatus === "pos") && (
               <>
-            {(payment.card || payment.link || payment.holder) && (
-                <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3 text-sm">
-                  <div className="mb-1.5 font-bold">اطلاعات پرداخت</div>
-                  {payment.card && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span dir="ltr" className="font-mono tracking-wider">{toFa(payment.card)}</span>
-                      <button onClick={async () => flash((await copyText(payment.card.replace(/\D/g, ""))) ? "شماره کارت کپی شد" : "کپی نشد")} className="shrink-0 rounded-lg bg-card px-2 py-1 text-xs font-semibold text-primary">کپی</button>
-                    </div>
-                  )}
-                  {payment.holder && <div className="mt-0.5 text-xs text-muted-foreground">به نام {payment.holder}</div>}
-                  {payment.note && <div className="mt-0.5 text-xs text-muted-foreground">{payment.note}</div>}
-                  {payment.link && <a href={payment.link} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary">پرداخت آنلاین ↗</a>}
-                </div>
-              )}
-              <Button className="mt-3 h-11 w-full rounded-xl text-base" onClick={() => fileRef.current?.click()}><Upload /> ارسال رسید پرداخت</Button>
+                {(payment.card || payment.link || payment.holder) && (
+                  <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3 text-sm">
+                    {(payment.card || payment.holder) && <div className="mb-1.5 flex items-center gap-1.5 font-bold"><Landmark className="size-4" /> Bank transfer</div>}
+                    {payment.card && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 break-all font-mono">{payment.card}</span>
+                        <button onClick={async () => flash((await copyText(payment.card.trim())) ? "Account details copied" : "Couldn't copy")} className="shrink-0 rounded-lg bg-card px-2 py-1 text-xs font-semibold text-primary">Copy</button>
+                      </div>
+                    )}
+                    {payment.holder && <div className="mt-0.5 text-xs text-muted-foreground">Account holder: {payment.holder}</div>}
+                    {payment.note && <div className="mt-0.5 text-xs text-muted-foreground">{payment.note}</div>}
+                    {payment.link && (
+                      <div className={cn("flex items-center justify-between gap-2", (payment.card || payment.holder) && "mt-2 border-t border-border pt-2")}>
+                        <span className="font-bold">Pay online</span>
+                        <a href={payment.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-primary">Open payment page <ExternalLink className="size-3.5" /></a>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <Button variant={onlineOK ? "outline" : "default"} className="mt-3 h-11 w-full rounded-xl text-base" onClick={() => fileRef.current?.click()}><Upload /> Upload payment receipt</Button>
               </>
             )}
-            {!cardOK && !posOK && <p className="mt-3 text-center text-sm text-muted-foreground">برای پرداخت به صندوق مراجعه کنید.</p>}
+            {!onlineOK && !cardOK && !posOK && <p className="mt-3 text-center text-sm text-muted-foreground">Please pay at the cashier.</p>}
           </>
         )}
       </Drawer>
 
-      <Drawer open={fbOpen} onClose={() => setFbOpen(false)} title="نظر و امتیاز">
-        <p className="mb-3 text-sm text-muted-foreground">تجربه‌ات از {cafe.name} چطور بود؟</p>
+      <Drawer open={fbOpen} onClose={() => setFbOpen(false)} title="Feedback">
+        <p className="mb-3 text-sm text-muted-foreground">How was your experience at {cafe.name}?</p>
         <div className="mb-4 flex justify-center gap-1.5">
           {[1, 2, 3, 4, 5].map((i) => (
-            <button key={i} onClick={() => setFbRating(i)} aria-label={`${i} ستاره`}>
+            <button key={i} onClick={() => setFbRating(i)} aria-label={`${i} star${i > 1 ? "s" : ""}`}>
               <Star className={cn("size-9 transition", i <= fbRating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40")} />
             </button>
           ))}
         </div>
-        <textarea value={fbComment} onChange={(e) => setFbComment(e.target.value)} placeholder="توضیح (اختیاری)…" className="min-h-20 w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-        <Button className="mt-3 h-11 w-full rounded-xl text-base" onClick={sendFeedback} disabled={fbSending}>{fbSending ? <Loader2 className="animate-spin" /> : "ثبت نظر"}</Button>
+        <textarea value={fbComment} onChange={(e) => setFbComment(e.target.value)} placeholder="Comments (optional)…" className="min-h-20 w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+        <Button className="mt-3 h-11 w-full rounded-xl text-base" onClick={sendFeedback} disabled={fbSending}>{fbSending ? <Loader2 className="animate-spin" /> : "Submit feedback"}</Button>
       </Drawer>
 
       {/* toast */}
@@ -771,13 +828,13 @@ export function MenuView({
   );
 }
 
-/* ---------- عنوانِ دسته: روی بنر (اگر باشد) و وسط‌چین با تزئینِ دو طرف ---------- */
+/* ---------- Category title: centered with ornaments on both sides, above the banner (if any) ---------- */
 function Ornament({ flip }: { flip?: boolean }) {
   return (
     <span aria-hidden className={cn("flex shrink-0 items-center gap-1.5", flip && "flex-row-reverse")}>
       <span className="size-1 rounded-full bg-current opacity-60" />
       <span className="size-2 rotate-45 rounded-[2px] border-[1.5px] border-current" />
-      <span className={cn("h-[2px] w-8 rounded-full from-current to-transparent sm:w-16", flip ? "bg-gradient-to-l" : "bg-gradient-to-r")} />
+      <span className={cn("h-[2px] w-8 rounded-full from-current to-transparent sm:w-16", flip ? "bg-gradient-to-r" : "bg-gradient-to-l")} />
     </span>
   );
 }
@@ -797,9 +854,9 @@ function CategoryTitle({ cat }: { cat: MenuCategory; count?: number }) {
   if (!cat.banner) return heading;
   return (
     <>
-      {/* عنوان بالای بنر (بیرون از عکس)، وسط‌چین */}
+      {/* Title above the banner (outside the image), centered */}
       {heading}
-      {/* بنرِ تبلیغاتیِ همین دسته (از پنل ← محصولات ← دسته‌بندی‌ها) — بدون نوشته روی عکس */}
+      {/* Promo banner for this category (Dashboard → Products → Categories) — no text over the image */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={thumb(cat.banner, 1080)}
@@ -814,10 +871,10 @@ function CategoryTitle({ cat }: { cat: MenuCategory; count?: number }) {
   );
 }
 
-/* ---------- نوارِ پایینِ موبایل ---------- */
+/* ---------- Mobile bottom bar ---------- */
 function MobileTabBar({ count, activeOrders, onRequest, onStatus, onCart, onBill, viewOnly, onScan }: {
   count: number; activeOrders: number; onRequest: () => void; onStatus: () => void; onCart: () => void; onBill: () => void;
-  /** بدون شمارهٔ میز: دکمه‌ها به «اسکن QR میز» می‌روند */
+  /** No table number: buttons lead to "Scan table QR" */
   viewOnly?: boolean; onScan: () => void;
 }) {
   const [dark, setDark] = useState(false);
@@ -832,54 +889,54 @@ function MobileTabBar({ count, activeOrders, onRequest, onStatus, onCart, onBill
     <button onClick={onClick} className="relative flex flex-1 flex-col items-center gap-1 pb-1 pt-2.5 text-[11px] font-semibold text-muted-foreground transition active:scale-95">
       <span className="relative grid size-7 place-items-center [&_svg]:size-[22px]">
         {icon}
-        {!!badge && badge > 0 && <span className="absolute -right-2 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-green-600 px-1 text-[10px] font-bold text-white">{toFa(badge)}</span>}
+        {!!badge && badge > 0 && <span className="absolute -right-2 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-green-600 px-1 text-[10px] font-bold text-white">{num(badge)}</span>}
       </span>
       {label}
     </button>
   );
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 sm:hidden" aria-label="نوار پایین">
-      {/* بدنهٔ نوار با فرورفتگیِ گرد در وسط */}
+    <nav className="fixed inset-x-0 bottom-0 z-40 sm:hidden" aria-label="Bottom bar">
+      {/* Bar body with a round notch in the middle */}
       <div className="flex h-[68px] drop-shadow-[0_-6px_14px_rgba(60,35,20,0.10)] dark:drop-shadow-[0_-6px_14px_rgba(0,0,0,0.45)]">
         <div className="flex-1 rounded-tr-[22px] bg-card" />
         <svg viewBox="0 0 110 68" preserveAspectRatio="none" className="relative -mx-[2px] h-[68px] w-[114px] shrink-0 fill-card" aria-hidden>
-          {/* لبه‌ها ۲px روی دو تکهٔ کناری می‌افتند تا خطِ درز دیده نشود */}
+          {/* Edges overlap the side pieces by 2px to hide the seam */}
           <path d="M0 0 H10 C22 0 24 6 27 14 C33 32 42 41 55 41 C68 41 77 32 83 14 C86 6 88 0 100 0 H110 V68 H0 Z" />
         </svg>
         <div className="flex-1 rounded-tl-[22px] bg-card" />
       </div>
       <div className="bg-card pb-[env(safe-area-inset-bottom)]" />
       <div className="absolute inset-x-0 top-0 flex h-[68px] items-stretch">
-        <Item icon={<BellRing />} label="درخواست" onClick={viewOnly ? onScan : onRequest} />
-        <Item icon={<ClipboardList />} label="وضعیت سفارش" onClick={viewOnly ? onScan : onStatus} badge={viewOnly ? 0 : activeOrders} />
+        <Item icon={<BellRing />} label="Requests" onClick={viewOnly ? onScan : onRequest} />
+        <Item icon={<ClipboardList />} label="My orders" onClick={viewOnly ? onScan : onStatus} badge={viewOnly ? 0 : activeOrders} />
         <div className="w-[96px] shrink-0" />
-        <Item icon={<ReceiptText />} label="صورتحساب" onClick={viewOnly ? onScan : onBill} />
-        <Item icon={dark ? <Sun /> : <Moon />} label={dark ? "حالت روز" : "حالت شب"} onClick={toggleTheme} />
+        <Item icon={<ReceiptText />} label="Bill" onClick={viewOnly ? onScan : onBill} />
+        <Item icon={dark ? <Sun /> : <Moon />} label={dark ? "Light mode" : "Dark mode"} onClick={toggleTheme} />
       </div>
-      {/* دکمهٔ گردِ وسط: سبد خرید (یا «اسکن QR» وقتی میز مشخص نیست) */}
+      {/* Round center button: cart (or "Scan QR" when there is no table) */}
       <button
         onClick={viewOnly ? onScan : onCart}
-        aria-label={viewOnly ? "اسکن QR میز" : "سبد خرید"}
+        aria-label={viewOnly ? "Scan table QR" : "Cart"}
         className="absolute left-1/2 top-0 grid size-[62px] -translate-x-1/2 -translate-y-[38%] place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_10px_22px_-6px_hsl(var(--primary)/0.6)] ring-[5px] ring-background transition active:scale-95"
       >
         {viewOnly ? <QrCode className="size-7" /> : <ShoppingBag className="size-7" />}
         {!viewOnly && count > 0 && (
-          <motion.span key={count} initial={{ scale: 0.4 }} animate={{ scale: 1 }} className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-white px-1 text-xs font-black text-primary shadow">{toFa(count)}</motion.span>
+          <motion.span key={count} initial={{ scale: 0.4 }} animate={{ scale: 1 }} className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-white px-1 text-xs font-black text-primary shadow">{num(count)}</motion.span>
         )}
       </button>
     </nav>
   );
 }
 
-/* ---------- «سفارش‌های من»: فقط همین حضور ---------- */
-const DONE_VISIBLE_MS = 20 * 60 * 1000; // سفارشِ تمام‌شده تا ۲۰ دقیقه دیده می‌شود
-const MAX_AGE_MS = 6 * 3600 * 1000; // هیچ سفارشی بیشتر از ۶ ساعت در لیست نمی‌ماند
+/* ---------- "My orders": current visit only ---------- */
+const DONE_VISIBLE_MS = 20 * 60 * 1000; // finished orders stay visible for 20 minutes
+const MAX_AGE_MS = 6 * 3600 * 1000; // no order stays on the list longer than 6 hours
 const isFinished = (o: Order) => o.status === "cancelled" || (o.status === "served" && o.paid);
 function pruneOrders(list: Order[], freshVisit: boolean): Order[] {
   const now = Date.now();
   return list.filter((o) => {
     if (now - +new Date(o.createdAt) > MAX_AGE_MS) return false;
-    // اسکنِ تازه: سفارشِ پرداخت‌شدهٔ قدیمی (حتی اگر «سرو شد» زده نشده) هم مالِ حضورِ قبلی است
+    // Fresh scan: an older paid order (even if not marked "served") belongs to the previous visit
     if (freshVisit && o.paid && now - +new Date(o.createdAt) > 90 * 60 * 1000) return false;
     if (!isFinished(o)) return true;
     if (freshVisit) return false;
@@ -908,7 +965,7 @@ function Drawer({ open, onClose, title, children }: { open: boolean; onClose: ()
 
 function OrderTracker({ order, money, payFirst, onPay }: { order: Order; money: (n: number) => string; payFirst?: boolean; onPay?: () => void }) {
   const cancelled = order.status === "cancelled";
-  // اول پرداخت: تا تأیید پرداخت، سفارش هنوز به آشپزخانه نرفته
+  // Pay first: until payment is confirmed, the order has not reached the kitchen
   if (payFirst && !order.paid && !cancelled) {
     const pending = order.payStatus === "pending";
     const rejected = order.payStatus === "rejected";
@@ -916,21 +973,21 @@ function OrderTracker({ order, money, payFirst, onPay }: { order: Order; money: 
     return (
       <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-3">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-bold">سفارش #{toFa(order.number)}</span>
-          <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400">{pending ? "در انتظار تأیید صندوق" : pos ? "کارت‌خوان در راه است" : "در انتظار پرداخت"}</span>
+          <span className="text-sm font-bold">Order #{num(order.number)}</span>
+          <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400">{pending ? "Awaiting cashier" : pos ? "Card reader on the way" : "Awaiting payment"}</span>
         </div>
         <p className="text-xs leading-6 text-muted-foreground">
           {pending
-            ? "رسید شما رسید ✅ — به‌محض تأیید صندوق، سفارش برای سرآشپز ارسال می‌شود."
+            ? "We got your receipt ✅ — your order goes to the kitchen as soon as the cashier confirms it."
             : pos
-              ? "همکاران ما با فاکتور و کارت‌خوان سر میز می‌آیند؛ بعد از پرداخت، سفارش برای سرآشپز ارسال می‌شود."
+              ? "Our staff will bring the bill and a card reader to your table; your order goes to the kitchen once paid."
               : rejected
-              ? `فیش رد شد${order.rejectedReason ? `: ${order.rejectedReason}` : ""} — دوباره پرداخت کنید تا سفارش برای سرآشپز ارسال شود.`
-              : "سفارش شما بعد از پرداخت برای سرآشپز ارسال می‌شود."}
+              ? `Receipt rejected${order.rejectedReason ? `: ${order.rejectedReason}` : ""} — please pay again so we can send your order to the kitchen.`
+              : "Your order goes to the kitchen after payment."}
         </p>
         <div className="mt-2 flex items-center justify-between">
           <span className="text-sm font-extrabold text-primary">{money(order.total)}</span>
-          {!pending && !pos && onPay && <Button size="sm" className="h-8 rounded-xl" onClick={onPay}>💳 پرداخت</Button>}
+          {!pending && !pos && onPay && <Button size="sm" className="h-8 rounded-xl" onClick={onPay}>💳 Pay</Button>}
         </div>
       </div>
     );
@@ -939,8 +996,8 @@ function OrderTracker({ order, money, payFirst, onPay }: { order: Order; money: 
   return (
     <div className="rounded-2xl border border-border p-3">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-sm font-bold">سفارش #{toFa(order.number)}</span>
-        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", cancelled ? "bg-primary/10 text-primary" : order.status === "ready" ? "bg-green-600/15 text-green-600 dark:text-green-400" : "bg-muted text-muted-foreground")}>{STATUS_FA[order.status]}</span>
+        <span className="text-sm font-bold">Order #{num(order.number)}</span>
+        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", cancelled ? "bg-primary/10 text-primary" : order.status === "ready" ? "bg-green-600/15 text-green-600 dark:text-green-400" : "bg-muted text-muted-foreground")}>{STATUS_LABEL[order.status]}</span>
       </div>
       {!cancelled && (
         <div className="flex items-center">
@@ -949,7 +1006,7 @@ function OrderTracker({ order, money, payFirst, onPay }: { order: Order; money: 
             return (
               <div key={s} className="contents">
                 <div className="flex flex-col items-center gap-1">
-                  <span className={cn("grid size-7 place-items-center rounded-full text-[11px] font-bold", done ? "bg-green-600 text-white" : "bg-muted text-muted-foreground", i === idx && "ring-2 ring-green-600/40")}>{done ? <Check className="size-4" /> : toFa(i + 1)}</span>
+                  <span className={cn("grid size-7 place-items-center rounded-full text-[11px] font-bold", done ? "bg-green-600 text-white" : "bg-muted text-muted-foreground", i === idx && "ring-2 ring-green-600/40")}>{done ? <Check className="size-4" /> : num(i + 1)}</span>
                   <span className={cn("text-[10px]", done ? "font-semibold text-foreground" : "text-muted-foreground")}>{STATUS_SHORT[s]}</span>
                 </div>
                 {i < STATUS_STEPS.length - 1 && <span className={cn("mx-1 mb-4 h-0.5 flex-1 rounded", i < idx ? "bg-green-600" : "bg-border")} />}
@@ -960,9 +1017,9 @@ function OrderTracker({ order, money, payFirst, onPay }: { order: Order; money: 
       )}
       <div className="mt-2 flex items-center justify-between">
         <span className="text-sm font-extrabold text-primary">{money(order.total)}</span>
-        {order.payStatus === "pending" && <span className="text-xs text-amber-600 dark:text-amber-400">در انتظار تأیید صندوق ⏳</span>}
-        {order.payStatus === "confirmed" && <span className="text-xs text-green-600 dark:text-green-400">پرداخت تأیید شد ✅</span>}
-        {order.payStatus === "rejected" && <span className="text-xs text-primary">فیش رد شد{order.rejectedReason ? `: ${order.rejectedReason}` : ""}</span>}
+        {order.payStatus === "pending" && <span className="text-xs text-amber-600 dark:text-amber-400">Awaiting cashier ⏳</span>}
+        {order.payStatus === "confirmed" && <span className="text-xs text-green-600 dark:text-green-400">Payment confirmed ✅</span>}
+        {order.payStatus === "rejected" && <span className="text-xs text-primary">Receipt rejected{order.rejectedReason ? `: ${order.rejectedReason}` : ""}</span>}
       </div>
     </div>
   );

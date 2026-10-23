@@ -1,5 +1,5 @@
 export type OrderStatus = "new" | "preparing" | "ready" | "served" | "cancelled";
-/** pos = مشتری «کارت‌خوان سر میز» خواسته؛ صندوق فاکتور را چاپ می‌کند و با کارت‌خوان تسویه می‌شود */
+/** pos = the customer asked for a card reader at the table; the cashier prints the bill and settles it with the card reader */
 export type PayStatus = "none" | "pending" | "confirmed" | "rejected" | "pos";
 
 export interface OrderItem {
@@ -19,11 +19,13 @@ export interface Order {
   paid: boolean;
   payStatus: PayStatus;
   receipt: string;
-  /** همین تصویرِ فیش قبلاً برای میز دیگری استفاده شده (احتمال اسکرین‌شات تکراری) */
+  /** The same receipt image was already used for another table (possible duplicate screenshot) */
   receiptReused: boolean;
   rejectedReason: string;
   note: string;
   phone: string;
+  /** How it was paid: receipt (bank transfer), pos (card reader), counter, online (Stripe); empty while unpaid */
+  payMethod?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,7 +44,7 @@ export interface MenuCategory {
   id: string;
   name: string;
   emoji: string;
-  /** عکسِ تبلیغاتیِ تمام‌عرض بالای همین دسته (اختیاری) */
+  /** Full-width promo image above this category (optional) */
   banner?: string;
 }
 
@@ -68,55 +70,63 @@ export interface CafeInfo {
   name: string;
   logo: string;
   tagline: string;
-  currency: "toman" | "rial";
-  /** ویدیوی پس‌زمینهٔ هیرو؛ خالی = صحنهٔ سه‌بعدی */
+  /** ISO 4217 code, e.g. "USD", "EUR", "GBP" (prices are stored as decimal numbers in this currency) */
+  currency: string;
+  /** IANA time zone for reports, e.g. "America/New_York" (empty = server default) */
+  timezone?: string;
+  /** Hero background video; empty = 3D scene */
   heroVideo?: string;
-  /** عکسِ کاورِ ویدیو (فریم اول) تا قبل از رسیدنِ ویدیو */
+  /** Video poster (first frame) shown until the video loads */
   heroPoster?: string;
   address?: string;
   mapUrl?: string;
   instagram?: string;
-  /** نوعِ کسب‌وکار (cafe/restaurant/fastfood/other) — عنوان‌ها و صحنهٔ خوش‌آمد بر اساسِ آن */
+  /** Business type (cafe/restaurant/fastfood/other) — drives titles and the welcome scene */
   kind?: string;
-  /** سئو و نقشهٔ گوگل */
+  /** SEO and maps */
   phone?: string;
   city?: string;
   seoDescription?: string;
 }
 
-/** نمایش کد سفارش: عدد ترتیبی (#۱۲) یا شناسهٔ کامل */
+/** Order code display: sequential number (#12) or the full id */
 export type OrderCodeMode = "number" | "id";
 
-/** سامانهٔ پیامک برای کد تأیید شمارهٔ مشتری */
+/** SMS provider used for customer phone verification and bulk SMS (Twilio) */
 export interface SmsSettings {
-  /** wide = عصر فرا ارتباط و نمایندگی‌ها (wide.ir، afe.ir، …) */
-  provider: "none" | "kavenegar" | "wide";
-  apiKey: string;
-  template: string;
-  /** پنلِ wide/afe */
-  username?: string;
-  password?: string;
-  sender?: string;
-  domain?: string;
-  /** اگر روشن باشد، مشتری قبل از دیدن منو شماره‌اش را با کد پیامکی تأیید می‌کند */
+  provider: "none" | "twilio";
+  /** Twilio Account SID (AC…) */
+  accountSid: string;
+  /** Twilio Auth Token */
+  authToken: string;
+  /** Sender: a Twilio phone number in E.164 (+15551234567), an alphanumeric sender id, or a Messaging Service SID (MG…) */
+  from: string;
+  /** When on, customers verify their phone with an SMS code before ordering */
   otpEnabled: boolean;
 }
 
-/** اطلاعات درگاه پرداخت (زرین‌پال، ملت، ملی) */
-export interface Gateway {
-  id: "zarinpal" | "mellat" | "melli";
-  name: string;
+/** Restaurant-level Stripe account for online card payments of table bills */
+export interface StripeSettings {
   enabled: boolean;
-  config: Record<string, string>;
+  /** Secret key (sk_live_… / sk_test_…) — stored encrypted */
+  secretKey: string;
 }
 
+/** Payment options offered to customers */
 export interface PaymentInfo {
+  /** Bank transfer details shown to the customer (account / IBAN) */
   card: string;
+  /** Account holder */
   holder: string;
+  /** Extra note shown with the payment options */
   note: string;
+  /** Optional external payment link (e.g. a payment page) */
   link: string;
-  /** روش‌های پرداخت برای مشتری (پیش‌فرض هر دو روشن) */
+  /** Bank transfer with receipt upload */
   allowCard?: boolean;
+  /** Card reader at the table */
   allowPos?: boolean;
+  /** Derived (not stored): online card payment with Stripe is available */
+  online?: boolean;
 }
 export type RequestType = "waiter" | "invoice" | "pos";

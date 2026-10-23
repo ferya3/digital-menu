@@ -1,16 +1,16 @@
 /**
- * مقاله‌های وبلاگِ سایتِ پلتفرم (برای سئو): در تنظیماتِ پلتفرم ذخیره می‌شوند و از پنلِ مدیرِ کل ← «مقالات» ویرایش.
- * تا وقتی چیزی ذخیره نشده، مقاله‌های آغازین (lib/article-seeds) نمایش داده می‌شوند.
+ * Platform blog articles (for SEO): stored in the platform settings and edited from super admin → "Articles".
+ * Until something is saved, the starter articles (lib/article-seeds) are shown.
  */
 export interface Article {
-  /** بخشِ آدرس: /blog/<slug> — حروفِ انگلیسیِ کوچک، عدد و خط‌تیره */
+  /** URL segment: /blog/<slug> — lowercase letters, digits and hyphens */
   slug: string;
   title: string;
-  /** توضیحِ نتیجهٔ گوگل (حدودِ ۱۲۰ تا ۱۶۰ نویسه) */
+  /** Search-result description (about 120–160 characters) */
   description: string;
-  /** عکسِ کاور (اختیاری؛ ۱۶۰۰×۹۰۰) */
+  /** Cover image (optional; 1600×900) */
   cover: string;
-  /** متن با مارک‌داونِ ساده: ## تیتر، ### زیرتیتر، - فهرست، 1. فهرستِ شماره‌دار، > نکته، **پررنگ**، [متن](/آدرس) */
+  /** Body in simple Markdown: ## heading, ### subheading, - list, 1. numbered list, > tip, **bold**, [text](/url) */
   body: string;
   published: boolean;
   /** YYYY-MM-DD */
@@ -20,5 +20,5 @@ export interface Article {
 
 export const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** زمانِ تقریبیِ خواندن (دقیقه) — حدودِ ۲۰۰ کلمه در دقیقه برای فارسی */
+/** Approximate reading time (minutes) — about 200 words per minute */
 export const readMinutes = (body: string) => Math.max(1, Math.round(body.split(/\s+/).filter(Boolean).length / 200));

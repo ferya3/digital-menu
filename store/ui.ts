@@ -4,10 +4,10 @@ interface UIState {
   menuOpen: boolean;
   setMenu: (v: boolean) => void;
   toggle: () => void;
-  /** پنلِ «منتخب باریستا» */
+  /** "Barista's picks" panel */
   picksOpen: boolean;
   setPicks: (v: boolean) => void;
-  /** پاپ‌آپِ خوش‌آمد (هیرو) — فقط بار اولِ هر نشست */
+  /** Welcome splash (hero) — only the first time in each session */
   splash: boolean;
   setSplash: (v: boolean) => void;
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, ExternalLink, ImagePlus, Loader2, Plus, RotateCcw, Save, Store, Trash2 } from "lucide-react";
 import { FeatureIcon } from "@/components/platform/feature-icon";
 import { Button } from "@/components/ui/button";
-import { cn, toFa } from "@/lib/utils";
+import { cn, num } from "@/lib/utils";
 import { unwrap } from "@/lib/action-result";
 import { compressImage, imageForm, IMAGE_ACCEPT } from "@/lib/client-image";
 import { adminContentAction, adminCreateDemoAction, adminSaveContentAction, adminUploadCardImageAction, adminUploadLogoAction, adminUploadOgAction } from "@/app/platform/actions";
@@ -12,13 +12,13 @@ import { BRAND_COLORS, DEFAULT_CONTENT, FEATURE_ICONS, ICON_LABELS, type Feature
 import { Box, L, Toggle, err, smallField, type Flash } from "./shared";
 
 const SECTIONS = [
-  ["brand", "برند و سئو"], ["announce", "نوارِ اعلان"], ["hero", "بالای صفحه"], ["features", "کارت‌های امکانات (کاروسل)"], ["views", "حالت‌های نمایش"], ["steps", "مراحل"],
-  ["pricing", "تعرفه‌ها"], ["faq", "سؤالات"], ["showcase", "پنل و دعوتِ پایانی"], ["testimonials", "نظرِ مشتری‌ها"], ["footer", "پاورقی و تماس"], ["forms", "ثبت‌نام و ورود"], ["legal", "قوانین"], ["system", "پیام‌های سیستمی"],
+  ["brand", "Brand & SEO"], ["announce", "Announcement bar"], ["hero", "Hero"], ["features", "Feature cards (carousel)"], ["views", "Display modes"], ["steps", "Steps"],
+  ["pricing", "Pricing"], ["faq", "FAQ"], ["showcase", "Showcase & final CTA"], ["testimonials", "Testimonials"], ["footer", "Footer & contact"], ["forms", "Signup & login"], ["legal", "Legal"], ["system", "System messages"],
 ] as const;
 type Sec = (typeof SECTIONS)[number][0];
 
 
-/** فهرستِ قابلِ افزودن/حذف/جابه‌جایی */
+/** List with add / remove / reorder */
 function ListEditor<T>({ items, onChange, render, make, addLabel }: {
   items: T[]; onChange: (v: T[]) => void; render: (it: T, set: (v: T) => void, i: number) => React.ReactNode; make: () => T; addLabel: string;
 }) {
@@ -29,9 +29,9 @@ function ListEditor<T>({ items, onChange, render, make, addLabel }: {
         <div key={i} className="flex gap-2 rounded-2xl border border-border bg-background p-3">
           <div className="min-w-0 flex-1 space-y-2">{render(it, (v) => onChange(items.map((x, j) => (j === i ? v : x))), i)}</div>
           <div className="flex shrink-0 flex-col gap-1">
-            <button type="button" aria-label="بالا" onClick={() => move(i, -1)} className="grid size-7 place-items-center rounded-lg hover:bg-muted"><ArrowUp className="size-4" /></button>
-            <button type="button" aria-label="پایین" onClick={() => move(i, 1)} className="grid size-7 place-items-center rounded-lg hover:bg-muted"><ArrowDown className="size-4" /></button>
-            <button type="button" aria-label="حذف" onClick={() => onChange(items.filter((_, j) => j !== i))} className="grid size-7 place-items-center rounded-lg text-primary hover:bg-primary/10"><Trash2 className="size-4" /></button>
+            <button type="button" aria-label="Move up" onClick={() => move(i, -1)} className="grid size-7 place-items-center rounded-lg hover:bg-muted"><ArrowUp className="size-4" /></button>
+            <button type="button" aria-label="Move down" onClick={() => move(i, 1)} className="grid size-7 place-items-center rounded-lg hover:bg-muted"><ArrowDown className="size-4" /></button>
+            <button type="button" aria-label="Remove" onClick={() => onChange(items.filter((_, j) => j !== i))} className="grid size-7 place-items-center rounded-lg text-primary hover:bg-primary/10"><Trash2 className="size-4" /></button>
           </div>
         </div>
       ))}
@@ -40,7 +40,7 @@ function ListEditor<T>({ items, onChange, render, make, addLabel }: {
   );
 }
 
-export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: string }) {
+export function ContentEditor({ flash, siteUrl, trialDays }: { flash: Flash; siteUrl: string; trialDays?: number }) {
   const [c, setC] = useState<SiteContent | null>(null);
   const [saved, setSaved] = useState("");
   const [sec, setSec] = useState<Sec>("brand");
@@ -53,11 +53,11 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
   if (!c) return <div className="grid h-60 place-items-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
   const dirty = JSON.stringify(c) !== saved;
   const set = <K extends keyof SiteContent>(k: K, v: Partial<SiteContent[K]>) => setC({ ...c, [k]: Array.isArray(c[k]) ? v : { ...(c[k] as object), ...v } } as SiteContent);
-  const reset = (k: keyof SiteContent) => { if (confirm("متن‌های این بخش به حالتِ پیش‌فرض برگردد؟")) setC({ ...c, [k]: structuredClone(DEFAULT_CONTENT[k]) }); };
+  const reset = (k: keyof SiteContent) => { if (confirm("Reset this section's texts to the defaults?")) setC({ ...c, [k]: structuredClone(DEFAULT_CONTENT[k]) }); };
 
   async function save() {
     setBusy(true);
-    try { const v = unwrap(await adminSaveContentAction(c!)); setC(v); setSaved(JSON.stringify(v)); flash("✅ محتوای سایت ذخیره شد"); }
+    try { const v = unwrap(await adminSaveContentAction(c!)); setC(v); setSaved(JSON.stringify(v)); flash("✅ Site content saved"); }
     catch (e) { flash("❌ " + err(e)); } finally { setBusy(false); }
   }
   async function uploadOg(f: File) {
@@ -70,21 +70,21 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
     try { const { url } = unwrap(await adminUploadLogoAction(imageForm(await compressImage(f, 512, 0.9)))); set("brand", { logo: url }); }
     catch (e) { flash("❌ " + err(e)); } finally { setLogoBusy(false); }
   }
-  /** متن با متغیرهای جایگذاری‌شده، همان‌طور که در گوگل دیده می‌شود */
-  const fillPreview = (t: string) => t.replaceAll("{brand}", c.brand.name).replaceAll("{trialDays}", "۱۴").replaceAll("{root}", siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, ""));
-  const resetBtn = (k: keyof SiteContent) => <button type="button" onClick={() => reset(k)} className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="size-3.5" /> پیش‌فرض</button>;
-  const inp = (v: string, on: (s: string) => void, ph = "", ltr = false) => <input value={v} onChange={(e) => on(e.target.value)} placeholder={ph} dir={ltr ? "ltr" : undefined} className={smallField} />;
+  /** Text with variables filled in, as Google will show it */
+  const fillPreview = (t: string) => t.replaceAll("{brand}", c.brand.name).replaceAll("{trialDays}", String(trialDays ?? 14)).replaceAll("{root}", siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, ""));
+  const resetBtn = (k: keyof SiteContent) => <button type="button" onClick={() => reset(k)} className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="size-3.5" /> Reset</button>;
+  const inp = (v: string, on: (s: string) => void, ph = "") => <input value={v} onChange={(e) => on(e.target.value)} placeholder={ph} className={smallField} />;
   const area = (v: string, on: (s: string) => void, rows = 3) => <textarea value={v} onChange={(e) => on(e.target.value)} rows={rows} className={cn(smallField, "resize-y leading-7")} />;
 
   return (
     <div className="space-y-4">
-      {/* نوارِ ذخیره */}
+      {/* Save bar */}
       <div className="sticky top-[60px] z-10 flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card/95 p-2 shadow-sm backdrop-blur">
-        <Button className="rounded-xl" disabled={busy || !dirty} onClick={save}>{busy ? <Loader2 className="animate-spin" /> : <><Save className="size-4" /> ذخیره</>}</Button>
-        {dirty && <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">تغییراتِ ذخیره‌نشده</span>}
-        <a href={siteUrl} target="_blank" rel="noopener" className="ms-auto flex items-center gap-1 text-sm font-semibold text-primary"><ExternalLink className="size-4" /> مشاهدهٔ سایت</a>
+        <Button className="rounded-xl" disabled={busy || !dirty} onClick={save}>{busy ? <Loader2 className="animate-spin" /> : <><Save className="size-4" /> Save</>}</Button>
+        {dirty && <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Unsaved changes</span>}
+        <a href={siteUrl} target="_blank" rel="noopener" className="ms-auto flex items-center gap-1 text-sm font-semibold text-primary"><ExternalLink className="size-4" /> View site</a>
       </div>
-      <p className="text-xs text-muted-foreground">در همهٔ متن‌ها می‌توانید از <code dir="ltr">{"{brand}"}</code> (نامِ برند)، <code dir="ltr">{"{trialDays}"}</code> (روزهای رایگان) و <code dir="ltr">{"{root}"}</code> (دامنه) استفاده کنید.</p>
+      <p className="text-xs text-muted-foreground">In any text you can use <code>{"{brand}"}</code> (brand name), <code>{"{trialDays}"}</code> (free trial days) and <code>{"{root}"}</code> (domain).</p>
 
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {SECTIONS.map(([id, label]) => (
@@ -93,22 +93,22 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
       </div>
 
       {sec === "brand" && (
-        <Box title="برند و سئو" action={resetBtn("brand")}>
-          <L t="نامِ برند">{inp(c.brand.name, (v) => set("brand", { name: v }))}</L>
-          <L t="لوگو" hint="عکس (مربعی) یا یک ایموجی؛ خالی = آیکونِ فروشگاه">
+        <Box title="Brand & SEO" action={resetBtn("brand")}>
+          <L t="Brand name">{inp(c.brand.name, (v) => set("brand", { name: v }))}</L>
+          <L t="Logo" hint="A square image or an emoji; empty = store icon">
             <div className="flex items-center gap-2">
               <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary text-xl text-primary-foreground" style={{ background: BRAND_COLORS.find((x) => x.id === c.brand.color)?.hex }}>
                 {/^(\/|https?:)/.test(c.brand.logo)
                   // eslint-disable-next-line @next/next/no-img-element
                   ? <img src={c.brand.logo} alt="" className="size-full object-cover" /> : c.brand.logo || <Store className="size-6" />}
               </span>
-              <input value={/^(\/|https?:)/.test(c.brand.logo) ? "" : c.brand.logo} onChange={(e) => set("brand", { logo: e.target.value })} placeholder="ایموجی، مثل ☕" className={cn(smallField, "max-w-32")} />
+              <input value={/^(\/|https?:)/.test(c.brand.logo) ? "" : c.brand.logo} onChange={(e) => set("brand", { logo: e.target.value })} placeholder="Emoji, e.g. ☕" className={cn(smallField, "max-w-32")} />
               <input ref={logoRef} type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ""; }} />
-              <Button type="button" size="sm" variant="outline" className="rounded-xl" disabled={logoBusy} onClick={() => logoRef.current?.click()}>{logoBusy ? <Loader2 className="animate-spin" /> : <><ImagePlus className="size-4" /> آپلودِ عکس</>}</Button>
-              {c.brand.logo && <button type="button" onClick={() => set("brand", { logo: "" })} className="text-xs text-muted-foreground hover:text-primary">حذف</button>}
+              <Button type="button" size="sm" variant="outline" className="rounded-xl" disabled={logoBusy} onClick={() => logoRef.current?.click()}>{logoBusy ? <Loader2 className="animate-spin" /> : <><ImagePlus className="size-4" /> Upload image</>}</Button>
+              {c.brand.logo && <button type="button" onClick={() => set("brand", { logo: "" })} className="text-xs text-muted-foreground hover:text-primary">Remove</button>}
             </div>
           </L>
-          <L t="رنگِ اصلیِ سایت">
+          <L t="Primary site color">
             <div className="flex flex-wrap gap-2">
               {BRAND_COLORS.map((col) => (
                 <button key={col.id} type="button" title={col.label} onClick={() => set("brand", { color: col.id })}
@@ -116,52 +116,52 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
               ))}
             </div>
           </L>
-          <L t="تصویرِ پیش‌نمایشِ لینک (واتساپ، تلگرام، گوگل)" hint="۱۲۰۰×۶۳۰؛ خالی = تصویرِ خودکار با لوگو و رنگِ برند">
+          <L t="Link preview image (WhatsApp, social media, Google)" hint="1200 × 630 px; empty = auto-generated image with your logo and brand color">
             <div className="flex flex-wrap items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={c.brand.ogImage || "/og.png"} alt="" className="h-16 w-[122px] rounded-lg border border-border object-cover" />
               <input ref={ogRef} type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadOg(f); e.target.value = ""; }} />
-              <Button type="button" size="sm" variant="outline" className="rounded-xl" disabled={logoBusy} onClick={() => ogRef.current?.click()}><ImagePlus className="size-4" /> آپلود</Button>
-              {c.brand.ogImage && <button type="button" onClick={() => set("brand", { ogImage: "" })} className="text-xs text-muted-foreground hover:text-primary">حذف (تصویرِ خودکار)</button>}
+              <Button type="button" size="sm" variant="outline" className="rounded-xl" disabled={logoBusy} onClick={() => ogRef.current?.click()}><ImagePlus className="size-4" /> Upload</Button>
+              {c.brand.ogImage && <button type="button" onClick={() => set("brand", { ogImage: "" })} className="text-xs text-muted-foreground hover:text-primary">Remove (use auto image)</button>}
             </div>
           </L>
-          <L t="کدِ تأییدِ گوگل (Search Console)" hint='از Search Console ← «HTML tag» فقط مقدارِ content را کپی کنید'>{inp(c.brand.googleVerification, (v) => set("brand", { googleVerification: v.replace(/.*content="([^"]+)".*/, "$1").trim() }), "abc123…", true)}</L>
-          <L t="عنوانِ صفحه در گوگل و تبِ مرورگر" hint={<Count n={fillPreview(c.brand.seoTitle).length} max={60} tip="کلیدواژهٔ اصلی (مثلاً «منوی دیجیتال») را اولِ عنوان بیاورید" />}>{inp(c.brand.seoTitle, (v) => set("brand", { seoTitle: v }))}</L>
-          <L t="توضیحِ صفحه در نتایجِ گوگل" hint={<Count n={fillPreview(c.brand.seoDescription).length} max={160} min={110} tip="یک جملهٔ کامل که بگوید چه می‌دهید و چرا کلیک کنند" />}>{area(c.brand.seoDescription, (v) => set("brand", { seoDescription: v }), 2)}</L>
+          <L t="Google verification code (Search Console)" hint='In Search Console → "HTML tag", copy only the content value (pasting the whole tag also works)'>{inp(c.brand.googleVerification, (v) => set("brand", { googleVerification: v.replace(/.*content="([^"]+)".*/, "$1").trim() }), "abc123…")}</L>
+          <L t="Page title (Google results and browser tab)" hint={<Count n={fillPreview(c.brand.seoTitle).length} max={60} tip="Put your main keyword (e.g. “QR menu”) at the start of the title" />}>{inp(c.brand.seoTitle, (v) => set("brand", { seoTitle: v }))}</L>
+          <L t="Meta description (Google results)" hint={<Count n={fillPreview(c.brand.seoDescription).length} max={160} min={110} tip="One complete sentence saying what you offer and why people should click" />}>{area(c.brand.seoDescription, (v) => set("brand", { seoDescription: v }), 2)}</L>
           <GooglePreview url={siteUrl} title={fillPreview(c.brand.seoTitle)} description={fillPreview(c.brand.seoDescription)} />
           <Toggle checked={c.brand.poweredBy !== false} onChange={(v) => set("brand", { poweredBy: v })}
-            label={<span>لینکِ «منوی دیجیتال با {c.brand.name || "…"}» پایینِ منوی مجموعه‌ها <span className="text-xs text-muted-foreground">(بک‌لینک به سایت؛ برای سئو روشن بماند)</span></span>} />
+            label={<span>“Digital menu by {c.brand.name || "…"}” link at the bottom of venue menus <span className="text-xs text-muted-foreground">(a backlink to your site — keep it on for SEO)</span></span>} />
         </Box>
       )}
 
       {sec === "announce" && (
-        <Box title="نوارِ اعلان بالای سایت" action={resetBtn("announce")}>
-          <Toggle checked={c.announce.enabled} onChange={(v) => set("announce", { enabled: v })} label="نمایشِ نوارِ اعلان" />
-          <L t="متن">{inp(c.announce.text, (v) => set("announce", { text: v }), "مثلاً: جشنوارهٔ نوروزی — ۳۰٪ تخفیف")}</L>
-          <L t="لینک (اختیاری)" hint="مثلاً /signup یا آدرسِ کامل">{inp(c.announce.link, (v) => set("announce", { link: v }), "/signup", true)}</L>
+        <Box title="Announcement bar (top of the site)" action={resetBtn("announce")}>
+          <Toggle checked={c.announce.enabled} onChange={(v) => set("announce", { enabled: v })} label="Show the announcement bar" />
+          <L t="Text">{inp(c.announce.text, (v) => set("announce", { text: v }), "e.g. Spring sale — 30% off all plans")}</L>
+          <L t="Link (optional)" hint="e.g. /signup or a full URL">{inp(c.announce.link, (v) => set("announce", { link: v }), "/signup")}</L>
         </Box>
       )}
 
       {sec === "hero" && (
-        <Box title="بالای صفحهٔ اصلی" action={resetBtn("hero")}>
-          <L t="برچسبِ کوچکِ بالا">{inp(c.hero.badge, (v) => set("hero", { badge: v }))}</L>
+        <Box title="Hero (top of the home page)" action={resetBtn("hero")}>
+          <L t="Small badge above the headline">{inp(c.hero.badge, (v) => set("hero", { badge: v }))}</L>
           <div className="grid gap-3 sm:grid-cols-2">
-            <L t="تیترِ اصلی">{inp(c.hero.title, (v) => set("hero", { title: v }))}</L>
-            <L t="ادامهٔ تیتر (رنگی)">{inp(c.hero.highlight, (v) => set("hero", { highlight: v }))}</L>
+            <L t="Headline">{inp(c.hero.title, (v) => set("hero", { title: v }))}</L>
+            <L t="Headline continued (highlighted)">{inp(c.hero.highlight, (v) => set("hero", { highlight: v }))}</L>
           </div>
-          <L t="توضیح">{area(c.hero.subtitle, (v) => set("hero", { subtitle: v }), 3)}</L>
+          <L t="Description">{area(c.hero.subtitle, (v) => set("hero", { subtitle: v }), 3)}</L>
           <div className="grid gap-3 sm:grid-cols-3">
-            <L t="دکمهٔ اصلی">{inp(c.hero.ctaPrimary, (v) => set("hero", { ctaPrimary: v }))}</L>
-            <L t="دکمهٔ دوم">{inp(c.hero.ctaSecondary, (v) => set("hero", { ctaSecondary: v }))}</L>
-            <L t="نامِ نمونه در تصویرِ گوشی">{inp(c.hero.mockupName, (v) => set("hero", { mockupName: v }))}</L>
+            <L t="Primary button">{inp(c.hero.ctaPrimary, (v) => set("hero", { ctaPrimary: v }))}</L>
+            <L t="Secondary button">{inp(c.hero.ctaSecondary, (v) => set("hero", { ctaSecondary: v }))}</L>
+            <L t="Sample venue name in the phone mockup">{inp(c.hero.mockupName, (v) => set("hero", { mockupName: v }))}</L>
           </div>
           <DemoField c={c} set={set} flash={flash} />
-          <L t="ویژگی‌های کوتاهِ زیرِ دکمه‌ها (تیک‌دار)">
-            <ListEditor items={c.trust} onChange={(v) => setC({ ...c, trust: v })} make={() => ""} addLabel="مورِد جدید" render={(it, s) => inp(it, s)} />
+          <L t="Short highlights under the buttons (with check marks)">
+            <ListEditor items={c.trust} onChange={(v) => setC({ ...c, trust: v })} make={() => ""} addLabel="Add item" render={(it, s) => inp(it, s)} />
           </L>
-          <L t="برچسب‌های «مناسب برای»">
-            <ListEditor items={c.kinds} onChange={(v) => setC({ ...c, kinds: v })} make={() => ""} addLabel="برچسبِ جدید"
-              render={(it, s) => inp(it, s, "مثلاً 🍕 پیتزافروشی")} />
+          <L t="“Perfect for” tags">
+            <ListEditor items={c.kinds} onChange={(v) => setC({ ...c, kinds: v })} make={() => ""} addLabel="Add tag"
+              render={(it, s) => inp(it, s, "e.g. 🍕 Pizzerias")} />
           </L>
         </Box>
       )}
@@ -169,87 +169,87 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
       {sec === "features" && <FeaturesEditor c={c} set={set} resetBtn={resetBtn("features")} flash={flash} />}
 
       {sec === "views" && (
-        <Box title="حالت‌های نمایشِ منو" action={resetBtn("views")}>
-          <L t="تیتر">{inp(c.views.title, (v) => set("views", { title: v }))}</L>
-          <L t="زیرتیتر">{area(c.views.subtitle, (v) => set("views", { subtitle: v }), 2)}</L>
-          {(["کاروسلِ سه‌بعدی", "شبکه‌ای", "لیستی"] as const).map((name, i) => {
+        <Box title="Menu display modes" action={resetBtn("views")}>
+          <L t="Title">{inp(c.views.title, (v) => set("views", { title: v }))}</L>
+          <L t="Subtitle">{area(c.views.subtitle, (v) => set("views", { subtitle: v }), 2)}</L>
+          {(["3D carousel", "Grid", "List"] as const).map((name, i) => {
             const it = c.views.items[i] || DEFAULT_CONTENT.views.items[i];
             const put = (patch: Partial<typeof it>) => set("views", { items: DEFAULT_CONTENT.views.items.map((d, j) => (j === i ? { ...it, ...patch } : c.views.items[j] || d)) });
             return (
-              <L key={name} t={`حالتِ ${name}`}>
+              <L key={name} t={`${name} mode`}>
                 <div className="space-y-2 rounded-2xl border border-border bg-background p-3">
-                  {inp(it.title, (v) => put({ title: v }), "عنوان")}
+                  {inp(it.title, (v) => put({ title: v }), "Title")}
                   {area(it.text, (v) => put({ text: v }), 2)}
                 </div>
               </L>
             );
           })}
-          <L t="ویژگی‌های کنارِ پیش‌نمایش (تیک‌دار)">
-            <ListEditor items={c.views.bullets} onChange={(v) => set("views", { bullets: v })} make={() => ""} addLabel="مورِد جدید" render={(it, s) => inp(it, s)} />
+          <L t="Highlights next to the preview (with check marks)">
+            <ListEditor items={c.views.bullets} onChange={(v) => set("views", { bullets: v })} make={() => ""} addLabel="Add item" render={(it, s) => inp(it, s)} />
           </L>
         </Box>
       )}
 
       {sec === "steps" && (
-        <Box title="مراحلِ راه‌اندازی" action={resetBtn("steps")}>
-          <L t="تیتر">{inp(c.steps.title, (v) => set("steps", { title: v }))}</L>
-          <ListEditor items={c.steps.items} onChange={(v) => set("steps", { items: v })} make={() => ({ title: "", text: "" })} addLabel="مرحلهٔ جدید"
-            render={(it, s) => (<>{inp(it.title, (v) => s({ ...it, title: v }), "عنوان")}{area(it.text, (v) => s({ ...it, text: v }), 2)}</>)} />
+        <Box title="Setup steps" action={resetBtn("steps")}>
+          <L t="Title">{inp(c.steps.title, (v) => set("steps", { title: v }))}</L>
+          <ListEditor items={c.steps.items} onChange={(v) => set("steps", { items: v })} make={() => ({ title: "", text: "" })} addLabel="Add step"
+            render={(it, s) => (<>{inp(it.title, (v) => s({ ...it, title: v }), "Title")}{area(it.text, (v) => s({ ...it, text: v }), 2)}</>)} />
         </Box>
       )}
 
       {sec === "pricing" && (
-        <Box title="بخشِ تعرفه‌ها" action={resetBtn("pricing")}>
-          <p className="text-xs text-muted-foreground">قیمت و مدتِ طرح‌ها از «تنظیمات ← طرح‌های اشتراک» عوض می‌شود.</p>
-          <L t="تیتر">{inp(c.pricing.title, (v) => set("pricing", { title: v }))}</L>
-          <L t="زیرتیتر">{inp(c.pricing.subtitle, (v) => set("pricing", { subtitle: v }))}</L>
-          <L t="متنِ دکمه">{inp(c.pricing.cta, (v) => set("pricing", { cta: v }))}</L>
-          <L t="امکاناتِ هر طرح (تیک‌دار)">
-            <ListEditor items={c.pricing.bullets} onChange={(v) => set("pricing", { bullets: v })} make={() => ""} addLabel="مورِد جدید" render={(it, s) => inp(it, s)} />
+        <Box title="Pricing section" action={resetBtn("pricing")}>
+          <p className="text-xs text-muted-foreground">Plan prices and durations are set under Settings → Subscription plans.</p>
+          <L t="Title">{inp(c.pricing.title, (v) => set("pricing", { title: v }))}</L>
+          <L t="Subtitle">{inp(c.pricing.subtitle, (v) => set("pricing", { subtitle: v }))}</L>
+          <L t="Button text">{inp(c.pricing.cta, (v) => set("pricing", { cta: v }))}</L>
+          <L t="Included in every plan (with check marks)">
+            <ListEditor items={c.pricing.bullets} onChange={(v) => set("pricing", { bullets: v })} make={() => ""} addLabel="Add item" render={(it, s) => inp(it, s)} />
           </L>
         </Box>
       )}
 
       {sec === "faq" && (
-        <Box title="سؤالاتِ رایج" action={resetBtn("faq")}>
-          <L t="تیتر">{inp(c.faq.title, (v) => set("faq", { title: v }))}</L>
-          <ListEditor items={c.faq.items} onChange={(v) => set("faq", { items: v })} make={() => ({ q: "", a: "" })} addLabel="سؤالِ جدید"
-            render={(it, s) => (<>{inp(it.q, (v) => s({ ...it, q: v }), "سؤال")}{area(it.a, (v) => s({ ...it, a: v }), 3)}</>)} />
+        <Box title="Frequently asked questions" action={resetBtn("faq")}>
+          <L t="Title">{inp(c.faq.title, (v) => set("faq", { title: v }))}</L>
+          <ListEditor items={c.faq.items} onChange={(v) => set("faq", { items: v })} make={() => ({ q: "", a: "" })} addLabel="Add question"
+            render={(it, s) => (<>{inp(it.q, (v) => s({ ...it, q: v }), "Question")}{area(it.a, (v) => s({ ...it, a: v }), 3)}</>)} />
         </Box>
       )}
 
       {sec === "showcase" && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Box title="بخشِ معرفیِ پنلِ مدیریت" action={resetBtn("showcase")}>
-            <L t="تیتر">{inp(c.showcase.title, (v) => set("showcase", { title: v }))}</L>
-            <L t="توضیح">{area(c.showcase.text, (v) => set("showcase", { text: v }), 3)}</L>
-            <L t="ویژگی‌ها (تیک‌دار)">
-              <ListEditor items={c.showcase.bullets} onChange={(v) => set("showcase", { bullets: v })} make={() => ""} addLabel="مورِد جدید" render={(it, s) => inp(it, s)} />
+          <Box title="Dashboard showcase" action={resetBtn("showcase")}>
+            <L t="Title">{inp(c.showcase.title, (v) => set("showcase", { title: v }))}</L>
+            <L t="Description">{area(c.showcase.text, (v) => set("showcase", { text: v }), 3)}</L>
+            <L t="Highlights (with check marks)">
+              <ListEditor items={c.showcase.bullets} onChange={(v) => set("showcase", { bullets: v })} make={() => ""} addLabel="Add item" render={(it, s) => inp(it, s)} />
             </L>
           </Box>
-          <Box title="دعوتِ پایانیِ پایینِ صفحه" action={resetBtn("finalCta")}>
-            <L t="تیتر">{inp(c.finalCta.title, (v) => set("finalCta", { title: v }))}</L>
-            <L t="توضیح">{area(c.finalCta.text, (v) => set("finalCta", { text: v }), 2)}</L>
-            <L t="متنِ دکمه">{inp(c.finalCta.button, (v) => set("finalCta", { button: v }))}</L>
+          <Box title="Final call to action (bottom of the page)" action={resetBtn("finalCta")}>
+            <L t="Title">{inp(c.finalCta.title, (v) => set("finalCta", { title: v }))}</L>
+            <L t="Description">{area(c.finalCta.text, (v) => set("finalCta", { text: v }), 2)}</L>
+            <L t="Button text">{inp(c.finalCta.button, (v) => set("finalCta", { button: v }))}</L>
           </Box>
         </div>
       )}
 
       {sec === "footer" && (
-        <Box title="پاورقی و راه‌های تماس" action={resetBtn("footer")}>
-          <L t="متنِ پاورقی">{inp(c.footer.text, (v) => set("footer", { text: v }))}</L>
+        <Box title="Footer & contact details" action={resetBtn("footer")}>
+          <L t="Footer text">{inp(c.footer.text, (v) => set("footer", { text: v }))}</L>
           <div className="grid gap-3 sm:grid-cols-2">
-            <L t="تلفنِ پشتیبانی">{inp(c.footer.phone, (v) => set("footer", { phone: v }), "021…", true)}</L>
-            <L t="ایمیل">{inp(c.footer.email, (v) => set("footer", { email: v }), "info@…", true)}</L>
-            <L t="اینستاگرام">{inp(c.footer.instagram, (v) => set("footer", { instagram: v }), "@page", true)}</L>
-            <L t="تلگرام">{inp(c.footer.telegram, (v) => set("footer", { telegram: v }), "@channel", true)}</L>
-            <L t="واتساپ (شماره)">{inp(c.footer.whatsapp, (v) => set("footer", { whatsapp: v }), "0912…", true)}</L>
-            <L t="آدرس">{inp(c.footer.address, (v) => set("footer", { address: v }))}</L>
+            <L t="Support phone">{inp(c.footer.phone, (v) => set("footer", { phone: v }), "+1 555 123 4567")}</L>
+            <L t="Email">{inp(c.footer.email, (v) => set("footer", { email: v }), "hello@…")}</L>
+            <L t="Instagram">{inp(c.footer.instagram, (v) => set("footer", { instagram: v }), "@page")}</L>
+            <L t="Telegram">{inp(c.footer.telegram, (v) => set("footer", { telegram: v }), "@channel")}</L>
+            <L t="WhatsApp (number)">{inp(c.footer.whatsapp, (v) => set("footer", { whatsapp: v }), "+1 555 123 4567")}</L>
+            <L t="Address">{inp(c.footer.address, (v) => set("footer", { address: v }))}</L>
           </div>
           <div className="space-y-3 rounded-2xl border border-border bg-background p-3">
-            <Toggle checked={c.footer.floatButton !== false} onChange={(v) => set("footer", { floatButton: v })} label="دکمهٔ شناورِ واتساپ/تماس گوشهٔ صفحه" />
-            <p className="text-[11px] leading-5 text-muted-foreground">از شمارهٔ واتساپ و تلفنِ بالا استفاده می‌کند؛ اگر هر دو خالی باشند نمایش داده نمی‌شود.</p>
-            <L t="پیامِ آماده در واتساپ">{inp(c.footer.floatText, (v) => set("footer", { floatText: v }))}</L>
+            <Toggle checked={c.footer.floatButton !== false} onChange={(v) => set("footer", { floatButton: v })} label="Floating WhatsApp / call button in the corner" />
+            <p className="text-[11px] leading-5 text-muted-foreground">Uses the WhatsApp number and phone above; hidden if both are empty.</p>
+            <L t="Prefilled WhatsApp message">{inp(c.footer.floatText, (v) => set("footer", { floatText: v }))}</L>
           </div>
         </Box>
       )}
@@ -258,16 +258,16 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
 
       {sec === "forms" && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Box title="صفحهٔ ثبت‌نام" action={resetBtn("signup")}>
-            <L t="تیتر">{inp(c.signup.title, (v) => set("signup", { title: v }))}</L>
-            <L t="توضیح">{inp(c.signup.subtitle, (v) => set("signup", { subtitle: v }))}</L>
-            <L t="متنِ دکمه">{inp(c.signup.button, (v) => set("signup", { button: v }))}</L>
-            <Toggle checked={c.signup.requireTerms} onChange={(v) => set("signup", { requireTerms: v })} label="تیکِ «قوانین را می‌پذیرم» اجباری باشد" />
+          <Box title="Signup page" action={resetBtn("signup")}>
+            <L t="Title">{inp(c.signup.title, (v) => set("signup", { title: v }))}</L>
+            <L t="Description">{inp(c.signup.subtitle, (v) => set("signup", { subtitle: v }))}</L>
+            <L t="Button text">{inp(c.signup.button, (v) => set("signup", { button: v }))}</L>
+            <Toggle checked={c.signup.requireTerms} onChange={(v) => set("signup", { requireTerms: v })} label="Require the “I accept the terms” checkbox" />
           </Box>
-          <Box title="صفحهٔ ورود به پنل" action={resetBtn("login")}>
-            <L t="تیتر">{inp(c.login.title, (v) => set("login", { title: v }))}</L>
-            <L t="توضیح">{inp(c.login.subtitle, (v) => set("login", { subtitle: v }))}</L>
-            <L t="راهنمای پایین (تلفنِ پشتیبانی خودکار اضافه می‌شود)">{inp(c.login.help, (v) => set("login", { help: v }))}</L>
+          <Box title="Dashboard login page" action={resetBtn("login")}>
+            <L t="Title">{inp(c.login.title, (v) => set("login", { title: v }))}</L>
+            <L t="Description">{inp(c.login.subtitle, (v) => set("login", { subtitle: v }))}</L>
+            <L t="Help text at the bottom (the support phone is added automatically)">{inp(c.login.help, (v) => set("login", { help: v }))}</L>
           </Box>
         </div>
       )}
@@ -275,32 +275,32 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
       {sec === "legal" && (
         <div className="grid gap-4 lg:grid-cols-2">
           {(["terms", "privacy"] as const).map((k) => (
-            <Box key={k} title={k === "terms" ? "قوانین و شرایط (/terms)" : "حریمِ خصوصی (/privacy)"} action={<a href={`${siteUrl}${k}`} target="_blank" rel="noopener" className="text-xs font-semibold text-primary">مشاهده</a>}>
-              <p className="text-[11px] text-muted-foreground">خطی که با <code>## </code> شروع شود تیتر است، با <code>- </code> فهرست؛ خطِ خالی = پاراگرافِ جدید.</p>
-              <textarea value={c.legal[k]} onChange={(e) => set("legal", { [k]: e.target.value })} rows={16} className={cn(smallField, "resize-y font-mono text-[13px] leading-7")} dir="rtl" />
+            <Box key={k} title={k === "terms" ? "Terms of service (/terms)" : "Privacy policy (/privacy)"} action={<a href={`${siteUrl}${k}`} target="_blank" rel="noopener" className="text-xs font-semibold text-primary">View</a>}>
+              <p className="text-[11px] text-muted-foreground">Lines starting with <code>## </code> are headings, <code>- </code> makes a list item; a blank line starts a new paragraph.</p>
+              <textarea value={c.legal[k]} onChange={(e) => set("legal", { [k]: e.target.value })} rows={16} className={cn(smallField, "resize-y font-mono text-[13px] leading-7")} />
             </Box>
           ))}
         </div>
       )}
 
       {sec === "system" && (
-        <Box title="پیام‌هایی که مشتریانِ مجموعه‌ها می‌بینند" action={resetBtn("unavailable")}>
-          <L t="آدرسِ اشتباه — تیتر">{inp(c.unavailable.missingTitle, (v) => set("unavailable", { missingTitle: v }))}</L>
-          <L t="آدرسِ اشتباه — توضیح">{area(c.unavailable.missingText, (v) => set("unavailable", { missingText: v }), 2)}</L>
-          <L t="اشتراکِ تمام‌شده — تیتر" hint="{name} = نامِ مجموعه">{inp(c.unavailable.inactiveTitle, (v) => set("unavailable", { inactiveTitle: v }))}</L>
-          <L t="اشتراکِ تمام‌شده — توضیح">{area(c.unavailable.inactiveText, (v) => set("unavailable", { inactiveText: v }), 2)}</L>
+        <Box title="Messages shown to venue customers" action={resetBtn("unavailable")}>
+          <L t="Unknown address — title">{inp(c.unavailable.missingTitle, (v) => set("unavailable", { missingTitle: v }))}</L>
+          <L t="Unknown address — text">{area(c.unavailable.missingText, (v) => set("unavailable", { missingText: v }), 2)}</L>
+          <L t="Expired subscription — title" hint="{name} = venue name">{inp(c.unavailable.inactiveTitle, (v) => set("unavailable", { inactiveTitle: v }))}</L>
+          <L t="Expired subscription — text">{area(c.unavailable.inactiveText, (v) => set("unavailable", { inactiveText: v }), 2)}</L>
         </Box>
       )}
     </div>
   );
 }
 
-/* ============================ مدیریتِ کارت‌های امکانات ============================ */
+/* ============================ Feature cards ============================ */
 
-/** پیش‌نمایشِ کوچکِ کارت، با همان ظاهرِ کارت‌های کاروسلِ سایت */
+/** Small card preview that looks like the site's carousel cards */
 function CardPreview({ f, i, wide }: { f: FeatureItem; i: number; wide: boolean }) {
   if (wide) {
-    // کارتِ بزرگ: عکس جای تصویرِ QR می‌نشیند (۱۶:۱۰)
+    // Large card: the image replaces the QR illustration (16:10)
     return (
       <div className={cn("relative grid aspect-[16/10] w-44 shrink-0 place-items-center overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 to-transparent transition", f.hidden && "opacity-40 grayscale")} aria-hidden>
         {f.image
@@ -317,7 +317,7 @@ function CardPreview({ f, i, wide }: { f: FeatureItem; i: number; wide: boolean 
         <img src={f.image} alt="" className="absolute inset-0 size-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent via-40% to-black/90" />
         <div className="absolute inset-x-0 bottom-0 p-2.5">
-          <b className="line-clamp-2 text-[11px] leading-5">{f.title || "بدونِ عنوان"}</b>
+          <b className="line-clamp-2 text-[11px] leading-5">{f.title || "Untitled"}</b>
           <span className="mt-0.5 line-clamp-2 text-[9px] leading-4 text-white/80">{f.text}</span>
         </div>
       </div>
@@ -328,14 +328,14 @@ function CardPreview({ f, i, wide }: { f: FeatureItem; i: number; wide: boolean 
       <div className="absolute inset-0" style={{ background: `radial-gradient(80% 70% at ${30 + ((i * 23) % 40)}% 15%, hsl(var(--primary) / 0.6), transparent 70%)` }} />
       <div className="relative flex h-full flex-col items-center justify-center px-3 text-center">
         <span className="grid size-10 place-items-center rounded-xl bg-white/10 ring-1 ring-white/20"><FeatureIcon name={f.icon} className="size-5" /></span>
-        <b className="mt-2.5 line-clamp-2 text-[11px] leading-5">{f.title || "بدونِ عنوان"}</b>
+        <b className="mt-2.5 line-clamp-2 text-[11px] leading-5">{f.title || "Untitled"}</b>
         <span className="mt-1 line-clamp-3 text-[9px] leading-4 text-white/70">{f.text}</span>
       </div>
     </div>
   );
 }
 
-/** انتخابِ آیکون با نامِ فارسی */
+/** Icon picker with readable names */
 function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -343,7 +343,7 @@ function IconPicker({ value, onChange }: { value: string; onChange: (v: string) 
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
         className="flex items-center gap-2 rounded-xl border border-border bg-background px-2.5 py-1.5 text-xs font-semibold hover:border-primary/40">
         <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary"><FeatureIcon name={value} className="size-4" /></span>
-        {ICON_LABELS[value] || value} <span className="text-muted-foreground">· تغییرِ آیکون</span>
+        {ICON_LABELS[value] || value} <span className="text-muted-foreground">· Change icon</span>
       </button>
       {open && (
         <div className="mt-2 grid grid-cols-4 gap-1.5 rounded-2xl border border-border bg-background p-2 sm:grid-cols-6">
@@ -360,8 +360,8 @@ function IconPicker({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
-/** اندازهٔ پیشنهادیِ عکس (پیکسل) — هم‌خوان با قابِ کارت‌ها در سایت */
-const CARD_SIZE = { wide: "۱۶۰۰ × ۱۰۰۰ پیکسل · نسبتِ ۱۶:۱۰ (افقی)", card: "۱۰۸۰ × ۱۲۰۰ پیکسل · نسبتِ ۹:۱۰ (تقریباً مربع، کمی ایستاده)" };
+/** Recommended image size (px) — matches the card frames on the site */
+const CARD_SIZE = { wide: "1600 × 1000 px · 16:10 (landscape)", card: "1080 × 1200 px · 9:10 (almost square)" };
 
 function FeaturesEditor({ c, set, resetBtn, flash }: {
   c: SiteContent;
@@ -381,12 +381,12 @@ function FeaturesEditor({ c, set, resetBtn, flash }: {
       upd(i, { image: url });
     } catch (e) { flash("❌ " + err(e)); } finally { setUploading(-1); }
   }
-  const remove = (i: number) => { if (confirm(`کارتِ «${items[i].title || "بدونِ عنوان"}» حذف شود؟`)) put(items.filter((_, j) => j !== i)); };
-  // اولین کارتِ نمایان در سایت کارتِ بزرگِ بالاست؛ بقیهٔ کارت‌های نمایان در کاروسل می‌چرخند
+  const remove = (i: number) => { if (confirm(`Delete the card “${items[i].title || "Untitled"}”?`)) put(items.filter((_, j) => j !== i)); };
+  // The first visible card is the large card on top; the other visible cards rotate in the carousel
   const bigIdx = items.findIndex((f) => !f.hidden);
   const shown = items.filter((f) => !f.hidden).length;
   const secs = c.features.autoplay ?? 3.5;
-  const secsFa = toFa(String(secs).replace(".", "٫"));
+  const secsLabel = num(secs);
 
   const card = (f: FeatureItem, i: number) => (
     <div key={i} className="flex flex-col gap-3 rounded-2xl border border-border bg-background p-3 sm:flex-row">
@@ -394,89 +394,89 @@ function FeaturesEditor({ c, set, resetBtn, flash }: {
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold", f.hidden ? "bg-muted text-muted-foreground" : i === bigIdx ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary")}>
-            {f.hidden ? "پنهان" : i === bigIdx ? "کارتِ بزرگِ بالا" : `کاروسل · کارتِ ${toFa(items.slice(0, i + 1).filter((x) => !x.hidden).length - 1)}`}
+            {f.hidden ? "Hidden" : i === bigIdx ? "Large top card" : `Carousel · card ${num(items.slice(0, i + 1).filter((x) => !x.hidden).length - 1)}`}
           </span>
           <div className="ms-auto flex items-center gap-1">
-            <button type="button" onClick={() => upd(i, { hidden: !f.hidden })} title={f.hidden ? "نمایش در سایت" : "پنهان کردن"} aria-label={f.hidden ? "نمایش در سایت" : "پنهان کردن"} className="grid size-8 place-items-center rounded-lg hover:bg-muted">
+            <button type="button" onClick={() => upd(i, { hidden: !f.hidden })} title={f.hidden ? "Show on site" : "Hide"} aria-label={f.hidden ? "Show on site" : "Hide"} className="grid size-8 place-items-center rounded-lg hover:bg-muted">
               {f.hidden ? <EyeOff className="size-4 text-muted-foreground" /> : <Eye className="size-4" />}
             </button>
-            <button type="button" aria-label="بالا" onClick={() => move(i, -1)} disabled={i === 0} className="grid size-8 place-items-center rounded-lg hover:bg-muted disabled:opacity-30"><ArrowUp className="size-4" /></button>
-            <button type="button" aria-label="پایین" onClick={() => move(i, 1)} disabled={i === items.length - 1} className="grid size-8 place-items-center rounded-lg hover:bg-muted disabled:opacity-30"><ArrowDown className="size-4" /></button>
-            <button type="button" aria-label="حذف" onClick={() => remove(i)} className="grid size-8 place-items-center rounded-lg text-primary hover:bg-primary/10"><Trash2 className="size-4" /></button>
+            <button type="button" aria-label="Move up" onClick={() => move(i, -1)} disabled={i === 0} className="grid size-8 place-items-center rounded-lg hover:bg-muted disabled:opacity-30"><ArrowUp className="size-4" /></button>
+            <button type="button" aria-label="Move down" onClick={() => move(i, 1)} disabled={i === items.length - 1} className="grid size-8 place-items-center rounded-lg hover:bg-muted disabled:opacity-30"><ArrowDown className="size-4" /></button>
+            <button type="button" aria-label="Delete" onClick={() => remove(i)} className="grid size-8 place-items-center rounded-lg text-primary hover:bg-primary/10"><Trash2 className="size-4" /></button>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <IconPicker value={f.icon} onChange={(v) => upd(i, { icon: v })} />
           <label className={cn("flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-2.5 py-2 text-xs font-semibold hover:border-primary/40", uploading === i && "pointer-events-none opacity-60")}>
             {uploading === i ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4 text-primary" />}
-            {f.image ? "عوض کردنِ عکس" : "افزودنِ عکس"}
+            {f.image ? "Change image" : "Add image"}
             <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) upload(i, file); }} />
           </label>
-          {f.image && <button type="button" onClick={() => upd(i, { image: undefined })} className="rounded-xl px-2.5 py-2 text-xs font-semibold text-primary hover:bg-primary/10">حذفِ عکس</button>}
+          {f.image && <button type="button" onClick={() => upd(i, { image: undefined })} className="rounded-xl px-2.5 py-2 text-xs font-semibold text-primary hover:bg-primary/10">Remove image</button>}
         </div>
         <p className="text-[11px] leading-5 text-muted-foreground">
-          اندازهٔ پیشنهادیِ عکس: <b className="text-foreground">{i === bigIdx ? CARD_SIZE.wide : CARD_SIZE.card}</b>
-          {i === bigIdx ? " — جای تصویرِ QR در کارتِ بزرگ می‌نشیند." : " — کلِ کارت را می‌پوشاند؛ سوژهٔ اصلی را بالا یا وسطِ عکس بگذارید چون پایینش زیرِ متن می‌رود."}
+          Recommended image size: <b className="text-foreground">{i === bigIdx ? CARD_SIZE.wide : CARD_SIZE.card}</b>
+          {i === bigIdx ? " — replaces the QR illustration in the large card." : " — covers the whole card; keep the subject near the top or center, as the bottom sits under the text."}
         </p>
-        <input value={f.title} onChange={(e) => upd(i, { title: e.target.value })} placeholder="عنوانِ کارت" className={smallField} />
-        <textarea value={f.text} onChange={(e) => upd(i, { text: e.target.value })} rows={2} placeholder="توضیحِ کارت" className={cn(smallField, "resize-y leading-7")} />
+        <input value={f.title} onChange={(e) => upd(i, { title: e.target.value })} placeholder="Card title" className={smallField} />
+        <textarea value={f.text} onChange={(e) => upd(i, { text: e.target.value })} rows={2} placeholder="Card text" className={cn(smallField, "resize-y leading-7")} />
       </div>
     </div>
   );
 
   return (
     <div className="space-y-4">
-      <Box title="بخشِ امکانات" action={resetBtn}>
-        <L t="تیتر"><input value={c.features.title} onChange={(e) => set("features", { title: e.target.value })} className={smallField} /></L>
-        <L t="زیرتیتر"><input value={c.features.subtitle} onChange={(e) => set("features", { subtitle: e.target.value })} className={smallField} /></L>
-        <L t="سرعتِ چرخشِ خودکارِ کاروسل" hint={secs ? `هر ${secsFa} ثانیه کارتِ بعدی می‌آید (با نگه‌داشتنِ انگشت یا ماوس روی کاروسل متوقف می‌شود).` : "چرخشِ خودکار خاموش است؛ بازدیدکننده خودش جابه‌جا می‌کند."}>
+      <Box title="Features section" action={resetBtn}>
+        <L t="Title"><input value={c.features.title} onChange={(e) => set("features", { title: e.target.value })} className={smallField} /></L>
+        <L t="Subtitle"><input value={c.features.subtitle} onChange={(e) => set("features", { subtitle: e.target.value })} className={smallField} /></L>
+        <L t="Carousel autoplay speed" hint={secs ? `The next card appears every ${secsLabel} seconds (pauses while a finger or mouse is on the carousel).` : "Autoplay is off; visitors swipe through the cards themselves."}>
           <div className="flex items-center gap-3">
             <input type="range" min={0} max={10} step={0.5} value={secs} onChange={(e) => set("features", { autoplay: Number(e.target.value) })} className="flex-1 accent-[hsl(var(--primary))]" />
-            <span className="w-20 shrink-0 text-center text-sm font-bold">{secs ? `${secsFa} ثانیه` : "خاموش"}</span>
+            <span className="w-20 shrink-0 text-center text-sm font-bold">{secs ? `${secsLabel} sec` : "Off"}</span>
           </div>
         </L>
       </Box>
 
-      <Box title={`کارت‌ها (${toFa(shown)} نمایان از ${toFa(items.length)})`} action={
-        <Button type="button" size="sm" className="rounded-xl" onClick={() => put([...items, { icon: "Sparkles", title: "", text: "" }])}><Plus className="size-4" /> کارتِ جدید</Button>
+      <Box title={`Cards (${num(shown)} of ${num(items.length)} visible)`} action={
+        <Button type="button" size="sm" className="rounded-xl" onClick={() => put([...items, { icon: "Sparkles", title: "", text: "" }])}><Plus className="size-4" /> New card</Button>
       }>
         <p className="rounded-xl bg-muted/60 p-3 text-xs leading-6 text-muted-foreground">
-          اولین کارتِ نمایان به‌صورتِ <b className="text-foreground">کارتِ بزرگ</b> بالای بخش می‌آید و بقیه در <b className="text-foreground">کاروسل</b> می‌چرخند.
-          ترتیب را با فلش‌ها عوض کنید؛ با آیکونِ چشم، کارتی را بدونِ حذف از سایت پنهان کنید. کارت‌های تعرفه از «تنظیمات ← طرح‌های اشتراک» می‌آیند.
-          <br />عکس اختیاری است (jpg، png، webp و…)؛ بدونِ عکس، کارت با آیکون و رنگِ برند نمایش داده می‌شود. عکس‌های بزرگ‌تر خودکار کوچک و فشرده می‌شوند.
+          The first visible card is shown as the <b className="text-foreground">large card</b> at the top of the section; the rest rotate in the <b className="text-foreground">carousel</b>.
+          Reorder with the arrows; use the eye icon to hide a card without deleting it. Pricing cards come from Settings → Subscription plans.
+          <br />Images are optional (jpg, png, webp…); without one, the card shows its icon in your brand color. Large images are resized and compressed automatically.
         </p>
-        {items.length ? items.map(card) : <p className="py-6 text-center text-sm text-muted-foreground">هنوز کارتی نیست.</p>}
+        {items.length ? items.map(card) : <p className="py-6 text-center text-sm text-muted-foreground">No cards yet.</p>}
       </Box>
     </div>
   );
 }
 
-/* ============================ پیش‌نمایشِ نتیجهٔ گوگل ============================ */
+/* ============================ Google result preview ============================ */
 function Count({ n, max, min = 0, tip }: { n: number; max: number; min?: number; tip: string }) {
   const bad = n > max, short = min > 0 && n < min;
   return (
     <span className="flex flex-wrap items-center gap-x-2">
-      <span className={cn("font-bold", bad ? "text-primary" : short ? "text-amber-600" : "text-green-600")} dir="ltr">{toFa(n)} / {toFa(max)}</span>
-      <span>{bad ? "طولانی است؛ گوگل آخرش را کوتاه می‌کند." : short ? "کمی کوتاه است." : tip}</span>
+      <span className={cn("font-bold", bad ? "text-primary" : short ? "text-amber-600" : "text-green-600")}>{num(n)} / {num(max)}</span>
+      <span>{bad ? "Too long — Google will cut off the end." : short ? "A bit short." : tip}</span>
     </span>
   );
 }
 
-/** تقریبِ نمایشِ صفحه در نتایجِ گوگل */
+/** Approximation of how the page appears in Google results */
 function GooglePreview({ url, title, description }: { url: string; title: string; description: string }) {
   const host = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
   const cut = (t: string, n: number) => (t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t);
   return (
-    <div className="rounded-2xl border border-border bg-white p-4 text-start dark:bg-[#202124]" aria-label="پیش‌نمایش در گوگل">
-      <div className="mb-1 text-[11px] font-semibold text-muted-foreground">پیش‌نمایش در نتایجِ گوگل</div>
-      <div className="text-xs text-[#4d5156] dark:text-[#bdc1c6]" dir="ltr">{host}</div>
-      <div className="mt-0.5 text-lg leading-snug text-[#1a0dab] dark:text-[#8ab4f8]">{cut(title || "بدونِ عنوان", 62)}</div>
+    <div className="rounded-2xl border border-border bg-white p-4 text-start dark:bg-[#202124]" aria-label="Google preview">
+      <div className="mb-1 text-[11px] font-semibold text-muted-foreground">Google search preview</div>
+      <div className="text-xs text-[#4d5156] dark:text-[#bdc1c6]">{host}</div>
+      <div className="mt-0.5 text-lg leading-snug text-[#1a0dab] dark:text-[#8ab4f8]">{cut(title || "Untitled", 62)}</div>
       <div className="mt-1 text-sm leading-6 text-[#4d5156] dark:text-[#bdc1c6]">{cut(description || "—", 160)}</div>
     </div>
   );
 }
 
-/* ============================ منوی نمونهٔ زنده ============================ */
+/* ============================ Live demo menu ============================ */
 function DemoField({ c, set, flash }: { c: SiteContent; set: (k: "hero", v: Partial<SiteContent["hero"]>) => void; flash: Flash }) {
   const [busy, setBusy] = useState(false);
   async function create() {
@@ -484,26 +484,26 @@ function DemoField({ c, set, flash }: { c: SiteContent; set: (k: "hero", v: Part
     try {
       const r = unwrap(await adminCreateDemoAction("cafe"));
       set("hero", { demoSlug: r.slug });
-      flash("✅ منوی نمونه آماده است؛ «ذخیره» را بزنید تا دکمه‌اش در سایت نمایش داده شود");
+      flash("✅ The demo menu is ready — press Save to show its button on the site");
     } catch (e) { flash("❌ " + err(e)); } finally { setBusy(false); }
   }
   return (
     <div className="space-y-3 rounded-2xl border border-primary/25 bg-primary/[0.04] p-3">
-      <div className="text-sm font-extrabold">منوی نمونهٔ زنده</div>
+      <div className="text-sm font-extrabold">Live demo menu</div>
       <p className="text-xs leading-6 text-muted-foreground">
-        بازدیدکننده با یک کلیک (یا اسکنِ QR از روی مانیتور) یک منوی واقعی را روی گوشی‌اش می‌بیند و حتی سفارشِ آزمایشی می‌دهد. یک مجموعهٔ «demo» با منوی نمونه ساخته می‌شود که منقضی نمی‌شود؛ منو و عکس‌هایش را از «مجموعه‌ها ← demo ← ورود» مثلِ یک مجموعهٔ معمولی ویرایش کنید.
+        With one click (or by scanning a QR code on their screen) visitors open a real menu on their phone and can even place a test order. A never-expiring “demo” venue with a sample menu is created; edit its menu and photos like any other venue via Venues → demo → Open dashboard.
       </p>
       <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-        <L t="آدرسِ منوی نمونه (زیردامنه)"><input value={c.hero.demoSlug} onChange={(e) => set("hero", { demoSlug: e.target.value.trim().toLowerCase() })} dir="ltr" placeholder="demo" className={smallField} /></L>
-        <L t="متنِ دکمه"><input value={c.hero.demoLabel} onChange={(e) => set("hero", { demoLabel: e.target.value })} className={smallField} /></L>
-        {!c.hero.demoSlug && <Button type="button" size="sm" className="h-10 rounded-xl" disabled={busy} onClick={create}>{busy ? <Loader2 className="animate-spin" /> : <Plus className="size-4" />} ساختِ منوی نمونه</Button>}
+        <L t="Demo menu address (subdomain)"><input value={c.hero.demoSlug} onChange={(e) => set("hero", { demoSlug: e.target.value.trim().toLowerCase() })} placeholder="demo" className={smallField} /></L>
+        <L t="Button text"><input value={c.hero.demoLabel} onChange={(e) => set("hero", { demoLabel: e.target.value })} className={smallField} /></L>
+        {!c.hero.demoSlug && <Button type="button" size="sm" className="h-10 rounded-xl" disabled={busy} onClick={create}>{busy ? <Loader2 className="animate-spin" /> : <Plus className="size-4" />} Create demo menu</Button>}
       </div>
-      <p className="text-[11px] text-muted-foreground">خالی = دکمهٔ منوی نمونه نمایش داده نمی‌شود. می‌توانید آدرسِ منوی یکی از مشتری‌ها را هم (با اجازهٔ خودشان) بگذارید.</p>
+      <p className="text-[11px] text-muted-foreground">Empty = no demo button. You can also use the address of a customer’s menu (with their permission).</p>
     </div>
   );
 }
 
-/* ============================ نظرِ مشتری‌ها ============================ */
+/* ============================ Testimonials ============================ */
 function TestimonialsEditor({ c, setC, resetBtn, flash }: { c: SiteContent; setC: (c: SiteContent) => void; resetBtn: React.ReactNode; flash: Flash }) {
   const [up, setUp] = useState(-1);
   const tm = c.testimonials;
@@ -515,34 +515,34 @@ function TestimonialsEditor({ c, setC, resetBtn, flash }: { c: SiteContent; setC
     catch (e) { flash("❌ " + err(e)); } finally { setUp(-1); }
   }
   return (
-    <Box title="نظرِ مشتری‌ها" action={resetBtn}>
+    <Box title="Testimonials" action={resetBtn}>
       <p className="rounded-xl bg-muted/60 p-3 text-xs leading-6 text-muted-foreground">
-        فقط نظرِ واقعیِ مشتری‌ها را با اجازهٔ خودشان بگذارید (نظرِ ساختگی اعتمادِ بازدیدکننده را از بین می‌برد). تا وقتی هیچ نظری اضافه نشده، این بخش در سایت نمایش داده نمی‌شود.
-        لوگوی مجموعه‌ها بالای نظرها هم یک ردیف نمایش داده می‌شود.
+        Only add real testimonials, with the customer’s permission (fake reviews destroy visitor trust). This section stays hidden on the site until you add at least one.
+        Venue logos are also shown as a row above the testimonials.
       </p>
-      <L t="تیتر"><input value={tm.title} onChange={(e) => put({ title: e.target.value })} className={smallField} /></L>
-      <L t="زیرتیتر (اختیاری)"><input value={tm.subtitle} onChange={(e) => put({ subtitle: e.target.value })} className={smallField} /></L>
-      <ListEditor items={tm.items} onChange={(v) => put({ items: v })} make={() => ({ ...blank })} addLabel="نظرِ جدید"
+      <L t="Title"><input value={tm.title} onChange={(e) => put({ title: e.target.value })} className={smallField} /></L>
+      <L t="Subtitle (optional)"><input value={tm.subtitle} onChange={(e) => put({ subtitle: e.target.value })} className={smallField} /></L>
+      <ListEditor items={tm.items} onChange={(v) => put({ items: v })} make={() => ({ ...blank })} addLabel="Add testimonial"
         render={(it, set, i) => (
           <>
             <div className="flex items-center gap-3">
               {it.logo
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={it.logo} alt="" className="size-12 rounded-xl border border-border object-cover" />
-                : <span className="grid size-12 place-items-center rounded-xl bg-muted text-xs text-muted-foreground">لوگو</span>}
+                : <span className="grid size-12 place-items-center rounded-xl bg-muted text-xs text-muted-foreground">Logo</span>}
               <label className={cn("flex cursor-pointer items-center gap-1.5 rounded-xl border border-border px-2.5 py-1.5 text-xs font-semibold hover:border-primary/40", up === i && "pointer-events-none opacity-60")}>
-                {up === i ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4 text-primary" />} {it.logo ? "عوض کردنِ لوگو" : "لوگوی مجموعه"}
+                {up === i ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4 text-primary" />} {it.logo ? "Change logo" : "Venue logo"}
                 <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload(i, f, set, it); }} />
               </label>
-              {it.logo && <button type="button" onClick={() => set({ ...it, logo: "" })} className="text-xs text-muted-foreground hover:text-primary">حذف</button>}
+              {it.logo && <button type="button" onClick={() => set({ ...it, logo: "" })} className="text-xs text-muted-foreground hover:text-primary">Remove</button>}
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              <input value={it.name} onChange={(e) => set({ ...it, name: e.target.value })} placeholder="نامِ مجموعه (مثلاً کافه لیان)" className={smallField} />
-              <input value={it.city} onChange={(e) => set({ ...it, city: e.target.value })} placeholder="شهر (اختیاری)" className={smallField} />
-              <input value={it.person} onChange={(e) => set({ ...it, person: e.target.value })} placeholder="نامِ شخص (اختیاری)" className={smallField} />
-              <input value={it.role} onChange={(e) => set({ ...it, role: e.target.value })} placeholder="سمت (مثلاً مدیر)" className={smallField} />
+              <input value={it.name} onChange={(e) => set({ ...it, name: e.target.value })} placeholder="Venue name (e.g. Blue Door Café)" className={smallField} />
+              <input value={it.city} onChange={(e) => set({ ...it, city: e.target.value })} placeholder="City (optional)" className={smallField} />
+              <input value={it.person} onChange={(e) => set({ ...it, person: e.target.value })} placeholder="Person’s name (optional)" className={smallField} />
+              <input value={it.role} onChange={(e) => set({ ...it, role: e.target.value })} placeholder="Role (e.g. Owner)" className={smallField} />
             </div>
-            <textarea value={it.text} onChange={(e) => set({ ...it, text: e.target.value })} rows={3} placeholder="متنِ نظر" className={cn(smallField, "resize-y leading-7")} />
+            <textarea value={it.text} onChange={(e) => set({ ...it, text: e.target.value })} rows={3} placeholder="Testimonial text" className={cn(smallField, "resize-y leading-7")} />
           </>
         )} />
     </Box>

@@ -7,20 +7,20 @@ import {
   List as ListIcon, Minus, Plus, Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, thumb, toFa } from "@/lib/utils";
+import { cn, thumb, num } from "@/lib/utils";
 import type { MenuItem } from "@/lib/types";
 
 export type ViewMode = "carousel" | "grid" | "list";
 
-/* ---------- انتخاب حالت نمایش ---------- */
+/* ---------- View mode switcher ---------- */
 export function ViewToggle({ value, onChange, compact }: { value: ViewMode; onChange: (v: ViewMode) => void; compact?: boolean }) {
   const opts: { id: ViewMode; label: string; icon: React.ReactNode }[] = [
-    { id: "carousel", label: "کاروسل", icon: <GalleryHorizontalEnd className="size-4" /> },
-    { id: "grid", label: "شبکه‌ای", icon: <LayoutGrid className="size-4" /> },
-    { id: "list", label: "لیستی", icon: <ListIcon className="size-4" /> },
+    { id: "carousel", label: "Carousel", icon: <GalleryHorizontalEnd className="size-4" /> },
+    { id: "grid", label: "Grid", icon: <LayoutGrid className="size-4" /> },
+    { id: "list", label: "List", icon: <ListIcon className="size-4" /> },
   ];
   return (
-    <div className="inline-flex rounded-full border border-border bg-card p-1 shadow-sm" role="radiogroup" aria-label="حالت نمایش منو">
+    <div className="inline-flex rounded-full border border-border bg-card p-1 shadow-sm" role="radiogroup" aria-label="Menu view">
       {opts.map((o) => (
         <button
           key={o.id}
@@ -41,23 +41,23 @@ export function ViewToggle({ value, onChange, compact }: { value: ViewMode; onCh
   );
 }
 
-/* ---------- کنترل تعداد ---------- */
+/* ---------- Quantity stepper ---------- */
 export function Stepper({ qty, onAdd, onDec, dark }: { qty: number; onAdd: () => void; onDec: () => void; dark?: boolean }) {
   if (qty === 0) {
     return (
-      <Button size="icon" className="size-9 rounded-full" onClick={(e) => { e.stopPropagation(); onAdd(); }} aria-label="افزودن">
+      <Button size="icon" className="size-9 rounded-full" onClick={(e) => { e.stopPropagation(); onAdd(); }} aria-label="Add">
         <Plus />
       </Button>
     );
   }
   return (
     <div className={cn("flex items-center gap-2 rounded-full p-1", dark ? "bg-white/15" : "bg-muted")} onClick={(e) => e.stopPropagation()}>
-      <button onClick={onAdd} className="grid size-7 place-items-center rounded-full bg-primary text-primary-foreground" aria-label="بیشتر">
-        <Plus className="size-4" />
-      </button>
-      <span className={cn("min-w-5 text-center text-sm font-bold", dark && "text-white")}>{toFa(qty)}</span>
-      <button onClick={onDec} className={cn("grid size-7 place-items-center rounded-full", dark ? "bg-white/90 text-black" : "bg-card")} aria-label="کمتر">
+      <button onClick={onDec} className={cn("grid size-7 place-items-center rounded-full", dark ? "bg-white/90 text-black" : "bg-card")} aria-label="Decrease">
         <Minus className="size-4" />
+      </button>
+      <span className={cn("min-w-5 text-center text-sm font-bold", dark && "text-white")}>{num(qty)}</span>
+      <button onClick={onAdd} className="grid size-7 place-items-center rounded-full bg-primary text-primary-foreground" aria-label="Increase">
+        <Plus className="size-4" />
       </button>
     </div>
   );
@@ -87,7 +87,8 @@ const ARROW =
   "absolute top-1/2 z-40 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-black/5 bg-white/80 text-stone-800 shadow-lg shadow-black/10 backdrop-blur transition hover:bg-primary hover:text-white dark:border-white/15 dark:bg-white/10 dark:text-white dark:shadow-black/30";
 
 /* =====================================================================
-   حالت ۱: کاروسل سه‌بعدی (کارت وسط بزرگ، کناری‌ها کج و محو)
+   Mode 1: 3D coverflow carousel (large center card, tilted/faded neighbors).
+   LTR: the next card sits on the right; swipe left or the right arrow = next.
    ===================================================================== */
 export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemActions) {
   const [idx, setIdx] = useState(0);
@@ -104,7 +105,7 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  // پخش خودکار؛ روی هاور یا لمس متوقف می‌شود
+  // Autoplay; pauses on hover or touch
   useEffect(() => {
     if (hover || total < 2) return;
     const t = setInterval(() => setIdx((i) => (i + 1) % total), 5000);
@@ -116,6 +117,7 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
   const d2 = Math.round(cw * 1.28);
   const current = items[idx];
 
+  // off 1 = next card (right side), off total-1 = previous card (left side)
   function pose(i: number) {
     const off = (i - idx + total) % total;
     if (off === 0) return { x: 0, s: 1, ry: 0, op: 1, z: 30, f: "none" };
@@ -132,7 +134,7 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      {/* پس‌زمینهٔ محوِ عکسِ کارت وسط */}
+      {/* Blurred backdrop from the center card image */}
       {current?.image && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -148,20 +150,20 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
       <div aria-hidden className="cf-vignette pointer-events-none absolute inset-0 -z-10" />
 
       <div
-        dir="ltr"
         className="relative flex h-[440px] items-center justify-center sm:h-[500px]"
         style={{ perspective: 1500 }}
         onTouchStart={(e) => { touchX.current = e.touches[0].clientX; setHover(true); }}
         onTouchEnd={(e) => {
           const dx = e.changedTouches[0].clientX - touchX.current;
+          // swipe left = next, swipe right = previous
           if (Math.abs(dx) > 45) go(dx < 0 ? idx + 1 : idx - 1);
           setHover(false);
         }}
       >
-        {/* هالهٔ نورِ کاراملی پشت کارت وسط + سایهٔ «زمین» زیرش */}
+        {/* Warm caramel glow behind the center card + floor shadow beneath it */}
         <div className="pointer-events-none absolute size-[360px] rounded-full blur-2xl" style={{ background: "radial-gradient(circle, rgba(214,150,88,.42), rgba(225,29,42,.1) 45%, transparent 70%)" }} />
         <div className="cf-floor pointer-events-none absolute bottom-1 h-10 w-[min(420px,90%)] sm:bottom-2" />
-        {/* اندازه‌گیری عرض کارت */}
+        {/* Card width probe */}
         <div ref={probe} aria-hidden className="pointer-events-none invisible absolute h-0 w-[min(290px,72vw)]" />
 
         {items.map((it, i) => {
@@ -198,14 +200,14 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
               )}
               <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0) 22%), linear-gradient(180deg, rgba(0,0,0,.3) 0%, rgba(0,0,0,.04) 30%, rgba(43,24,13,.6) 62%, rgba(30,17,10,.95) 100%)" }} />
               {it.oldPrice && it.oldPrice > it.price && (
-                <span className="absolute left-3 top-3 z-10 rounded-full bg-gradient-to-br from-primary to-red-800 px-3 py-1 text-[11px] font-extrabold text-white shadow">تخفیف</span>
+                <span className="absolute left-3 top-3 z-10 rounded-full bg-gradient-to-br from-primary to-red-800 px-3 py-1 text-[11px] font-extrabold text-white shadow">Sale</span>
               )}
 
-              <div dir="rtl" className={cn("absolute inset-0 z-10 flex flex-col justify-end p-4 pb-5 text-center transition-all duration-500", on ? "opacity-100" : "pointer-events-none translate-y-4 opacity-0")}>
+              <div className={cn("absolute inset-0 z-10 flex flex-col justify-end p-4 pb-5 text-center transition-all duration-500", on ? "opacity-100" : "pointer-events-none translate-y-4 opacity-0")}>
                 <button
                   onClick={(e) => { e.stopPropagation(); a.onShare(it); }}
                   className="absolute right-3 top-3 grid size-9 place-items-center rounded-full border border-white/25 bg-black/40 text-white backdrop-blur"
-                  aria-label="اشتراک‌گذاری"
+                  aria-label="Share"
                 >
                   <Share2 className="size-4" />
                 </button>
@@ -223,10 +225,10 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
 
         {total > 1 && (
           <>
-            <button onClick={() => go(idx - 1)} aria-label="قبلی" className={ARROW + " left-3"}>
+            <button onClick={() => go(idx - 1)} aria-label="Previous" className={ARROW + " left-3"}>
               <ChevronLeft className="size-5" />
             </button>
-            <button onClick={() => go(idx + 1)} aria-label="بعدی" className={ARROW + " right-3"}>
+            <button onClick={() => go(idx + 1)} aria-label="Next" className={ARROW + " right-3"}>
               <ChevronRight className="size-5" />
             </button>
           </>
@@ -234,12 +236,12 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
       </div>
 
       {total > 1 && (
-        <div className="mt-3 flex items-center justify-center gap-2" dir="ltr">
+        <div className="mt-3 flex items-center justify-center gap-2">
           {items.map((_, i) => (
             <button
               key={i}
               onClick={() => go(i)}
-              aria-label={`اسلاید ${i + 1}`}
+              aria-label={`Slide ${i + 1}`}
               className={cn("h-[7px] rounded-full transition-all", i === idx ? "w-7 bg-primary shadow-[0_0_12px_rgba(225,29,42,.55)]" : "w-[7px] bg-[var(--cf-dot)] hover:bg-primary/50")}
             />
           ))}
@@ -250,23 +252,23 @@ export function CoverflowCarousel({ items, ...a }: { items: MenuItem[] } & ItemA
 }
 
 /* =====================================================================
-   حالت ۲: شبکه‌ای (کارت‌ها)
+   Mode 2: grid (cards)
    ===================================================================== */
 export function GridCard({ item, index, ...a }: { item: MenuItem; index: number } & ItemActions) {
   const qty = a.qtyOf(item.id);
   const onSale = !!item.oldPrice && item.oldPrice > item.price;
   return (
     <motion.article
-      // ورودِ کارت با CSS (بدون انتظار برای جاوااسکریپت)؛ هاور با framer
+      // Entry animation in CSS (no waiting for JS); hover via framer
       style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
       whileHover={{ y: -4 }}
       className="rise group flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-sm transition-shadow hover:shadow-xl"
     >
-      {/* عکسِ بزرگ و بلند (۴:۵) تا کلِ محصول دیده شود — مثل نسخهٔ قبلی */}
+      {/* Large portrait image (4:5) so the whole product is visible */}
       <button
         className={cn("relative grid aspect-[4/5] w-full place-items-center overflow-hidden bg-gradient-to-br from-[#efeae3] to-[#e2d8cc] dark:from-[#2a221c] dark:to-[#1d1814]", item.image && "cursor-zoom-in")}
         onClick={() => item.image && a.onImage(item)}
-        aria-label={item.image ? `بزرگ‌نمایی عکس ${item.name}` : item.name}
+        aria-label={item.image ? `Enlarge photo of ${item.name}` : item.name}
       >
         {item.image ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -285,11 +287,11 @@ export function GridCard({ item, index, ...a }: { item: MenuItem; index: number 
         {item.image && (
           <span className="pointer-events-none absolute inset-0 grid -rotate-[20deg] place-items-center px-[10%] text-xl font-bold text-white/25 [text-shadow:0_1px_4px_rgba(0,0,0,.4)]">{a.cafeName}</span>
         )}
-        {item.tag && <span className="absolute left-3 top-3 z-10 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-stone-800 shadow">{item.tag}</span>}
+        {item.tag && <span className="absolute right-3 top-3 z-10 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-stone-800 shadow">{item.tag}</span>}
         {onSale && (
-          // نوارِ موربِ «تخفیف» در گوشه
-          <span className="pointer-events-none absolute right-0 top-0 z-10 size-[92px] overflow-hidden">
-            <span className="absolute -right-9 top-[18px] w-[140px] rotate-45 bg-primary py-1 text-center text-[11px] font-extrabold text-white shadow">تخفیف</span>
+          // Diagonal "Sale" ribbon in the corner
+          <span className="pointer-events-none absolute left-0 top-0 z-10 size-[92px] overflow-hidden">
+            <span className="absolute -left-9 top-[18px] w-[140px] -rotate-45 bg-primary py-1 text-center text-[11px] font-extrabold text-white shadow">Sale</span>
           </span>
         )}
       </button>
@@ -300,8 +302,8 @@ export function GridCard({ item, index, ...a }: { item: MenuItem; index: number 
           <button
             onClick={() => a.onShare(item)}
             className="grid size-8 place-items-center rounded-[9px] border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-            aria-label="اشتراک‌گذاری"
-            title="اشتراک‌گذاری"
+            aria-label="Share"
+            title="Share"
           >
             <Share2 className="size-4" />
           </button>
@@ -316,16 +318,16 @@ export function GridCard({ item, index, ...a }: { item: MenuItem; index: number 
 }
 
 /* =====================================================================
-   حالت ۳: لیستی (ردیف؛ با کلیک زیرش باز می‌شود و عکس را نشان می‌دهد)
+   Mode 3: list (rows; tap to expand and show the photo)
    ===================================================================== */
 export function ListRow({ item, ...a }: { item: MenuItem } & ItemActions) {
   const [open, setOpen] = useState(false);
   const qty = a.qtyOf(item.id);
   return (
     <div className={cn("overflow-hidden rounded-2xl border bg-card transition-shadow", open ? "border-primary/30 shadow-md" : "border-border shadow-sm")}>
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3.5 text-right">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3.5 text-left">
         <span className="min-w-0 flex-1 truncate font-bold">{item.name}</span>
-        {qty > 0 && <span className="grid size-6 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{toFa(qty)}</span>}
+        {qty > 0 && <span className="grid size-6 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{num(qty)}</span>}
         <Price item={item} money={a.money} className="shrink-0 text-sm font-extrabold text-primary" />
         <span
           role="button"
@@ -333,7 +335,7 @@ export function ListRow({ item, ...a }: { item: MenuItem } & ItemActions) {
           onClick={(e) => { e.stopPropagation(); a.onShare(item); }}
           onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); a.onShare(item); } }}
           className="shrink-0 text-muted-foreground hover:text-primary"
-          aria-label="اشتراک‌گذاری"
+          aria-label="Share"
         >
           <Share2 className="size-4" />
         </span>
@@ -351,7 +353,7 @@ export function ListRow({ item, ...a }: { item: MenuItem } & ItemActions) {
               <button
                 onClick={() => item.image && a.onImage(item)}
                 className={cn("relative grid aspect-[16/10] w-full place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-muted to-card", item.image && "cursor-zoom-in")}
-                aria-label={item.image ? `بزرگ‌نمایی عکس ${item.name}` : item.name}
+                aria-label={item.image ? `Enlarge photo of ${item.name}` : item.name}
               >
                 {item.image ? (
                   // eslint-disable-next-line @next/next/no-img-element

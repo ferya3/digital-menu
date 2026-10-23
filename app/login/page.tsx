@@ -5,10 +5,10 @@ import { publicPlatform } from "@/app/platform/public";
 import { onPlatformHost } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "ورود به پنل", robots: { index: false, follow: true } };
+export const metadata = { title: "Log in", robots: { index: false, follow: true } };
 
 export default async function LoginPage() {
-  // فقط روی دامنهٔ اصلیِ پلتفرم؛ روی زیردامنهٔ مجموعه‌ها وجود ندارد
+  // Platform root domain only; does not exist on venue subdomains
   if (!(await onPlatformHost())) notFound();
   const p = publicPlatform();
   return (

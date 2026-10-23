@@ -1,42 +1,42 @@
 #!/usr/bin/env bash
-# اتصالِ دامنه + گواهی رایگانِ SSL (HTTPS) به سایتِ نصب‌شده.
-#   اجرا:  sudo DOMAIN=artavilstar.com bash set-domain.sh
-#   (اختیاری) EMAIL=you@mail.com  برای یادآوریِ تمدیدِ گواهی
+# Connects a domain + a free SSL certificate (HTTPS) to the installed site.
+#   Run:  sudo DOMAIN=example.com bash set-domain.sh
+#   (optional) EMAIL=you@example.com  for certificate expiry notices
 #
-# قبل از اجرا: در پنلِ دامنه رکوردِ A برای artavilstar.com و www را روی IP همین سرور بگذارید.
-# QRهای قدیمیِ چاپ‌شده با IP خراب نمی‌شوند: هر درخواست به IP با همان مسیر (و ?table=) به دامنه هدایت می‌شود.
+# Before running: in your DNS settings, point A records for example.com and www to this server's IP.
+# Old QR codes printed with the IP keep working: every request to the IP is redirected to the domain with the same path (and ?table=).
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 say(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 die(){ printf '\n\033[1;31m✖ %s\033[0m\n' "$*"; exit 1; }
 
-[ "$(id -u)" -eq 0 ] || die "با sudo اجرا کنید"
+[ "$(id -u)" -eq 0 ] || die "Please run with sudo"
 DOMAIN="${DOMAIN:-}"; DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN%%/*}"; DOMAIN="${DOMAIN#www.}"
-[ -n "$DOMAIN" ] || die "دامنه را بدهید:  sudo DOMAIN=artavilstar.com bash set-domain.sh"
+[ -n "$DOMAIN" ] || die "Please provide the domain:  sudo DOMAIN=example.com bash set-domain.sh"
 APP_PORT="${APP_PORT:-3000}"
 NGX=/etc/nginx/sites-available/cafe
 WEBROOT=/var/www/certbot
 
-say "بررسی DNS"
+say "Checking DNS"
 command -v dig >/dev/null 2>&1 || apt-get install -y -qq dnsutils >/dev/null 2>&1 || true
 MYIP="$(curl -4 -s --max-time 6 https://api.ipify.org || curl -4 -s --max-time 6 https://ifconfig.me || true)"
 resolve(){ (dig +short A "$1" 2>/dev/null || getent ahostsv4 "$1" | awk '{print $1}') | grep -E '^[0-9.]+$' | head -1; }
 IP_ROOT="$(resolve "$DOMAIN" || true)"
 IP_WWW="$(resolve "www.$DOMAIN" || true)"
-echo "  IP این سرور:        ${MYIP:-نامشخص}"
-echo "  $DOMAIN  →  ${IP_ROOT:-(تنظیم نشده)}"
-echo "  www.$DOMAIN  →  ${IP_WWW:-(تنظیم نشده)}"
+echo "  This server's IP:   ${MYIP:-unknown}"
+echo "  $DOMAIN  →  ${IP_ROOT:-(not set)}"
+echo "  www.$DOMAIN  →  ${IP_WWW:-(not set)}"
 if [ -z "$IP_ROOT" ] || { [ -n "$MYIP" ] && [ "$IP_ROOT" != "$MYIP" ]; }; then
-  die "رکورد A دامنهٔ $DOMAIN هنوز به IP این سرور (${MYIP:-?}) اشاره نمی‌کند. در پنلِ دامنه تنظیمش کنید، چند دقیقه صبر کنید و دوباره اجرا کنید."
+  die "The A record for $DOMAIN doesn't point to this server's IP (${MYIP:-?}) yet. Set it in your DNS settings, wait a few minutes and run again."
 fi
 NAMES=("$DOMAIN"); SERVER_NAMES="$DOMAIN"
 if [ -n "$IP_WWW" ] && { [ -z "$MYIP" ] || [ "$IP_WWW" = "$MYIP" ]; }; then NAMES+=("www.$DOMAIN"); SERVER_NAMES="$DOMAIN www.$DOMAIN"; fi
 
-say "نصب certbot"
+say "Installing certbot"
 command -v certbot >/dev/null 2>&1 || { apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq certbot; }
 mkdir -p "$WEBROOT"
 
-# اگر IPv6 روی سرور خاموش باشد، listen [::] باعثِ خطای Nginx می‌شود
+# If IPv6 is disabled on the server, listen [::] makes Nginx fail
 if [ -f /proc/net/if_inet6 ]; then V6=1; else V6=""; fi
 v6(){ if [ -n "$V6" ]; then echo "    listen [::]:$1;"; fi; }
 
@@ -56,11 +56,11 @@ proxy_block(){ cat <<EOF
 EOF
 }
 
-# مرحلهٔ ۱: HTTP با مسیرِ تأییدِ Let's Encrypt (سایت در این مدت هم کار می‌کند)
+# Step 1: HTTP with the Let's Encrypt challenge path (the site keeps working meanwhile)
 [ -f "$NGX" ] && cp "$NGX" "$NGX.bak.$(date +%s)"
 CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
 if [ ! -f "$CERT" ]; then
-  say "پیکربندی موقت Nginx برای دریافت گواهی"
+  say "Temporary Nginx config to obtain the certificate"
   { cat <<EOF
 server {
     listen 80 default_server;
@@ -73,17 +73,17 @@ EOF
   if { nginx -t 2>&1 || true; } | grep -q "Address family not supported"; then sed -i '/listen \[::\]/d' "$NGX"; fi
   nginx -t && systemctl reload nginx
 
-  say "دریافت گواهی SSL رایگان از Let's Encrypt"
+  say "Getting a free SSL certificate from Let's Encrypt"
   ARGS=(certonly --webroot -w "$WEBROOT" --non-interactive --agree-tos --cert-name "$DOMAIN")
   for n in "${NAMES[@]}"; do ARGS+=(-d "$n"); done
   if [ -n "${EMAIL:-}" ]; then ARGS+=(-m "$EMAIL"); else ARGS+=(--register-unsafely-without-email); fi
-  certbot "${ARGS[@]}" || die "گواهی گرفته نشد. پورت ۸۰ سرور باید از اینترنت باز باشد و DNS درست باشد. (سایت روی HTTP مثل قبل کار می‌کند)"
+  certbot "${ARGS[@]}" || die "Couldn't get a certificate. Port 80 must be reachable from the internet and DNS must be correct. (The site keeps working on HTTP.)"
 fi
 
-# مرحلهٔ ۲: پیکربندیِ نهایی — HTTPS روی دامنه؛ IP و http و www به https://دامنه هدایت می‌شوند
-say "پیکربندی نهایی Nginx (HTTPS)"
+# Step 2: final config — HTTPS on the domain; IP, http and www redirect to https://domain
+say "Final Nginx config (HTTPS)"
 { cat <<EOF
-# HTTP (دامنه، www و IP) → https://$DOMAIN  (با حفظ مسیر و ?table=)
+# HTTP (domain, www and IP) → https://$DOMAIN  (keeping the path and ?table=)
 server {
     listen 80 default_server;
 $(v6 "80 default_server")
@@ -105,7 +105,7 @@ $(v6 "443 ssl default_server")
     ssl_session_timeout 1d;
     add_header Strict-Transport-Security "max-age=31536000" always;
 
-    # www یا IP روی https → دامنهٔ اصلی
+    # www or IP over https → main domain
     if (\$host != "$DOMAIN") { return 301 https://$DOMAIN\$request_uri; }
 
     gzip on;
@@ -114,17 +114,17 @@ $(v6 "443 ssl default_server")
 EOF
   proxy_block; echo "}"; } >"$NGX"
 ln -sf "$NGX" /etc/nginx/sites-enabled/cafe; rm -f /etc/nginx/sites-enabled/default
-# nginxهای قدیمی‌تر (مثل ۱.۲۴ روی اوبونتو ۲۴) «http2 on» را نمی‌شناسند
-ngx_test(){ nginx -t 2>&1 || true; }   # (خروجی را جدا می‌گیریم؛ با pipefail لوله‌کشی مستقیم غلط جواب می‌دهد)
+# Older nginx versions (e.g. 1.24 on Ubuntu 24.04) don't know "http2 on"
+ngx_test(){ nginx -t 2>&1 || true; }   # (capture output separately; piping directly misbehaves with pipefail)
 if ngx_test | grep -q 'unknown directive "http2"'; then
   sed -i 's/^    http2 on;$//; s/listen 443 ssl default_server;/listen 443 ssl http2 default_server;/; s/listen \[::\]:443 ssl default_server;/listen [::]:443 ssl http2 default_server;/' "$NGX"
 fi
-# اگر IPv6 روی سرور واقعاً کار نمی‌کند
+# If IPv6 doesn't actually work on the server
 if ngx_test | grep -q "Address family not supported"; then sed -i '/listen \[::\]/d' "$NGX"; fi
 nginx -t
 systemctl reload nginx
 
-# تمدیدِ خودکار: certbot تایمرِ خودش را دارد؛ بعد از تمدید Nginx را دوباره بارگذاری کن
+# Auto-renewal: certbot has its own timer; reload Nginx after renewal
 mkdir -p /etc/letsencrypt/renewal-hooks/deploy
 printf '#!/bin/sh\nsystemctl reload nginx\n' >/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
 chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
@@ -136,7 +136,7 @@ fi
 
 sleep 1
 CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$DOMAIN/" || true)"
-say "تمام شد ✅  (پاسخ https://$DOMAIN : ${CODE:-?})"
-echo "  منوی مشتری:   https://$DOMAIN/?table=1"
-echo "  پنل کارکنان:  https://$DOMAIN/staff"
-echo "  QRهای قدیمی (با IP) هم به همین دامنه هدایت می‌شوند؛ برای QRهای تازه از پنل ← کدهای QR دوباره چاپ بگیرید."
+say "Done ✅  (https://$DOMAIN responded: ${CODE:-?})"
+echo "  Customer menu:  https://$DOMAIN/?table=1"
+echo "  Staff panel:    https://$DOMAIN/staff"
+echo "  Old QR codes (with the IP) also redirect to this domain; reprint fresh QR codes from the panel → QR codes."

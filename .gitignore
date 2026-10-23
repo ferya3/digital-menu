@@ -6,8 +6,8 @@ out/
 .DS_Store
 next-env.d.ts
 *.tsbuildinfo
-# دادهٔ زمان‌اجرا: دیتابیس و آپلودها (روی سرور می‌مانند، وارد گیت نمی‌شوند)
+# Runtime data: databases and uploads (stay on the server, never committed)
 data/
 
-# کلیدِ رمزگذاریِ اطلاعاتِ حساس (هرگز در گیت)
+# Encryption key for secrets (never committed)
 .data-key

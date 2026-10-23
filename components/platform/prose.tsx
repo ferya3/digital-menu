@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 /**
- * نمایشِ متنِ مارک‌داونِ ساده (مقاله‌ها و صفحه‌های موضوعی) با تگ‌های معنایی برای سئو:
- * ## h2، ### h3، «- » فهرست، «1. » فهرستِ شماره‌دار، «> » نکته، **پررنگ**، [متن](/آدرس یا https://…).
- * HTML خام پشتیبانی نمی‌شود (همه‌چیز متن است) پس متنِ پنل نمی‌تواند اسکریپت تزریق کند.
+ * Renders simple markdown (articles and solution pages) with semantic tags for SEO:
+ * ## h2, ### h3, "- " list, "1. " numbered list, "> " callout, **bold**, [text](/path or https://…).
+ * Raw HTML is not supported (everything is text), so admin-entered content can't inject scripts.
  */
 function inline(text: string, key: string): React.ReactNode[] {
   const out: React.ReactNode[] = [];
@@ -50,7 +50,7 @@ export function Prose({ text, className = "" }: { text: string; className?: stri
         <ol key={k} className="space-y-2.5">
           {items.map((t, j) => (
             <li key={j} className="flex gap-3">
-              <span aria-hidden className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg bg-primary/10 text-xs font-black text-primary">{(j + 1).toLocaleString("fa-IR")}</span>
+              <span aria-hidden className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg bg-primary/10 text-xs font-black text-primary">{j + 1}</span>
               <span>{inline(t, `${k}-${j}`)}</span>
             </li>
           ))}
@@ -58,7 +58,7 @@ export function Prose({ text, className = "" }: { text: string; className?: stri
       );
       continue;
     }
-    // پاراگراف: خط‌های پشتِ هم تا خطِ خالی یا شروعِ بلوکِ دیگر
+    // Paragraph: consecutive lines until a blank line or the start of another block
     const para: string[] = [];
     while (i < lines.length && lines[i].trim() && !/^(#{2,3} |> |- |\d+\. )/.test(lines[i])) para.push(lines[i++].trim());
     blocks.push(<p key={k}>{inline(para.join(" "), k)}</p>);

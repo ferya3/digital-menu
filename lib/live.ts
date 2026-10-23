@@ -2,13 +2,13 @@ import "server-only";
 import { EventEmitter } from "node:events";
 import { currentTenant } from "@/lib/tenant-context";
 
-/** رویدادِ زنده: فقط «چه چیزی عوض شد»؛ داده با یک درخواستِ جدا گرفته می‌شود */
+/** Live event: only "what changed"; the data is fetched with a separate request */
 export interface LiveEvent {
   type: "order" | "receipt" | "request" | "feedback";
   table?: string;
 }
 
-// باس رویداد داخل همین پروسه (pm2 یک پروسه اجرا می‌کند) — جایگزینِ Socket.IOِ نسخهٔ قبلی
+// In-process event bus (pm2 runs a single process) — replaces the earlier Socket.IO
 const g = globalThis as unknown as { __liveBus?: EventEmitter };
 const bus =
   g.__liveBus ??
@@ -18,14 +18,14 @@ const bus =
     return e;
   })());
 
-// هر مجموعه کانالِ جدای خودش را دارد (رویدادِ یک کافه به پنلِ کافهٔ دیگر نمی‌رسد)
+// Each venue has its own channel (one venue's events never reach another venue's panel)
 const channel = () => `ev:${currentTenant().slug}`;
 
 export function publish(ev: LiveEvent) {
   bus.emit(channel(), ev);
 }
 
-/** پاسخ Server-Sent Events: هر تغییری که از فیلتر رد شود فوراً به مرورگر فرستاده می‌شود */
+/** Server-Sent Events response: every change that passes the filter is pushed to the browser immediately */
 export function sseResponse(req: Request, filter: (ev: LiveEvent) => boolean): Response {
   const enc = new TextEncoder();
   let cleanup = () => {};
@@ -43,7 +43,7 @@ export function sseResponse(req: Request, filter: (ev: LiveEvent) => boolean): R
         if (filter(ev)) send(`data: ${JSON.stringify(ev)}\n\n`);
       };
       bus.on(ch, onEv);
-      // ضربان برای اینکه Nginx/اینترنتِ موبایل اتصال را نبندد
+      // Heartbeat so Nginx/mobile networks don't drop the connection
       const hb = setInterval(() => send(": ping\n\n"), 15_000);
       cleanup = () => {
         clearInterval(hb);
@@ -64,7 +64,7 @@ export function sseResponse(req: Request, filter: (ev: LiveEvent) => boolean): R
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
-      // no-transform: فشرده‌سازیِ Next رویدادها را نگه ندارد؛ X-Accel-Buffering: Nginx بافر نکند
+      // no-transform: keep Next compression from holding events; X-Accel-Buffering: no Nginx buffering
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
       "X-Accel-Buffering": "no",

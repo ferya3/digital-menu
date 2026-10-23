@@ -5,13 +5,13 @@ const nextConfig: NextConfig = {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
   experimental: {
-    // عکس‌ها روی دستگاه کاربر فشرده می‌شوند؛ این سقف فقط برای احتیاط است
+    // Images are compressed on the user's device; this limit is just a safety net
     serverActions: { bodySizeLimit: "10mb" },
   },
-  // sharp باید روی سرور از node_modules خوانده شود، نه باندل
+  // sharp must be loaded from node_modules on the server, not bundled
   serverExternalPackages: ["sharp"],
   poweredByHeader: false,
-  // سرآیندهای امنیتی: صفحه‌ها در middleware.ts (همراهِ CSP و HSTS)؛ این‌جا برای فایل‌های ثابتِ /_next هم
+  // Security headers: pages get them in middleware.ts (with CSP and HSTS); this also covers static /_next files
   async headers() {
     return [
       {
@@ -20,9 +20,9 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          // دوربین فقط برای اسکنِ QR در همین سایت
+          // Camera only for QR scanning on this site
           { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=()" },
-          // CSP (با nonceِ هر درخواست) و HSTS در middleware.ts
+          // CSP (with a per-request nonce) and HSTS are set in middleware.ts
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
         ],
       },

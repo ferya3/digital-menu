@@ -7,14 +7,14 @@ import { scrollToId } from "@/components/fx/smooth-scroll";
 import { picksTitle } from "@/lib/seeds";
 
 const LINKS = [
-  { id: "splash", label: "صفحهٔ خوش‌آمد", icon: Home },
-  { id: "picks", label: "منتخب باریستا", icon: Sparkles },
-  { id: "menu", label: "منو", icon: UtensilsCrossed },
+  { id: "splash", label: "Welcome screen", icon: Home },
+  { id: "picks", label: "Barista's picks", icon: Sparkles },
+  { id: "menu", label: "Menu", icon: UtensilsCrossed },
 ];
 
-/** خروج از میز: حافظهٔ این نشست پاک و صفحهٔ «QR را اسکن کنید» باز می‌شود */
+/** Leave the table: clear this session and open the "Scan the QR code" screen */
 function leaveTable(table: string) {
-  if (!confirm(`از میز ${table.replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[+d])} خارج می‌شوید؟`)) return;
+  if (!confirm(`Leave table ${table}?`)) return;
   try {
     sessionStorage.removeItem(`cafe_visit_t${table}`);
     sessionStorage.removeItem("cafe_splash_seen");
@@ -41,11 +41,11 @@ export function MobileMenu({ cafeName, table = "", kind }: { cafeName: string; t
           onClick={() => setMenu(false)}
         >
           <motion.aside
-            initial={{ x: "100%" }}
+            initial={{ x: "-100%" }}
             animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            exit={{ x: "-100%" }}
             transition={{ type: "spring", stiffness: 340, damping: 34 }}
-            className="absolute inset-y-0 right-0 w-72 max-w-[82vw] bg-card p-5 shadow-2xl"
+            className="absolute inset-y-0 left-0 w-72 max-w-[82vw] bg-card p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-6 flex items-center justify-between">
@@ -55,7 +55,7 @@ export function MobileMenu({ cafeName, table = "", kind }: { cafeName: string; t
                 </span>
                 <span className="font-extrabold">{cafeName}</span>
               </div>
-              <button onClick={() => setMenu(false)} aria-label="بستن" className="grid size-9 place-items-center rounded-full bg-muted">
+              <button onClick={() => setMenu(false)} aria-label="Close" className="grid size-9 place-items-center rounded-full bg-muted">
                 <X className="size-5" />
               </button>
             </div>
@@ -64,7 +64,7 @@ export function MobileMenu({ cafeName, table = "", kind }: { cafeName: string; t
                 <button
                   key={l.id}
                   onClick={() => go(l.id)}
-                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-right font-semibold transition hover:bg-muted"
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left font-semibold transition hover:bg-muted"
                 >
                   <l.icon className="size-5 text-primary" />
                   {l.label}
@@ -74,22 +74,22 @@ export function MobileMenu({ cafeName, table = "", kind }: { cafeName: string; t
             {!table && (
               <button
                 onClick={() => { try { sessionStorage.removeItem("cafe_browse"); } catch {} window.location.href = "/"; }}
-                className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-primary px-3 py-3 text-right font-semibold text-primary-foreground transition hover:bg-primary/90"
+                className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-primary px-3 py-3 text-left font-semibold text-primary-foreground transition hover:bg-primary/90"
               >
                 <QrCode className="size-5" />
-                اسکن QR میز برای سفارش
+                Scan the table QR to order
               </button>
             )}
             {table && (
               <button
                 onClick={() => { setMenu(false); window.setTimeout(() => leaveTable(table), 80); }}
-                className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-primary/20 px-3 py-3 text-right font-semibold text-primary transition hover:bg-primary/5"
+                className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-primary/20 px-3 py-3 text-left font-semibold text-primary transition hover:bg-primary/5"
               >
                 <LogOut className="size-5" />
-                خروج از میز {table.replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[+d])}
+                Leave table {table}
               </button>
             )}
-            <p className="mt-6 text-xs text-muted-foreground">با ❤️ توسط {cafeName}</p>
+            <p className="mt-6 text-xs text-muted-foreground">With ❤️ from {cafeName}</p>
           </motion.aside>
         </motion.div>
       )}

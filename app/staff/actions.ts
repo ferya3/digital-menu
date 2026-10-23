@@ -42,61 +42,55 @@ import { withTenant } from "@/lib/tenant";
 import { currentTenant } from "@/lib/tenant-context";
 import { assertNotLocked, clearHits, hit } from "@/lib/limits";
 import { clientIp } from "@/lib/security";
-import type { CafeInfo, Gateway, Menu, Order, OrderCodeMode, OrderStatus, PaymentInfo, SmsSettings } from "@/lib/types";
+import type { CafeInfo, Menu, Order, OrderCodeMode, OrderStatus, PaymentInfo, SmsSettings, StripeSettings } from "@/lib/types";
 
-const DEFAULT_CAFE: CafeInfo = { name: "کافه آرتاویل", logo: "☕", tagline: "", currency: "toman" };
+const DEFAULT_CAFE: CafeInfo = { name: "My Café", logo: "☕", tagline: "", currency: "USD" };
 const DEFAULT_PAYMENT: PaymentInfo = { card: "", holder: "", note: "", link: "" };
-const DEFAULT_GATEWAYS: Gateway[] = [
-  { id: "zarinpal", name: "زرین‌پال", enabled: false, config: { merchantId: "" } },
-  { id: "mellat", name: "بانک ملت (به‌پرداخت ملت)", enabled: false, config: { terminalId: "", username: "", password: "" } },
-  { id: "melli", name: "بانک ملی (سداد)", enabled: false, config: { merchantId: "", terminalId: "", key: "" } },
-];
-/** درگاه‌های ذخیره‌شده را با پیش‌فرض‌ها ادغام می‌کند تا هیچ‌کدام گم نشود */
-function mergeGateways(saved: Gateway[] | undefined): Gateway[] {
-  return DEFAULT_GATEWAYS.map((def) => {
-    const f = (saved || []).find((g) => g.id === def.id);
-    return f ? { ...def, enabled: !!f.enabled, config: { ...def.config, ...(f.config || {}) } } : structuredClone(def);
-  });
-}
+const DEFAULT_STRIPE: StripeSettings = { enabled: false, secretKey: "" };
 
-/** خطا را (با پیامِ فارسی) برمی‌گرداند؛ پرتاب‌شدن در production پیام را پنهان می‌کند */
+/** Secrets are never sent back to the browser in full; a masked value means "unchanged" */
+const MASK = "••••";
+const mask = (v: string) => (v ? `${MASK}${v.slice(-4)}` : "");
+const keep = (incoming: string | undefined, current: string) => (incoming === undefined || incoming.startsWith(MASK) ? current : incoming.trim());
+
+/** Returns the error (with a readable message); throwing in production would hide the message */
 async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
   try {
-    // هر اکشن در زمینهٔ مجموعهٔ همین درخواست (زیردامنه) اجرا می‌شود
+    // Each action runs in the venue context of this request (subdomain)
     return await withTenant(fn);
   } catch (e) {
-    return { __error: e instanceof Error ? e.message : "خطا" };
+    return { __error: e instanceof Error ? e.message : "Error" };
   }
 }
 
 async function gate() {
-  if (!(await isAuthed())) throw new Error("دسترسی غیرمجاز — ابتدا وارد شوید");
+  if (!(await isAuthed())) throw new Error("Not authorized — please sign in first");
 }
 
 /* ---------- auth ---------- */
 export async function loginAction(password: string): Promise<{ ok: boolean; mustChange: boolean } | ActionFail> {
   return guard(async () => {
-  // حدسِ رمز: حداکثر ۱۰ تلاشِ ناموفق در ۱۵ دقیقه برای هر IP (و ۵۰ برای کلِ مجموعه)
+  // Password guessing: at most 10 failed attempts per 15 minutes per IP (and 50 per venue)
   const ip = await clientIp(), slug = currentTenant().slug;
-  const LOCK = "تعداد تلاش زیاد است؛ ۱۵ دقیقه بعد دوباره امتحان کنید";
-  // قفل قبل از بررسیِ رمز: در زمانِ قفل حتی رمزِ درست هم پذیرفته نمی‌شود (حدس‌زدن بی‌فایده است)
+  const LOCK = "Too many attempts — please try again in 15 minutes";
+  // Lock is checked before the password: while locked even the right password is refused (guessing is pointless)
   assertNotLocked(`login:${slug}:${ip}`, 10, 15 * 60_000, LOCK);
   assertNotLocked(`login:${slug}`, 100, 15 * 60_000, LOCK);
   const res = checkAdmin(String(password || ""));
   if (!res.ok) {
     hit(`login:${slug}:${ip}`, 10, 15 * 60_000, LOCK);
     hit(`login:${slug}`, 100, 15 * 60_000, LOCK);
-    throw new Error("رمز اشتباه است");
+    throw new Error("Incorrect password");
   }
   clearHits(`login:${slug}:${ip}`);
   await startSession(res.mustChange);
   return { ok: true, mustChange: res.mustChange };
   });
 }
-/** عوض‌کردنِ رمزِ ضعیف/پیش‌فرض (اولین ورود) — بعد از آن پنل باز می‌شود */
+/** Replace a weak/default password (first sign-in) — the panel opens afterwards */
 export async function staffChangePasswordAction(newPassword: string): Promise<{ ok: boolean } | ActionFail> {
   return guard(async () => {
-  if (!(await needsPasswordChange()) && !(await isAuthed())) throw new Error("ابتدا وارد شوید");
+  if (!(await needsPasswordChange()) && !(await isAuthed())) throw new Error("Please sign in first");
   setAdminPassword(String(newPassword || "").trim());
   await startSession(false);
   return { ok: true };
@@ -134,21 +128,21 @@ export async function staffRejectPayAction(id: string, reason: string): Promise<
     return setPayStatus(id, "rejected", reason);
   });
 }
-/** «پرداخت شد» دستی روی یک سفارش */
+/** Manually mark one order as paid */
 export async function staffSetPaidAction(id: string, paid: boolean): Promise<Order | null> {
   return withTenant(async () => {
     await gate();
     return setPaid(id, paid);
   });
 }
-/** تسویهٔ کل صورتحسابِ میز با کارت‌خوان/نقدی */
+/** Settle a table's whole bill (card reader/cash) */
 export async function staffSettleTableAction(table: string): Promise<{ count: number }> {
   return withTenant(async () => {
     await gate();
     return { count: settleTable(table) };
   });
 }
-/** صندوق: تأیید یا ردِ فیشِ کل صورتحسابِ یک میز */
+/** Cashier: approve or reject the receipt for a table's whole bill */
 export async function staffTablePayAction(table: string, pay: "confirmed" | "rejected", reason = ""): Promise<{ count: number }> {
   return withTenant(async () => {
     await gate();
@@ -189,13 +183,13 @@ export async function staffMenuAction(): Promise<Menu> {
     return getMenu();
   });
 }
-/** افزودن/ویرایش دسته؛ آیکون می‌تواند ایموجی یا عکسِ آپلودی باشد */
+/** Add/edit a category; the icon can be an emoji or an uploaded image */
 export async function staffSaveCategoryAction(input: { id?: string; name: string; emoji?: string }, iconForm?: FormData | null) {
   return guard(async () => {
   return saveCategory(input, iconForm);
   });
 }
-/** بنرِ تبلیغاتیِ تمام‌عرضِ یک دسته: آپلود (FormData) یا حذف (null) */
+/** Full-width category promo banner: upload (FormData) or remove (null) */
 export async function staffCategoryBannerAction(id: string, bannerForm: FormData | null) {
   return guard(async () => {
   await gate();
@@ -207,7 +201,7 @@ export async function staffCategoryBannerAction(id: string, bannerForm: FormData
 }
 async function saveCategory(input: { id?: string; name: string; emoji?: string }, iconForm?: FormData | null) {
   await gate();
-  if (!input.name?.trim()) throw new Error("نام دسته را وارد کنید");
+  if (!input.name?.trim()) throw new Error("Enter a category name");
   const buf = await readUpload(iconForm);
   const emoji = buf ? await saveImageWebp(buf, "cat", 240) : input.emoji?.trim() || "🍽️";
   if (input.id) {
@@ -230,17 +224,17 @@ export async function staffSaveItemAction(input: {
   price?: number;
   oldPrice?: number;
   emoji?: string;
-  image?: string; // "" یعنی حذفِ عکس
+  image?: string; // "" removes the image
   tag?: string;
   available?: boolean;
-  /** ساختِ دستهٔ جدید همراهِ محصول */
+  /** Create a new category together with the item */
   newCategory?: { name: string; emoji?: string };
 }, imageForm?: FormData | null) {
   return guard(async () => {
   await gate();
-  if (!input.name?.trim()) throw new Error("نام محصول را وارد کنید");
+  if (!input.name?.trim()) throw new Error("Enter an item name");
   if (input.newCategory) {
-    if (!input.newCategory.name?.trim()) throw new Error("نام دستهٔ جدید را وارد کنید");
+    if (!input.newCategory.name?.trim()) throw new Error("Enter a name for the new category");
     input = { ...input, categoryId: addCategory(input.newCategory).id };
   }
   delete input.newCategory;
@@ -256,7 +250,7 @@ export async function staffSaveItemAction(input: {
   return addItem(payload as Parameters<typeof addItem>[0]);
   });
 }
-/** ویرایش سریع قیمت از داخل لیست */
+/** Quick price edit from the list */
 export async function staffQuickPriceAction(id: string, price: number) {
   return withTenant(async () => {
     await gate();
@@ -276,8 +270,9 @@ export interface AdminSettings {
   payment: PaymentInfo;
   orderCode: OrderCodeMode;
   sms: SmsSettings;
-  gateways: Gateway[];
-  /** سفارش فقط بعد از تأیید پرداخت به آشپزخانه می‌رود */
+  /** Online card payments for table bills (secret key is masked) */
+  stripe: StripeSettings;
+  /** Orders go to the kitchen only after payment is confirmed */
   payFirst: boolean;
   hasPassword: boolean;
 }
@@ -288,8 +283,11 @@ export async function staffSettingsAction(): Promise<AdminSettings> {
       cafe: { address: "", mapUrl: "", instagram: "", ...getSetting<CafeInfo>("cafe", DEFAULT_CAFE) },
       payment: { ...DEFAULT_PAYMENT, ...getSetting<PaymentInfo>("payment", DEFAULT_PAYMENT) },
       orderCode: getSetting<OrderCodeMode>("orderCode", "number"),
-      sms: { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) },
-      gateways: mergeGateways(getSetting<Gateway[]>("gateways", [])),
+      ...(() => {
+        const sms = { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) };
+        const stripe = { ...DEFAULT_STRIPE, ...getSetting<Partial<StripeSettings>>("stripe", {}) };
+        return { sms: { ...sms, authToken: mask(sms.authToken) }, stripe: { ...stripe, secretKey: mask(stripe.secretKey) } };
+      })(),
       payFirst: getSetting<boolean>("payFirst", true) !== false,
       hasPassword: !!getSetting<string>("admin_pw", ""),
     };
@@ -300,7 +298,7 @@ export async function staffUpdateSettingsAction(input: {
   payment?: Partial<PaymentInfo>;
   orderCode?: OrderCodeMode;
   sms?: Partial<SmsSettings>;
-  gateways?: Gateway[];
+  stripe?: Partial<StripeSettings>;
   payFirst?: boolean;
   newPassword?: string;
 }, logoForm?: FormData | null): Promise<{ ok: boolean } | ActionFail> {
@@ -309,11 +307,13 @@ export async function staffUpdateSettingsAction(input: {
   const logoBuf = await readUpload(logoForm);
   if (input.cafe || logoBuf) {
     const cur = getSetting<CafeInfo>("cafe", DEFAULT_CAFE);
+    if (input.cafe?.currency !== undefined && !/^[A-Z]{3}$/.test(input.cafe.currency)) throw new Error("Currency must be a 3-letter ISO code, e.g. USD");
+    if (input.cafe?.timezone) { try { new Intl.DateTimeFormat("en-US", { timeZone: input.cafe.timezone }); } catch { throw new Error("Unknown time zone"); } }
     let logo = input.cafe?.logo ?? cur.logo;
     if (logoBuf) logo = await saveImageWebp(logoBuf, "logo", 512);
-    // ویدیوی هیرو فقط از مسیر آپلود خودش عوض می‌شود
+    // The hero video only changes through its own upload route
     const next = { ...cur, ...input.cafe, logo, heroVideo: cur.heroVideo, heroPoster: cur.heroPoster };
-    // فیلدهای سئو کوتاه بمانند
+    // Keep SEO fields short
     for (const [k, n] of [["city", 40], ["phone", 20], ["seoDescription", 160]] as const) if (next[k]) next[k] = String(next[k]).slice(0, n);
     setSetting("cafe", next);
   }
@@ -323,12 +323,21 @@ export async function staffUpdateSettingsAction(input: {
   if (input.orderCode === "number" || input.orderCode === "id") setSetting("orderCode", input.orderCode);
   if (input.sms) {
     const cur = { ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) };
-    const next = { ...cur, ...input.sms };
-    if (next.provider !== "kavenegar" && next.provider !== "wide") next.provider = "none";
-    next.otpEnabled = !!next.otpEnabled;
+    const next: SmsSettings = {
+      provider: input.sms.provider === "twilio" ? "twilio" : input.sms.provider === "none" ? "none" : cur.provider,
+      accountSid: String(input.sms.accountSid ?? cur.accountSid).trim(),
+      authToken: keep(input.sms.authToken, cur.authToken),
+      from: String(input.sms.from ?? cur.from).trim(),
+      otpEnabled: input.sms.otpEnabled === undefined ? cur.otpEnabled : !!input.sms.otpEnabled,
+    };
     setSetting("sms", next);
   }
-  if (Array.isArray(input.gateways)) setSetting("gateways", mergeGateways(input.gateways));
+  if (input.stripe) {
+    const cur = { ...DEFAULT_STRIPE, ...getSetting<Partial<StripeSettings>>("stripe", {}) };
+    const secretKey = keep(input.stripe.secretKey, cur.secretKey);
+    if (secretKey && !/^(sk|rk)_(test|live)_/.test(secretKey)) throw new Error("The Stripe secret key should start with sk_live_ or sk_test_");
+    setSetting("stripe", { enabled: input.stripe.enabled === undefined ? cur.enabled : !!input.stripe.enabled, secretKey });
+  }
   if (typeof input.payFirst === "boolean") setSetting("payFirst", input.payFirst);
   if (input.newPassword && input.newPassword.trim()) {
     setAdminPassword(input.newPassword.trim());
@@ -337,23 +346,23 @@ export async function staffUpdateSettingsAction(input: {
   });
 }
 
-/** ارسالِ پیامکِ آزمایشی (بعد از ذخیرهٔ تنظیمات) */
+/** Send a test SMS (after saving settings) */
 export async function staffTestSmsAction(phone: string): Promise<{ ok: boolean; detail: string }> {
   return withTenant(async () => {
     await gate();
     try {
       return { ok: true, detail: await sendTestSms(phone) };
     } catch (e) {
-      return { ok: false, detail: e instanceof Error ? e.message : "خطا" };
+      return { ok: false, detail: e instanceof Error ? e.message : "Error" };
     }
   });
 }
 
-/* ---------- پیامک گروهی ---------- */
+/* ---------- Bulk SMS ---------- */
 export async function staffSetOptOutAction(phone: string, optOut: boolean) {
   return guard(async () => { await gate(); return setSmsOptOut(phone, optOut); });
 }
-/** شروعِ ارسال به شماره‌های انتخاب‌شده (فقط مشتریانِ ثبت‌شده و غیرلغوشده) */
+/** Start sending to the selected numbers (registered, subscribed customers only) */
 export async function staffStartSmsCampaignAction(input: { message: string; phones: string[]; addCancel: boolean }) {
   return guard(async () => { await gate(); return startCampaign(input.message, input.phones, input.addCancel); });
 }
@@ -366,19 +375,19 @@ export async function staffSmsCampaignsAction(): Promise<Campaign[]> {
 export async function staffSmsControlAction(id: string, action: "resume" | "retry" | "cancel") {
   return guard(async () => { await gate(); return controlCampaign(id, action); });
 }
-/** ارسالِ آزمایشیِ همان متن به یک شماره (مثلاً موبایلِ خودِ مدیر) قبل از ارسالِ گروهی */
+/** Send the same text to one number (e.g. the manager's phone) before the bulk send */
 export async function staffSmsPreviewAction(rawPhone: string, message: string, addCancel: boolean) {
   return guard(async () => {
     await gate();
     const phone = normalizePhone(rawPhone);
-    if (!isValidPhone(phone)) throw new Error("شمارهٔ موبایل را درست وارد کنید (مثل ۰۹۱۲۳۴۵۶۷۸۹)");
+    if (!isValidPhone(phone)) throw new Error("Enter a valid phone number in international format (e.g. +1 555 123 4567)");
     const text = addCancel && !message.includes(CANCEL_FOOTER) ? `${message.trim()}\n${CANCEL_FOOTER}` : message.trim();
-    if (!text) throw new Error("متن پیامک را بنویسید");
+    if (!text) throw new Error("Write the message text");
     return { detail: await sendSmsText(phone, text) };
   });
 }
 
-/* ---------- حسابداری ---------- */
+/* ---------- Accounting ---------- */
 export async function staffAccountingAction(month?: string): Promise<Accounting> {
   return withTenant(async () => {
     await gate();

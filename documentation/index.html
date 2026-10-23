@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MenuPilot — Documentation</title>
+<style>
+  :root { --fg:#0f172a; --muted:#475569; --line:#e2e8f0; --bg:#ffffff; --soft:#f8fafc; --brand:#d4212f; --code:#0b1020; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif; color:var(--fg); background:var(--bg); }
+  header { background:#0f172a; color:#fff; padding:40px 24px; }
+  header h1 { margin:0; font-size:32px; }
+  header p { margin:8px 0 0; color:#cbd5e1; }
+  .wrap { display:grid; grid-template-columns: 240px 1fr; max-width:1180px; margin:0 auto; }
+  nav { position:sticky; top:0; align-self:start; height:100vh; overflow:auto; padding:24px 16px; border-right:1px solid var(--line); background:var(--soft); }
+  nav a { display:block; padding:6px 10px; color:var(--muted); text-decoration:none; border-radius:8px; font-size:14px; }
+  nav a:hover { background:#fff; color:var(--fg); }
+  main { padding:32px 40px 80px; min-width:0; }
+  h2 { margin-top:48px; padding-top:8px; border-top:1px solid var(--line); font-size:24px; }
+  h3 { margin-top:28px; font-size:18px; }
+  code { background:#f1f5f9; padding:2px 6px; border-radius:6px; font-size:14px; }
+  pre { background:var(--code); color:#e2e8f0; padding:16px; border-radius:12px; overflow:auto; font-size:14px; }
+  pre code { background:none; padding:0; color:inherit; }
+  table { border-collapse:collapse; width:100%; margin:12px 0; font-size:15px; }
+  th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); }
+  .note { border-left:4px solid var(--brand); background:#fff5f5; padding:10px 14px; border-radius:8px; }
+  @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } nav { position:static; height:auto; border-right:0; border-bottom:1px solid var(--line); } main { padding:24px 16px 64px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>MenuPilot — Digital QR Menu &amp; Table Ordering SaaS</h1>
+  <p>Documentation · Version 1.0 · Thank you for your purchase!</p>
+</header>
+<div class="wrap">
+<nav>
+  <a href="#overview">Overview</a>
+  <a href="#requirements">Requirements</a>
+  <a href="#dns">DNS setup</a>
+  <a href="#install">Installation</a>
+  <a href="#first-steps">First steps</a>
+  <a href="#admin">Super-admin panel</a>
+  <a href="#venue">Venue dashboard</a>
+  <a href="#menu">Guest menu</a>
+  <a href="#stripe">Stripe payments</a>
+  <a href="#twilio">Twilio SMS</a>
+  <a href="#seo">SEO</a>
+  <a href="#partners">Partner program</a>
+  <a href="#maintenance">Updates &amp; backups</a>
+  <a href="#env">Environment variables</a>
+  <a href="#security">Security</a>
+  <a href="#customize">Customization</a>
+  <a href="#troubleshooting">Troubleshooting</a>
+  <a href="#credits">Credits</a>
+</nav>
+<main>
+
+<h2 id="overview">Overview</h2>
+<p>MenuPilot is a self-hosted digital menu platform. Guests scan a QR code on the table, browse the menu, order, call the waiter and pay — without installing an app. Each venue manages everything from its own dashboard. In <b>SaaS mode</b> you sell subscriptions: venues sign up on your website and get their own subdomain, menu, dashboard and isolated data.</p>
+<table>
+  <tr><th>Address</th><th>What it is</th></tr>
+  <tr><td><code>https://yourdomain.com</code></td><td>Your marketing website, pricing, blog, signup</td></tr>
+  <tr><td><code>https://yourdomain.com/admin</code></td><td>Super-admin panel (you)</td></tr>
+  <tr><td><code>https://bella.yourdomain.com</code></td><td>Guest menu of the venue “bella” (QR codes point here)</td></tr>
+  <tr><td><code>https://bella.yourdomain.com/staff</code></td><td>Dashboard of that venue (orders, menu, accounting, settings, subscription)</td></tr>
+</table>
+<p>Without a root domain the app runs in <b>single-restaurant mode</b>: one menu on your domain and one dashboard at <code>/staff</code>.</p>
+
+<h2 id="requirements">Requirements</h2>
+<ul>
+  <li>A clean Ubuntu 22.04 or 24.04 server (VPS) with root or sudo access — 1 GB RAM minimum, 2 GB recommended.</li>
+  <li>A domain name. For SaaS mode you need DNS access to add a wildcard record.</li>
+  <li>Optional: a <a href="https://stripe.com">Stripe</a> account for online payments and a <a href="https://www.twilio.com">Twilio</a> account for SMS.</li>
+</ul>
+<p>The installer installs Node.js 22, Nginx, ffmpeg, pm2 and Certbot automatically and creates a swap file on small servers.</p>
+
+<h2 id="dns">DNS setup</h2>
+<p>At your DNS provider, point these <b>A records</b> to your server IP (and AAAA records if your server has IPv6):</p>
+<table>
+  <tr><th>Name</th><th>Type</th><th>Value</th></tr>
+  <tr><td><code>@</code> (yourdomain.com)</td><td>A</td><td>your server IP</td></tr>
+  <tr><td><code>www</code></td><td>A</td><td>your server IP</td></tr>
+  <tr><td><code>*</code> (all subdomains — SaaS mode)</td><td>A</td><td>your server IP</td></tr>
+</table>
+<p class="note">If you use Cloudflare, set these records to <b>DNS only</b> (grey cloud) so Let's Encrypt can issue certificates for each venue subdomain.</p>
+
+<h2 id="install">Installation</h2>
+<h3>1. Upload the files</h3>
+<p>Upload the contents of the <code>menupilot</code> folder (the one containing <code>install.sh</code>) to your server, e.g. <code>/opt/menupilot</code>:</p>
+<pre><code>scp -r menupilot root@YOUR-SERVER-IP:/opt/menupilot</code></pre>
+<h3>2a. Install in SaaS mode</h3>
+<pre><code>cd /opt/menupilot
+sudo ROOT_DOMAIN=yourdomain.com EMAIL=you@yourdomain.com PLATFORM_ADMIN_PASSWORD='a-strong-password' bash install.sh</code></pre>
+<h3>2b. Or install for a single restaurant</h3>
+<pre><code>cd /opt/menupilot
+sudo DOMAIN=myrestaurant.com EMAIL=you@myrestaurant.com ADMIN_PASSWORD='a-strong-password' bash install.sh</code></pre>
+<p>Without <code>DOMAIN</code> the site runs on the server IP over HTTP; connect a domain later with <code>sudo DOMAIN=myrestaurant.com bash set-domain.sh</code>. To switch an existing single-restaurant install to SaaS mode later, run <code>sudo ROOT_DOMAIN=yourdomain.com EMAIL=… PLATFORM_ADMIN_PASSWORD=… bash set-saas.sh</code>.</p>
+<p>When the installer finishes it prints the addresses and passwords. If you did not pass a password, a random one is generated and printed — keep it safe.</p>
+
+<h2 id="first-steps">First steps (SaaS mode)</h2>
+<ol>
+  <li>Open <code>https://yourdomain.com/admin</code> and sign in.</li>
+  <li><b>Settings:</b> trial days, open/close signups, plans and prices, <b>currency</b>, Stripe secret key, bank-transfer details, Twilio.</li>
+  <li><b>Site content → Brand &amp; SEO:</b> brand name, logo, color, SEO title and description (with a live Google preview), Google Search Console verification code.</li>
+  <li><b>Site content → Hero → Create demo menu</b>, save, then open <i>Venues → demo → Enter dashboard</i> and replace the sample items with real photos. Visitors see a “Try the live demo menu” button and a QR code.</li>
+  <li>Edit the rest of the site: feature cards (with photos), display modes, steps, pricing texts, FAQ, testimonials (real ones only), footer and contact (enables the floating WhatsApp/call button), legal pages.</li>
+  <li>Review the <b>Articles</b> and <b>City pages</b> sections and publish your own content regularly.</li>
+</ol>
+
+<h2 id="admin">Super-admin panel</h2>
+<table>
+  <tr><th>Section</th><th>What you can do</th></tr>
+  <tr><td>Dashboard</td><td>Revenue this/last month, MRR, signups, 12-month charts, subscriptions expiring within 7 days (one-click extend / reminder SMS), latest signups.</td></tr>
+  <tr><td>Venues</td><td>Search &amp; filter, CSV export, create manually, edit, enter a venue's dashboard, reset password, extend (record cash payments), set expiry, SMS the owner, custom domain, notes, suspend, delete.</td></tr>
+  <tr><td>Venue customers</td><td>All phone numbers verified in every venue's menu, with filters and CSV export (access is logged).</td></tr>
+  <tr><td>Payments</td><td>Approve/reject bank-transfer receipts, filter by status and method, totals, CSV export.</td></tr>
+  <tr><td>Coupons</td><td>Percentage or fixed amount, usage limit, expiry, restricted to plans. A 100% coupon activates for free.</td></tr>
+  <tr><td>Site content</td><td>Every text, image and SEO setting of the public website.</td></tr>
+  <tr><td>Articles (blog)</td><td>Write, preview and publish SEO articles with a simple Markdown-like editor.</td></tr>
+  <tr><td>City pages</td><td>Landing pages such as “Digital menu in London”; active menus of that city are listed automatically.</td></tr>
+  <tr><td>Partners</td><td>Referral partners with commission rules, referral links, payouts and a private report page.</td></tr>
+  <tr><td>Notifications</td><td>Banner inside all venue dashboards, automatic renewal SMS, bulk SMS to venue owners.</td></tr>
+  <tr><td>Audit log</td><td>Every admin action, failed sign-ins, signups and payments.</td></tr>
+</table>
+
+<h2 id="venue">Venue dashboard (<code>/staff</code>)</h2>
+<ul>
+  <li><b>Orders</b> with live sound alerts, status flow, printing; <b>Requests</b>; <b>Cashier</b> by table with receipt approval.</li>
+  <li><b>Menu:</b> categories (emoji or icon image, promo banner), items (photo, price with decimals, old price, tag, availability).</li>
+  <li><b>Accounting</b> in the venue's currency and time zone, CSV export.</li>
+  <li><b>Customers &amp; bulk SMS</b> with opt-outs.</li>
+  <li><b>Settings:</b> business info, currency, time zone, logo, welcome video, payment methods, Stripe, Twilio, order code style, password.</li>
+  <li><b>QR codes</b> for tables, ready to print. <b>Subscription</b> page in SaaS mode.</li>
+</ul>
+
+<h2 id="menu">Guest menu</h2>
+<p>The table QR code opens <code>https://venue.yourdomain.com/?table=4</code>. Guests choose between carousel, grid and list view, add items with notes, order, follow the order status, call the waiter, request the bill and pay. Opening the menu without a table number shows a “scan the QR code on your table” screen with an in-browser QR scanner and a browse-only mode.</p>
+
+<h2 id="stripe">Stripe payments</h2>
+<h3>Subscriptions (your Stripe account)</h3>
+<ol>
+  <li>Get your secret key at <code>dashboard.stripe.com/apikeys</code> (use <code>sk_test_…</code> first).</li>
+  <li>Admin → Settings → Stripe: paste the key and save; set the currency (e.g. USD).</li>
+  <li>Optional webhook: <code>https://yourdomain.com/stripe/webhook</code>, event <code>checkout.session.completed</code>. Payments are also confirmed when the customer returns from Stripe; the webhook covers customers who close the tab.</li>
+</ol>
+<h3>Table bills (each venue's own Stripe account)</h3>
+<p>In the venue dashboard → Settings → Payments, enable Stripe and paste the venue's secret key. Guests then see “Pay online with card”. Optional webhook: <code>https://venue-domain/stripe/webhook</code>. Payments are recorded in accounting as “Online (card)”.</p>
+<p class="note">Payments are never trusted from the browser: the app always fetches the Checkout Session from Stripe and checks amount and currency before marking anything as paid.</p>
+
+<h2 id="twilio">Twilio SMS</h2>
+<p>Used for guest phone verification, bulk SMS (venues), signup verification and renewal reminders (platform). In the settings choose <b>Twilio</b> and enter the Account SID, Auth Token and the sender (a Twilio number in E.164 format like <code>+15551234567</code>, an alphanumeric sender ID where supported, or a Messaging Service SID starting with <code>MG</code>). Use “Send test SMS” to check. Without SMS the app works in demo mode (verification codes are shown on screen).</p>
+<p>Phone numbers are stored in international E.164 format. Set <code>DEFAULT_COUNTRY_CODE</code> (e.g. <code>1</code>) so guests can type local numbers.</p>
+
+<h2 id="seo">SEO</h2>
+<ul>
+  <li>Editable title/description with Google preview, Open Graph image (upload or automatic), Search Console verification.</li>
+  <li>Topic pages <code>/cafe-menu</code>, <code>/restaurant-menu</code>, <code>/fastfood-menu</code>, <code>/qr-menu</code>; blog <code>/blog</code>; city pages <code>/city</code>.</li>
+  <li>Sitemap <code>/sitemap.xml</code> and <code>/robots.txt</code> for the platform and for every venue (each venue's sitemap lists its products).</li>
+  <li>JSON-LD: Organization, WebSite, SoftwareApplication with plan prices, FAQPage, BlogPosting, BreadcrumbList; for venues Restaurant/CafeOrCoffeeShop with the full menu and prices.</li>
+  <li>Every venue menu links back to your site (“Digital menu by …”) — can be disabled in Site content → Brand &amp; SEO.</li>
+  <li><code>www</code> redirects to the bare domain (301).</li>
+</ul>
+
+<h2 id="partners">Partner program</h2>
+<p>Admin → Partners → New partner: name, code (used in the link), commission percent and whether it applies to the first payment only or to all payments. Share <code>https://yourdomain.com/r/CODE</code>; visitors are attributed for 60 days, or they can enter the code in the signup form. Each partner gets a private report page (link in the admin panel). Record payouts to keep the balance up to date.</p>
+
+<h2 id="maintenance">Updates &amp; backups</h2>
+<table>
+  <tr><th>Task</th><th>Command</th></tr>
+  <tr><td>Update (upload the new files over the old ones first)</td><td><code>cd /opt/menupilot &amp;&amp; sudo bash update.sh</code> — takes a backup automatically</td></tr>
+  <tr><td>Backup</td><td><code>sudo bash backup.sh</code> → <code>/root/cafe-backups</code></td></tr>
+  <tr><td>Encrypted backup (includes the encryption key)</td><td><code>sudo BACKUP_PASSWORD='…' bash backup.sh</code></td></tr>
+  <tr><td>Backup and send to a new server</td><td><code>sudo BACKUP_PASSWORD='…' bash backup.sh root@NEW-SERVER-IP</code></td></tr>
+  <tr><td>Install + restore on the new server</td><td><code>sudo RESTORE=/root/data-XXXX.tar.gz.enc ROOT_DOMAIN=yourdomain.com EMAIL=… bash install.sh</code></td></tr>
+  <tr><td>Restore on an existing install</td><td><code>sudo bash restore.sh /root/data-XXXX.tar.gz.enc</code></td></tr>
+  <tr><td>Reset the super-admin password</td><td><code>sudo PLATFORM_ADMIN_PASSWORD='…' bash reset-admin-password.sh</code></td></tr>
+  <tr><td>Status / logs</td><td><code>pm2 status</code> · <code>pm2 logs cafe</code></td></tr>
+</table>
+<p>All data (SQLite databases and uploads) lives in <code>data/</code>; the encryption key for secrets is <code>/etc/cafe-menu/data.key</code>. Never publish backups — they contain customer data.</p>
+
+<h2 id="env">Environment variables</h2>
+<table>
+  <tr><th>Variable</th><th>Used by</th><th>Description</th></tr>
+  <tr><td><code>ROOT_DOMAIN</code></td><td>install.sh, set-saas.sh</td><td>Enables SaaS mode on this domain.</td></tr>
+  <tr><td><code>PLATFORM_ADMIN_PASSWORD</code></td><td>install.sh, set-saas.sh</td><td>Super-admin password.</td></tr>
+  <tr><td><code>DOMAIN</code></td><td>install.sh, set-domain.sh</td><td>Domain for single-restaurant mode.</td></tr>
+  <tr><td><code>ADMIN_PASSWORD</code></td><td>install.sh</td><td>Dashboard password (single-restaurant mode).</td></tr>
+  <tr><td><code>EMAIL</code></td><td>install scripts</td><td>Let's Encrypt account email.</td></tr>
+  <tr><td><code>APP_TIMEZONE</code></td><td>app</td><td>Default IANA time zone for reports (default UTC).</td></tr>
+  <tr><td><code>DEFAULT_COUNTRY_CODE</code></td><td>app</td><td>Calling code for local phone numbers (e.g. 1, 44).</td></tr>
+  <tr><td><code>APP_PORT</code></td><td>install.sh</td><td>Internal port (default 3000).</td></tr>
+  <tr><td><code>BACKUP_PASSWORD</code>, <code>RESTORE</code></td><td>backup / install</td><td>Encrypted backups and restore during install.</td></tr>
+</table>
+<p>The installer writes these to <code>.env.production.local</code> in the app folder.</p>
+
+<h2 id="security">Security</h2>
+<ul>
+  <li>No default passwords; weak passwords must be changed on first sign-in; scrypt hashing.</li>
+  <li>Login lock-out after repeated failures; rate limits for orders, requests, receipts, SMS codes — stored on disk.</li>
+  <li>Strict Content-Security-Policy with per-request nonces, HSTS, X-Frame-Options and more, set by the app itself.</li>
+  <li>Secrets (Stripe/Twilio keys, signing keys, password hashes) encrypted at rest with AES-256-GCM; secrets are masked in the panels.</li>
+  <li>Each venue has its own database, uploads folder, session signing key and live channel.</li>
+</ul>
+
+<h2 id="customize">Customization</h2>
+<ul>
+  <li>Brand, colors (10 presets), texts and images: from the admin panel — no code needed.</li>
+  <li>Sample menus for new venues: <code>lib/seeds.ts</code> and <code>lib/data.ts</code>. Default website texts: <code>lib/site-content.ts</code>. Topic pages: <code>lib/solutions.ts</code>. Seed articles: <code>lib/article-seeds.ts</code>. Seed cities: <code>lib/cities.ts</code>.</li>
+  <li>Theme tokens: <code>app/globals.css</code>. After code changes run <code>sudo bash update.sh</code>.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+  <tr><th>Problem</th><th>Solution</th></tr>
+  <tr><td>A new venue subdomain shows a certificate warning</td><td>Check the wildcard <code>*</code> DNS record (DNS only, not proxied) and see <code>/var/log/cafe-certs.log</code>.</td></tr>
+  <tr><td>“Internal Server Error”</td><td><code>pm2 logs cafe</code> shows the reason; make sure the server has Node.js 22 (<code>node -v</code>).</td></tr>
+  <tr><td>Stripe payment stays “being confirmed”</td><td>Check the secret key and currency; add the webhook URL so late payments are confirmed.</td></tr>
+  <tr><td>SMS not delivered</td><td>Use “Send test SMS”; check the Twilio logs, the sender and that the destination country is enabled in Twilio's geo permissions.</td></tr>
+  <tr><td>Forgot the super-admin password</td><td><code>sudo PLATFORM_ADMIN_PASSWORD='new-password' bash reset-admin-password.sh</code></td></tr>
+</table>
+
+<h2 id="credits">Credits</h2>
+<p>Next.js, React, Tailwind CSS, Framer Motion, GSAP, Lenis, Three.js / React Three Fiber / Drei, sharp, qrcode, lucide-react (icons, ISC), Inter font (SIL OFL 1.1), Zustand, Radix Slot, class-variance-authority. No stock photos are included.</p>
+</main>
+</div>
+</body>
+</html>

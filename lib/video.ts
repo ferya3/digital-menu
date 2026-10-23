@@ -31,8 +31,8 @@ function run(args: string[]): Promise<void> {
 const running = new Set<string>();
 
 /**
- * ویدیوی هیرو را برای وب سبک می‌کند (پس‌زمینه): حداکثر ۱۲۸۰px، H.264، بی‌صدا، حداکثر ۲۰ ثانیه،
- * faststart برای شروعِ فوریِ پخش + یک عکسِ کاور (poster). ویدیوی اصلی بعد از موفقیت حذف می‌شود.
+ * Optimizes the hero video for the web (in the background): max 1280px, H.264, muted, max 20 seconds,
+ * faststart for instant playback + a cover image (poster). The original video is removed on success.
  */
 export function optimizeHeroVideo(webPath: string) {
   const { slug } = currentTenant();
@@ -45,7 +45,7 @@ export function optimizeHeroVideo(webPath: string) {
   const outVideo = path.join(uploadsDir(), `${base}-web.mp4`);
   const tmpPoster = path.join(uploadsDir(), `${base}-poster.jpg`);
   const outPoster = path.join(uploadsDir(), `${base}-poster.webp`);
-  // کارِ پس‌زمینه صراحتاً در زمینهٔ همان مجموعه اجرا می‌شود
+  // The background job explicitly runs in the same venue's context
   runAsTenant(slug, () => (async () => {
     try {
       await run([
@@ -61,8 +61,8 @@ export function optimizeHeroVideo(webPath: string) {
         fs.rmSync(tmpPoster, { force: true });
         poster = "/uploads/" + path.basename(outPoster);
       }
-      const cur = getSetting<CafeInfo>("cafe", { name: "کافه", logo: "☕", tagline: "", currency: "toman" });
-      // اگر در این فاصله ویدیو عوض/حذف شده، نتیجه را دور بریز
+      const cur = getSetting<CafeInfo>("cafe", { name: "My Café", logo: "☕", tagline: "", currency: "USD" });
+      // If the video was changed/removed meanwhile, discard the result
       if (cur.heroVideo !== webPath) {
         fs.rmSync(outVideo, { force: true });
         if (poster) deleteUpload(poster);
@@ -74,7 +74,7 @@ export function optimizeHeroVideo(webPath: string) {
     } catch (e) {
       fs.rmSync(outVideo, { force: true });
       fs.rmSync(tmpPoster, { force: true });
-      console.error("[hero-video] بهینه‌سازی انجام نشد:", e instanceof Error ? e.message : e);
+      console.error("[hero-video] optimization failed:", e instanceof Error ? e.message : e);
     } finally {
       running.delete(key);
     }

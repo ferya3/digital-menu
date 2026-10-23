@@ -1,5 +1,5 @@
-// پیکربندی pm2: سایت را در پس‌زمینه اجرا و در صورت کرش/ری‌بوت دوباره بالا می‌آورد.
-// پورت داخلی با APP_PORT (پیش‌فرض 3000)؛ Nginx درخواست‌ها را به آن می‌فرستد.
+// pm2 config: runs the site in the background and restarts it after a crash/reboot.
+// Internal port via APP_PORT (default 3000); Nginx proxies requests to it.
 const port = process.env.APP_PORT || "3000";
 
 module.exports = {

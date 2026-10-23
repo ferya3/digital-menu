@@ -1,7 +1,7 @@
 /**
- * نتیجهٔ خطا از Server Action.
- * روی نسخهٔ واقعی (production) Next پیامِ خطاهای پرتاب‌شده را پنهان می‌کند و فقط یک متنِ انگلیسیِ گنگ می‌رسد؛
- * برای همین اکشن‌ها خطا را «برمی‌گردانند» و کلاینت با unwrap دوباره آن را (با پیامِ فارسیِ درست) پرتاب می‌کند.
+ * Error result from a Server Action.
+ * In production Next.js hides the message of thrown errors and the client only gets a generic text;
+ * so actions *return* the error and the client re-throws it (with the proper message) via unwrap.
  */
 export type ActionFail = { __error: string };
 

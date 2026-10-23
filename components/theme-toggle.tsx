@@ -18,7 +18,7 @@ export function ThemeToggle() {
     setDark(next);
   };
   return (
-    <Button variant="ghost" size="icon" onClick={toggle} aria-label="حالت شب">
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle dark mode">
       {dark ? <Sun /> : <Moon />}
     </Button>
   );

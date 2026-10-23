@@ -4,8 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * گواهیِ HTTPS برای زیردامنه/دامنهٔ اختصاصیِ تازه (Let's Encrypt با tenant-cert.sh).
- * فقط وقتی set-saas.sh روی سرور اجرا شده باشد (AUTO_SSL=1)؛ در غیرِ این صورت کاری نمی‌کند.
+ * HTTPS certificate for a new subdomain/custom domain (Let's Encrypt via tenant-cert.sh).
+ * Only active when set-saas.sh has been run on the server (AUTO_SSL=1); otherwise a no-op.
  */
 const inflight = new Map<string, Promise<boolean>>();
 

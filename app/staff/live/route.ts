@@ -4,7 +4,7 @@ import { tenantRoute } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
-/** کانال زندهٔ پنل مدیر: هر سفارش/فیش/درخواست/نظرِ جدید فوراً اعلام می‌شود */
+/** Dashboard live channel: every new order/receipt/request/review is announced immediately */
 export async function GET(req: Request) {
   return tenantRoute(async () => {
     if (!(await isAuthed())) return new Response("Unauthorized", { status: 401 });

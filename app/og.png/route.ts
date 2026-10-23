@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 const cache = new Map<string, Buffer>();
 
-/** فایلِ لوگو روی دیسک (فقط مسیرهای خودِ سایت) */
+/** Logo file on disk (site-local paths only) */
 function logoFile(src: string): string | null {
   const name = path.basename(src || "");
   if (src.startsWith("/brand/")) return path.join(ASSETS_DIR, name);
@@ -21,8 +21,8 @@ function logoFile(src: string): string | null {
 }
 
 /**
- * تصویرِ پیش‌نمایشِ لینک (۱۲۰۰×۶۳۰) برای واتساپ/تلگرام/گوگل: رنگِ برند + لوگو.
- * بدونِ متن (فونتِ فارسی برای رسم در سرور لازم نیست) و یک‌بار ساخته و در حافظه نگه داشته می‌شود.
+ * Link preview image (1200×630) for WhatsApp/Facebook/X/Google: brand color + logo.
+ * Text-free and language-neutral (no server-side font needed); rendered once and cached in memory.
  */
 async function render(hex: string, logo: string | null): Promise<Buffer> {
   const key = `${hex}|${logo || ""}|${logo && fs.existsSync(logo) ? fs.statSync(logo).mtimeMs : 0}`;
@@ -43,7 +43,7 @@ async function render(hex: string, logo: string | null): Promise<Buffer> {
     const img = await sharp(logo).resize(280, 280, { fit: "cover" }).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
     layers.push({ input: img, left: 460, top: 175 });
   } else {
-    // نمادِ QR ساده روی کادرِ رنگی
+    // Simple QR glyph on the colored tile
     layers.push({ input: Buffer.from(`<svg width="280" height="280"><g fill="#fff" transform="translate(70 70)">
       <rect width="56" height="56" rx="10"/><rect x="84" width="56" height="56" rx="10"/><rect y="84" width="56" height="56" rx="10"/>
       <rect x="84" y="84" width="22" height="22" rx="4"/><rect x="118" y="118" width="22" height="22" rx="4"/><rect x="84" y="118" width="22" height="22" rx="4"/></g></svg>`), left: 460, top: 175 });
@@ -63,7 +63,7 @@ export async function GET() {
     } else {
       logo = await withTenant(() => logoFile(cafeInfo().logo));
     }
-  } catch { /* مجموعهٔ ناموجود: تصویرِ پیش‌فرض */ }
+  } catch { /* Unknown venue: default image */ }
   const png = await render(hex, logo);
   return new Response(new Uint8Array(png), { headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400" } });
 }

@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const err = (e: unknown) => (e instanceof Error ? e.message : "خطا");
+export const err = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 export type Flash = (t: string) => void;
 
 export const fieldCls =
@@ -11,17 +11,17 @@ export const fieldCls =
 export const smallField = "w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10";
 
 export const STATE: Record<string, { label: string; cls: string }> = {
-  trial: { label: "آزمایشی", cls: "bg-blue-600/10 text-blue-700 dark:text-blue-400" },
-  active: { label: "فعال", cls: "bg-green-600/10 text-green-700 dark:text-green-400" },
-  expired: { label: "منقضی", cls: "bg-primary/10 text-primary" },
-  suspended: { label: "تعلیق", cls: "bg-muted text-muted-foreground" },
+  trial: { label: "Trial", cls: "bg-blue-600/10 text-blue-700 dark:text-blue-400" },
+  active: { label: "Active", cls: "bg-green-600/10 text-green-700 dark:text-green-400" },
+  expired: { label: "Expired", cls: "bg-primary/10 text-primary" },
+  suspended: { label: "Suspended", cls: "bg-muted text-muted-foreground" },
 };
 
-// بیرون از کامپوننت‌ها تعریف شده‌اند تا با هر تایپ دوباره ساخته نشوند (فوکوسِ ورودی‌ها حفظ شود)
+// Defined outside components so they are not recreated on every keystroke (inputs keep focus)
 export function Box({ title, action, children, className }: { title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section className={cn("rounded-3xl border border-border bg-card p-4", className)}>
-      {/* روی گوشی دکمه‌ها زیرِ عنوان می‌روند (عنوان در چند خط فشرده نمی‌شود) */}
+      {/* On phones, actions wrap below the title (so the title is not squeezed) */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="min-w-0 font-extrabold">{title}</h2>{action}</div>
       <div className="space-y-3">{children}</div>
     </section>
@@ -36,7 +36,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
       <div className={cn("max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-card p-5 shadow-2xl sm:rounded-3xl", wide ? "max-w-2xl" : "max-w-lg")} onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="text-lg font-black">{title}</h2>
-          <button onClick={onClose} aria-label="بستن" className="grid size-9 place-items-center rounded-full bg-muted"><X className="size-5" /></button>
+          <button onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-full bg-muted"><X className="size-5" /></button>
         </div>
         {children}
       </div>
@@ -55,7 +55,7 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
   );
 }
 
-/** خروجیِ اکسل (CSV با BOM برای نمایشِ درستِ فارسی) */
+/** CSV export (with a UTF-8 BOM so Excel opens it correctly) */
 export function downloadCsv(name: string, rows: (string | number)[][]) {
   const csv = "﻿" + rows.map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));

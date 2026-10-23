@@ -12,11 +12,11 @@ import { tenantPage } from "@/lib/tenant-page";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_CAFE: CafeInfo = { name: "کافه", logo: "☕", tagline: "", currency: "toman" };
+const DEFAULT_CAFE: CafeInfo = { name: "My Café", logo: "☕", tagline: "", currency: "USD" };
 const isImg = (s: string) => /^https?:|^\/uploads\//.test(s || "");
 
 async function load(id: string) {
-  // آدرسِ اصلیِ سایت (دامنهٔ اختصاصی اگر دارد)
+  // Canonical site origin (custom domain if set)
   const origin = await siteOrigin();
   return withTenant(() => {
   const menu = getMenu();
@@ -26,7 +26,7 @@ async function load(id: string) {
   }, { active: true });
 }
 
-/** پیش‌نمایشِ لینک در واتساپ/تلگرام/اینستاگرام: عکس، نام و قیمت محصول */
+/** Link preview for WhatsApp/Telegram/Instagram: product photo, name and price */
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const loaded = await load(decodeURIComponent(id)).catch(() => null);
@@ -34,17 +34,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { item, cafe, origin } = loaded;
   if (!item) return { title: cafe.name };
   const price = formatMoney(item.price, cafe.currency);
-  const title = `${item.name} — ${price} | ${cafe.name}`;
-  const description = item.desc || cafe.tagline || `منوی ${cafe.name}`;
+  const title = `${item.name} — ${cafe.name} menu`;
+  const description = item.desc ? `${item.desc} · ${price}` : `${item.name} for ${price} on the ${cafe.name} menu.`;
   const og = (src: string) => (/^\/uploads\//.test(src) ? `${origin}${src}?w=1080&f=jpg` : src);
-  // بدونِ عکسِ محصول و لوگو: تصویرِ خودکارِ مجموعه (/og.png) تا پیش‌نمایشِ لینک خالی نماند
+  // No product photo or logo: fall back to the venue's generated image (/og.png) so previews aren't empty
   const image = item.image ? og(item.image) : isImg(cafe.logo) ? og(cafe.logo) : `${origin}/og.png`;
   return {
-    // عنوانِ کامل (بدونِ الگوی «| نامِ مجموعه» که در layout هست)
+    // Absolute title (skip the layout's "| Venue name" template)
     title: { absolute: title },
     description,
     alternates: { canonical: `/p/${encodeURIComponent(decodeURIComponent(id))}` },
-    openGraph: { title, description, url: `${origin}/p/${id}`, siteName: cafe.name, type: "website", locale: "fa_IR", ...(image ? { images: [{ url: image, width: 1080, height: 1080, alt: item.name }] } : {}) },
+    openGraph: { title, description, url: `${origin}/p/${id}`, siteName: cafe.name, type: "website", locale: "en_US", ...(image ? { images: [{ url: image, width: 1080, height: 1080, alt: item.name }] } : {}) },
     twitter: { card: image ? "summary_large_image" : "summary", title, description, ...(image ? { images: [image] } : {}) },
   };
 }
@@ -62,7 +62,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       {
         "@type": "BreadcrumbList",
         itemListElement: [
-          { "@type": "ListItem", position: 1, name: `منوی ${cafe.name}`, item: `${origin}/` },
+          { "@type": "ListItem", position: 1, name: `${cafe.name} menu`, item: `${origin}/` },
           ...(category ? [{ "@type": "ListItem", position: 2, name: category.name, item: `${origin}/` }] : []),
           { "@type": "ListItem", position: category ? 3 : 2, name: item.name, item: `${origin}/p/${encodeURIComponent(item.id)}` },
         ],
@@ -106,7 +106,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <span className="text-[8rem] drop-shadow-xl">{item.emoji || "☕"}</span>
           )}
           {item.image && <span className="pointer-events-none absolute inset-0 grid -rotate-[20deg] place-items-center text-2xl font-black text-white/15">{cafe.name}</span>}
-          {item.tag && <span className="absolute right-4 top-4 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow">{item.tag}</span>}
+          {item.tag && <span className="absolute left-4 top-4 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow">{item.tag}</span>}
         </div>
         <div className="p-5">
           {category && <p className="mb-1 text-xs text-muted-foreground">{category.name}</p>}
@@ -116,7 +116,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             {onSale && <s className="me-2 text-base font-medium text-muted-foreground">{money(item.oldPrice!)}</s>}
             {money(item.price)}
           </div>
-          {!item.available && <p className="mt-2 text-sm text-muted-foreground">فعلاً ناموجود</p>}
+          {!item.available && <p className="mt-2 text-sm text-muted-foreground">Currently unavailable</p>}
         </div>
       </article>
 
@@ -124,14 +124,14 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         <div className="mt-4 space-y-2 rounded-3xl border border-border bg-card p-4 text-sm">
           {cafe.address && <p>📍 {cafe.address}</p>}
           {(cafe.mapUrl || insta) && <div className="flex flex-wrap gap-2">
-            {cafe.mapUrl && <a href={cafe.mapUrl} target="_blank" rel="noopener" className="rounded-full border border-border px-4 py-2 font-semibold transition hover:bg-muted">🗺️ مسیریابی روی نقشه</a>}
-            {insta && <a href={insta} target="_blank" rel="noopener" className="rounded-full border border-border px-4 py-2 font-semibold transition hover:bg-muted">📷 اینستاگرام</a>}
+            {cafe.mapUrl && <a href={cafe.mapUrl} target="_blank" rel="noopener" className="rounded-full border border-border px-4 py-2 font-semibold transition hover:bg-muted">🗺️ Get directions</a>}
+            {insta && <a href={insta} target="_blank" rel="noopener" className="rounded-full border border-border px-4 py-2 font-semibold transition hover:bg-muted">📷 Instagram</a>}
           </div>}
         </div>
       )}
 
       <div className="mt-5 flex gap-2">
-        <Link href="/" className="flex h-12 flex-1 items-center justify-center rounded-2xl bg-primary font-bold text-primary-foreground shadow-lg shadow-primary/20">مشاهدهٔ منو</Link>
+        <Link href="/" className="flex h-12 flex-1 items-center justify-center rounded-2xl bg-primary font-bold text-primary-foreground shadow-lg shadow-primary/20">View menu</Link>
         <ProductShare target={{ title: item.name, text: shareText, url: `${origin}/p/${encodeURIComponent(item.id)}`, image: item.image ? thumb(item.image, 1080) : undefined }} />
       </div>
     </main>

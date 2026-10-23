@@ -14,8 +14,8 @@ import type { SmsSettings } from "@/lib/types";
 import { SECRET_SETTINGS, seal, sealExisting, unseal } from "@/lib/secret-box";
 
 /**
- * دیتابیسِ خودِ پلتفرم (data/platform.db): فهرستِ مجموعه‌ها، اشتراک‌ها، پرداخت‌ها و تنظیماتِ پلتفرم.
- * دادهٔ هر مجموعه (منو، سفارش، مشتری…) جدا در data/tenants/<slug>/ است.
+ * The platform's own database (data/platform.db): venues, subscriptions, payments and platform settings.
+ * Each venue's data (menu, orders, customers…) lives separately in data/tenants/<slug>/.
  */
 const DAY = 86_400_000;
 const g = globalThis as unknown as { __platformDb?: DatabaseSync };
@@ -40,21 +40,21 @@ export function pdb(): DatabaseSync {
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
     CREATE INDEX IF NOT EXISTS idx_pay_slug ON payments(slug);
     CREATE INDEX IF NOT EXISTS idx_pay_auth ON payments(authority);
-    -- گزارشِ فعالیت (کارهای مدیرِ کل، ثبت‌نام‌ها، پرداخت‌ها)
+    -- Activity log (super admin actions, signups, payments)
     CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, actor TEXT, action TEXT, target TEXT DEFAULT '', detail TEXT DEFAULT '', ip TEXT DEFAULT '');
     CREATE INDEX IF NOT EXISTS idx_audit_at ON audit(at);
-    -- کدهای تخفیفِ اشتراک
+    -- Subscription coupons
     CREATE TABLE IF NOT EXISTS coupons (
       code TEXT PRIMARY KEY, kind TEXT DEFAULT 'percent', value INTEGER, max_uses INTEGER DEFAULT 0, used INTEGER DEFAULT 0,
       expires_at TEXT DEFAULT '', plans TEXT DEFAULT '', active INTEGER DEFAULT 1, note TEXT DEFAULT '', created_at TEXT
     );
-    -- یادآوری‌های پیامکیِ ارسال‌شده (هر یادآوری برای هر دورهٔ اشتراک فقط یک‌بار)
+    -- Sent SMS reminders (each reminder only once per subscription period)
     CREATE TABLE IF NOT EXISTS reminders (key TEXT PRIMARY KEY, slug TEXT, kind TEXT, at TEXT, status TEXT, detail TEXT DEFAULT '');
-    -- پیامکِ گروهی به صاحبانِ مجموعه‌ها
+    -- Bulk SMS to venue owners
     CREATE TABLE IF NOT EXISTS owner_sms (id TEXT PRIMARY KEY, at TEXT, message TEXT, audience TEXT, total INTEGER, sent INTEGER DEFAULT 0, failed INTEGER DEFAULT 0, status TEXT DEFAULT 'running');
   `);
   for (const sql of ["ALTER TABLE tenants ADD COLUMN ref TEXT DEFAULT ''", "ALTER TABLE payments ADD COLUMN coupon TEXT DEFAULT ''", "ALTER TABLE payments ADD COLUMN discount INTEGER DEFAULT 0", "ALTER TABLE payments ADD COLUMN list_price INTEGER DEFAULT 0"]) {
-    try { d.exec(sql); } catch { /* ستون از قبل هست */ }
+    try { d.exec(sql); } catch { /* column already exists */ }
   }
   g.__platformDb = d;
   sealExisting(d);
@@ -62,12 +62,12 @@ export function pdb(): DatabaseSync {
   return d;
 }
 
-/* ----------------------------- تنظیمات ----------------------------- */
+/* ----------------------------- Settings ----------------------------- */
 export interface Plan {
   id: string;
   title: string;
   months: number;
-  /** تومان */
+  /** In the platform currency (decimal) */
   price: number;
   popular?: boolean;
 }
@@ -78,23 +78,28 @@ export interface PlatformSettings {
   trialDays: number;
   allowSignup: boolean;
   plans: Plan[];
-  zarinpal: { merchant: string; sandbox: boolean };
+  /** ISO 4217 currency for plans and payments, e.g. "USD" */
+  currency: string;
+  /** Stripe account for subscription payments (empty = online payment disabled) */
+  stripe: { secretKey: string };
+  /** Bank transfer details for manual subscription payments (empty number = disabled). Payment method key: "card". */
   card: { number: string; holder: string; bank: string };
-  /** پیامکِ پلتفرم: کد تأییدِ ثبت‌نام و یادآوریِ تمدید */
+  /** Platform SMS (Twilio): signup verification codes and renewal reminders */
   sms: SmsSettings;
 }
 export const DEFAULT_PLATFORM: PlatformSettings = {
-  brand: "منوی دیجیتال",
-  tagline: "منوی QR، سفارش آنلاین و پنل مدیریت برای کافه، رستوران و فست‌فود",
+  brand: "MenuPilot",
+  tagline: "QR menus, table ordering and a management panel for cafés, restaurants and fast food",
   support: "",
   trialDays: 14,
   allowSignup: true,
   plans: [
-    { id: "m1", title: "یک‌ماهه", months: 1, price: 490_000 },
-    { id: "m3", title: "سه‌ماهه", months: 3, price: 1_290_000, popular: true },
-    { id: "m12", title: "یک‌ساله", months: 12, price: 4_490_000 },
+    { id: "m1", title: "Monthly", months: 1, price: 19 },
+    { id: "m3", title: "Quarterly", months: 3, price: 49, popular: true },
+    { id: "m12", title: "Yearly", months: 12, price: 179 },
   ],
-  zarinpal: { merchant: "", sandbox: false },
+  currency: "USD",
+  stripe: { secretKey: "" },
   card: { number: "", holder: "", bank: "" },
   sms: { ...DEFAULT_SMS },
 };
@@ -112,7 +117,8 @@ export function platformSettings(): PlatformSettings {
   const s = rawGet<Partial<PlatformSettings>>("platform", {});
   return {
     ...DEFAULT_PLATFORM, ...s,
-    zarinpal: { ...DEFAULT_PLATFORM.zarinpal, ...s.zarinpal },
+    currency: /^[A-Z]{3}$/.test(s.currency || "") ? s.currency! : DEFAULT_PLATFORM.currency,
+    stripe: { ...DEFAULT_PLATFORM.stripe, ...s.stripe },
     card: { ...DEFAULT_PLATFORM.card, ...s.card },
     sms: { ...DEFAULT_PLATFORM.sms, ...s.sms },
     plans: s.plans?.length ? s.plans : DEFAULT_PLATFORM.plans,
@@ -120,12 +126,14 @@ export function platformSettings(): PlatformSettings {
 }
 export function savePlatformSettings(next: PlatformSettings) {
   const plans = next.plans
-    .map((p, i) => ({ id: p.id || `p${i + 1}`, title: String(p.title || "").trim().slice(0, 40), months: Math.max(1, Math.min(36, Math.round(Number(p.months) || 1))), price: Math.max(0, Math.round(Number(p.price) || 0)), popular: !!p.popular }))
+    .map((p, i) => ({ id: p.id || `p${i + 1}`, title: String(p.title || "").trim().slice(0, 40), months: Math.max(1, Math.min(36, Math.round(Number(p.months) || 1))), price: Math.max(0, Math.round((Number(p.price) || 0) * 100) / 100), popular: !!p.popular }))
     .filter((p) => p.title);
-  if (!plans.length) throw new Error("حداقل یک طرحِ اشتراک لازم است");
-  rawSet("platform", { ...next, trialDays: Math.max(0, Math.min(90, Math.round(Number(next.trialDays) || 0))), plans });
+  if (!plans.length) throw new Error("At least one subscription plan is required");
+  const currency = String(next.currency || "USD").toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Currency must be a 3-letter ISO code, e.g. USD");
+  rawSet("platform", { ...next, currency, trialDays: Math.max(0, Math.min(90, Math.round(Number(next.trialDays) || 0))), plans });
 }
-/** رمز و کلیدِ پلتفرم (مدیرِ کلِ سامانه) */
+/** Platform signing secret and super admin password */
 function platformSecret(): string {
   let s = rawGet<string>("secret", "");
   if (!s) { s = crypto.randomBytes(32).toString("hex"); rawSet("secret", s); }
@@ -141,11 +149,11 @@ export function checkPlatformAdmin(pw: string): boolean {
 }
 export const platformAdminConfigured = () => !!(rawGet<string>("admin_pw", "") || process.env.PLATFORM_ADMIN_PASSWORD);
 export function setPlatformAdminPassword(pw: string) {
-  if (pw.length < 8) throw new Error("رمز حداقل ۸ نویسه باشد");
+  if (pw.length < 8) throw new Error("The password must be at least 8 characters");
   rawSet("admin_pw", hashPassword(pw));
 }
 
-/** توکنِ امضاشده با کلیدِ پلتفرم (ورودِ خودکار به پنلِ یک مجموعه، نشستِ مدیرِ کل) */
+/** Token signed with the platform key (auto-login to a venue's panel, super admin session) */
 export function signPlatform(data: Record<string, unknown>, ttlMs: number): string {
   const payload = Buffer.from(JSON.stringify({ ...data, exp: Date.now() + ttlMs, n: crypto.randomBytes(16).toString("hex") })).toString("base64url");
   const sig = crypto.createHmac("sha256", platformSecret()).update(payload).digest("base64url");
@@ -162,12 +170,12 @@ export function verifyPlatform<T>(token: string | undefined | null): (T & { n: s
   } catch { return null; }
 }
 
-/* ----------------------------- مجموعه‌ها ----------------------------- */
+/* ----------------------------- Venues ----------------------------- */
 export interface Tenant {
   slug: string; name: string; kind: BusinessKind; ownerName: string; ownerPhone: string;
   status: "active" | "suspended"; plan: string; expiresAt: string; domain: string;
   note: string; createdAt: string; lastSeen: string;
-  /** کدِ همکارِ معرف (خالی = بدونِ معرف) */
+  /** Referring partner code (empty = no referrer) */
   ref: string;
 }
 type Row = { slug: string; name: string; kind: string; owner_name: string; owner_phone: string; status: string; plan: string; expires_at: string; domain: string; note: string; created_at: string; last_seen: string; ref?: string };
@@ -180,7 +188,7 @@ export function getTenant(slug: string): Tenant | null {
   const r = pdb().prepare("SELECT * FROM tenants WHERE slug = ?").get(slug) as unknown as Row | undefined;
   return r ? toTenant(r) : null;
 }
-/** دامنهٔ اختصاصیِ یک مجموعه (مثلاً menu.myrestaurant.ir) */
+/** A venue's custom domain (e.g. menu.myrestaurant.com) */
 export function tenantByDomain(host: string): Tenant | null {
   const h = host.replace(/^www\./, "");
   const r = pdb().prepare("SELECT * FROM tenants WHERE domain != '' AND domain = ?").get(h) as unknown as Row | undefined;
@@ -198,12 +206,13 @@ export function tenantState(t: Tenant): { state: TenantStateName; active: boolea
   return { state: t.plan === "trial" ? "trial" : "active", active: true, daysLeft: left };
 }
 
+/** Reserved subdomains that venues can't claim */
 const RESERVED = new Set("www admin api app apps mail email smtp ftp ns ns1 ns2 cdn static assets platform panel staff dashboard billing pay signup login register help support blog docs test dev demo root status shop store menu account accounts portal secure server host".split(" "));
 export function validateSlug(raw: string, allowReserved = false): string {
   const slug = String(raw || "").trim().toLowerCase();
   if (!/^[a-z][a-z0-9-]{2,29}$/.test(slug) || slug.endsWith("-") || slug.includes("--"))
-    throw new Error("آدرس باید ۳ تا ۳۰ حرفِ انگلیسیِ کوچک/عدد/خط‌تیره باشد و با حرف شروع شود (مثل: cafe-roya)");
-  if (RESERVED.has(slug) && !allowReserved) throw new Error("این آدرس رزرو شده است؛ آدرسِ دیگری انتخاب کنید");
+    throw new Error("The address must be 3–30 lowercase letters, digits or hyphens and start with a letter (e.g. blue-bottle)");
+  if (RESERVED.has(slug) && !allowReserved) throw new Error("This address is reserved. Please choose another one");
   return slug;
 }
 export function slugAvailable(slug: string): boolean {
@@ -213,18 +222,18 @@ export function slugAvailable(slug: string): boolean {
 export interface NewTenant {
   slug: string; name: string; kind: BusinessKind; ownerName: string; ownerPhone: string;
   password: string; sample: boolean; days?: number; plan?: string; note?: string;
-  /** کدِ همکارِ معرف */
+  /** Referring partner code */
   ref?: string;
-  /** آدرس‌های رزرو (مثل demo) فقط برای مجموعه‌های خودِ پلتفرم */
+  /** Reserved addresses (like demo) only for the platform's own venues */
   reserved?: boolean;
 }
-/** ساختِ مجموعهٔ تازه: رکورد + پوشه + دیتابیس با منوی نمونه + رمزِ پنل */
+/** Creates a new venue: record + folder + database with sample menu + panel password */
 export function createTenant(input: NewTenant): Tenant {
   const slug = validateSlug(input.slug, input.reserved);
   const name = String(input.name || "").trim().slice(0, 60);
-  if (name.length < 2) throw new Error("نامِ مجموعه را وارد کنید");
-  if (!slugAvailable(slug)) throw new Error("این آدرس قبلاً گرفته شده است");
-  if (isWeakPassword(String(input.password || ""))) throw new Error("رمزِ پنل حداقل ۸ نویسه باشد و رمزِ ساده نباشد");
+  if (name.length < 2) throw new Error("Please enter the venue name");
+  if (!slugAvailable(slug)) throw new Error("This address is already taken");
+  if (isWeakPassword(String(input.password || ""))) throw new Error("The password must be at least 8 characters and not a simple password");
   const kind: BusinessKind = (["cafe", "restaurant", "fastfood", "other"] as const).includes(input.kind) ? input.kind : "cafe";
   const days = input.days ?? platformSettings().trialDays;
   const now = new Date();
@@ -249,13 +258,13 @@ export function createTenant(input: NewTenant): Tenant {
 
 export function updateTenant(slug: string, patch: Partial<Pick<Tenant, "name" | "ownerName" | "ownerPhone" | "status" | "domain" | "note" | "expiresAt" | "plan" | "kind">>) {
   const t = getTenant(slug);
-  if (!t) throw new Error("مجموعه پیدا نشد");
+  if (!t) throw new Error("Venue not found");
   if (patch.domain !== undefined) {
     const d = patch.domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
-    if (d && !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) throw new Error("دامنه نامعتبر است");
+    if (d && !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) throw new Error("Invalid domain");
     const root = rootDomain();
-    if (d && root && (d === root || d.endsWith("." + root))) throw new Error("زیردامنه‌های خودِ پلتفرم خودکار کار می‌کنند؛ اینجا فقط دامنهٔ اختصاصی وارد کنید");
-    if (d && tenantByDomain(d) && tenantByDomain(d)!.slug !== slug) throw new Error("این دامنه برای مجموعهٔ دیگری ثبت شده است");
+    if (d && root && (d === root || d.endsWith("." + root))) throw new Error("Platform subdomains work automatically. Only enter a custom domain here");
+    if (d && tenantByDomain(d) && tenantByDomain(d)!.slug !== slug) throw new Error("This domain is already registered to another venue");
     patch.domain = d;
   }
   const n = { ...t, ...patch };
@@ -266,19 +275,19 @@ export function updateTenant(slug: string, patch: Partial<Pick<Tenant, "name" | 
   return getTenant(slug)!;
 }
 
-/** تمدید: از تاریخِ انقضای فعلی (اگر هنوز نگذشته) یا از امروز */
+/** Extend: from the current expiry date (if still in the future) or from today */
 export function extendTenant(slug: string, months: number, plan: string, extraDays = 0) {
   const t = getTenant(slug);
-  if (!t) throw new Error("مجموعه پیدا نشد");
+  if (!t) throw new Error("Venue not found");
   const base = new Date(Math.max(Date.now(), +new Date(t.expiresAt) || 0));
   base.setMonth(base.getMonth() + months);
   base.setTime(base.getTime() + extraDays * DAY);
   return updateTenant(slug, { expiresAt: base.toISOString(), plan, status: "active" });
 }
 
-/** حذف: پوشه به data/deleted منتقل می‌شود (قابل برگشت با دست) */
+/** Delete: the folder is moved to data/deleted (can be restored manually) */
 export function deleteTenant(slug: string) {
-  if (!getTenant(slug)) throw new Error("مجموعه پیدا نشد");
+  if (!getTenant(slug)) throw new Error("Venue not found");
   closeTenantDb(slug);
   const src = tenantDir(slug);
   if (fs.existsSync(src)) {
@@ -290,7 +299,7 @@ export function deleteTenant(slug: string) {
 }
 
 const seenAt = new Map<string, number>();
-/** آخرین فعالیت (حداکثر هر ۵ دقیقه یک‌بار نوشته می‌شود) */
+/** Last activity (written at most once every 5 minutes) */
 export function touchTenant(slug: string) {
   const last = seenAt.get(slug) || 0;
   if (Date.now() - last < 5 * 60_000) return;
@@ -298,7 +307,7 @@ export function touchTenant(slug: string) {
   pdb().prepare("UPDATE tenants SET last_seen = ? WHERE slug = ?").run(new Date().toISOString(), slug);
 }
 
-/** آمارِ سبکِ هر مجموعه برای پنلِ مدیرِ کل */
+/** Lightweight per-venue stats for the super admin panel */
 export function tenantStats(slug: string): { orders: number; items: number; customers: number; revenue30: number } {
   const file = path.join(tenantDir(slug), "cafe.db");
   if (!fs.existsSync(file)) return { orders: 0, items: 0, customers: 0, revenue30: 0 };
@@ -319,10 +328,11 @@ export function tenantStats(slug: string): { orders: number; items: number; cust
   }
 }
 
-/* ----------------------------- پرداخت‌ها ----------------------------- */
+/* ----------------------------- Payments ----------------------------- */
 export interface Payment {
   id: string; slug: string; plan: string; months: number; amount: number;
-  method: "zarinpal" | "card" | "manual"; status: "pending" | "paid" | "failed" | "rejected";
+  /** stripe = online card payment, card = bank transfer with receipt, manual = recorded by the admin */
+  method: "stripe" | "card" | "manual"; status: "pending" | "paid" | "failed" | "rejected";
   authority: string; refId: string; receipt: string; note: string; createdAt: string; paidAt: string;
   coupon: string; discount: number;
 }
@@ -333,7 +343,7 @@ const toPayment = (r: PRow): Payment => ({
   createdAt: r.created_at, paidAt: r.paid_at, coupon: r.coupon || "", discount: r.discount || 0,
 });
 export function createPayment(p: { slug: string; plan: Plan; method: Payment["method"]; receipt?: string; note?: string; amount?: number; coupon?: string; discount?: number }): Payment {
-  const id = `pay_${crypto.randomBytes(12).toString("base64url")}`; // ۹۶ بیت
+  const id = `pay_${crypto.randomBytes(12).toString("base64url")}`; // 96 bits
   pdb().prepare(
     "INSERT INTO payments (id, slug, plan, months, amount, method, status, receipt, note, created_at, coupon, discount, list_price) VALUES (?,?,?,?,?,?, 'pending', ?, ?, ?, ?, ?, ?)"
   ).run(id, p.slug, p.plan.id, p.plan.months, p.amount ?? p.plan.price, p.method, p.receipt || "", p.note || "", new Date().toISOString(),
@@ -357,16 +367,16 @@ export function listPayments(slug?: string, limit = 200): Payment[] {
     : pdb().prepare("SELECT * FROM payments ORDER BY created_at DESC LIMIT ?").all(limit);
   return (rows as unknown as PRow[]).map(toPayment);
 }
-/** تأییدِ پرداخت + تمدیدِ اشتراک (فقط یک‌بار؛ تکرارِ callback اشتراک را دوبار تمدید نمی‌کند) */
+/** Confirms a payment + extends the subscription (only once; a repeated callback doesn't extend twice) */
 export function markPaymentPaid(id: string, refId = "", note = ""): Payment {
   const d = pdb();
   const res = d.prepare("UPDATE payments SET status='paid', ref_id=?, paid_at=?, note=CASE WHEN ?!='' THEN ? ELSE note END WHERE id=? AND status IN ('pending','failed')")
     .run(refId, new Date().toISOString(), note, note, id);
   const p = getPayment(id);
-  if (!p) throw new Error("پرداخت پیدا نشد");
+  if (!p) throw new Error("Payment not found");
   if (Number(res.changes) > 0) {
     extendTenant(p.slug, p.months, p.plan);
-    // مصرفِ کدِ تخفیف فقط وقتی پرداخت واقعاً انجام شد
+    // Count coupon usage only once the payment actually succeeded
     if (p.coupon) d.prepare("UPDATE coupons SET used = used + 1 WHERE code = ?").run(p.coupon);
   }
   return p;
@@ -375,7 +385,7 @@ export function markPaymentFailed(id: string, status: "failed" | "rejected", not
   pdb().prepare("UPDATE payments SET status=?, note=? WHERE id=? AND status='pending'").run(status, note, id);
 }
 
-/* ----------------------------- پیامکِ پلتفرم ----------------------------- */
+/* ----------------------------- Platform SMS ----------------------------- */
 export function platformSmsReady() {
   const s = platformSettings().sms;
   return s.provider !== "none";
@@ -384,10 +394,10 @@ export async function sendPlatformSms(phone: string, text: string) {
   return sendSmsWith(platformSettings().sms, phone, text);
 }
 
-/* ----------------------------- مهاجرت از نسخهٔ تک‌مجموعه‌ای ----------------------------- */
+/* ----------------------------- Migration from single-venue mode ----------------------------- */
 /**
- * LEGACY_DOMAIN=artavilstar.com: دامنهٔ قبلیِ کافه به‌عنوانِ «دامنهٔ اختصاصیِ» همان مجموعه وصل می‌شود
- * (QRهای چاپ‌شده بدونِ هیچ تغییری کار می‌کنند). فقط وقتی مجموعه هنوز دامنهٔ اختصاصی ندارد.
+ * LEGACY_DOMAIN=mycafe.com: the venue's previous domain is attached as that venue's custom domain
+ * (printed QR codes keep working unchanged). Only when the venue has no custom domain yet.
  */
 function attachLegacyDomain(d: DatabaseSync, legacy: string) {
   const dom = (process.env.LEGACY_DOMAIN || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
@@ -398,12 +408,12 @@ function attachLegacyDomain(d: DatabaseSync, legacy: string) {
   if (!t || t.domain) return;
   if (d.prepare("SELECT 1 FROM tenants WHERE domain = ?").get(dom)) return;
   d.prepare("UPDATE tenants SET domain = ? WHERE slug = ?").run(dom, legacy);
-  console.log(`[platform] دامنهٔ ${dom} به مجموعهٔ «${legacy}» وصل شد`);
+  console.log(`[platform] Domain ${dom} attached to venue "${legacy}"`);
 }
 
 /**
- * LEGACY_TENANT=artavil: دادهٔ قبلی (data/cafe.db + data/uploads) یک‌بار به data/tenants/artavil منتقل
- * و به‌عنوانِ مجموعهٔ «بدونِ انقضا» ثبت می‌شود. رمزِ پنلِ قبلی (ADMIN_PASSWORD) هم حفظ می‌شود.
+ * LEGACY_TENANT=mycafe: existing data (data/cafe.db + data/uploads) is moved once to data/tenants/mycafe
+ * and registered as a venue that never expires. The previous panel password (ADMIN_PASSWORD) is kept.
  */
 function migrateLegacy(d: DatabaseSync) {
   const legacy = (process.env.LEGACY_TENANT || "").trim().toLowerCase();
@@ -416,7 +426,7 @@ function migrateLegacy(d: DatabaseSync) {
       const src = path.join(DATA_DIR, f);
       if (fs.existsSync(src)) fs.renameSync(src, path.join(dir, f));
     }
-    console.log(`[platform] دادهٔ قبلی به مجموعهٔ «${legacy}» منتقل شد`);
+    console.log(`[platform] Existing data moved to venue "${legacy}"`);
   }
   const dbFile = path.join(dir, "cafe.db");
   if (!fs.existsSync(dbFile)) return;
@@ -429,17 +439,17 @@ function migrateLegacy(d: DatabaseSync) {
     if (r) name = (JSON.parse(r.value) as { name?: string }).name || legacy;
     const pw = t.prepare("SELECT value FROM settings WHERE key='admin_pw'").get();
     if (!pw) {
-      // رمزِ قبلی (ADMIN_PASSWORD) منتقل می‌شود؛ اگر ضعیف بود، اولین ورود مجبور به عوض‌کردنش است
+      // The previous password (ADMIN_PASSWORD) is carried over; if weak, the first login must change it
       const old = process.env.ADMIN_PASSWORD || "cafe1234";
       t.prepare("INSERT INTO settings (key, value) VALUES ('admin_pw', ?)").run(JSON.stringify(hashPassword(old)));
       if (isWeakPassword(old)) t.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_pw_weak', 'true')").run();
     }
     t.close();
   } catch (e) {
-    console.error("[platform] خواندنِ دادهٔ قبلی:", e);
+    console.error("[platform] Reading existing data:", e);
   }
   d.prepare(
-    "INSERT INTO tenants (slug, name, kind, status, plan, expires_at, note, created_at) VALUES (?, ?, 'cafe', 'active', 'lifetime', ?, 'مجموعهٔ اصلی (منتقل‌شده از نسخهٔ قبلی)', ?)"
+    "INSERT INTO tenants (slug, name, kind, status, plan, expires_at, note, created_at) VALUES (?, ?, 'cafe', 'active', 'lifetime', ?, 'Main venue (migrated from single-venue mode)', ?)"
   ).run(legacy, name, "2099-12-31T00:00:00.000Z", new Date().toISOString());
   attachLegacyDomain(d, legacy);
 }

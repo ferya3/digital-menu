@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# کپیِ گواهیِ Let's Encrypt برای Nginx (هم بعد از صدور، هم بعد از هر تمدیدِ خودکار).
-# Nginx گواهیِ هر زیردامنه را از /etc/nginx/tenant-certs/<host>/ می‌خواند (بر اساسِ SNI).
-# certbot متغیرهای RENEWED_LINEAGE و RENEWED_DOMAINS را می‌دهد.
+# Copies a Let's Encrypt certificate for Nginx (after issuing and after every automatic renewal).
+# Nginx reads each host's certificate from /etc/nginx/tenant-certs/<host>/ (based on SNI).
+# certbot provides the RENEWED_LINEAGE and RENEWED_DOMAINS variables.
 set -eu
-L="${RENEWED_LINEAGE:?RENEWED_LINEAGE لازم است}"
+L="${RENEWED_LINEAGE:?RENEWED_LINEAGE is required}"
 DOMS="${RENEWED_DOMAINS:-$(basename "$L")}"
 BASE=/etc/nginx/tenant-certs
 GRP=www-data; getent group "$GRP" >/dev/null 2>&1 || GRP=root

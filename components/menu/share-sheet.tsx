@@ -12,7 +12,7 @@ export interface ShareTarget {
   image?: string;
 }
 
-/** کپی که روی HTTP هم کار کند (clipboard API فقط روی HTTPS هست) */
+/** Copy that also works over HTTP (the Clipboard API is HTTPS-only) */
 export async function copyText(s: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -37,9 +37,9 @@ export async function copyText(s: string): Promise<boolean> {
 }
 
 /**
- * اشتراک‌گذاری: اگر گوشی پنجرهٔ اشتراک‌گذاریِ خودش را داشته باشد (فقط روی HTTPS) همان باز می‌شود
- * — همراهِ عکسِ محصول؛ وگرنه پنل خودمان (واتساپ، تلگرام، اینستاگرام، پیامک، کپی).
- * خروجی: true یعنی اشتراکِ بومی انجام شد و پنل لازم نیست.
+ * Sharing: if the device has a native share sheet (HTTPS only) it is used — with the product photo;
+ * otherwise our own sheet (WhatsApp, Telegram, Instagram, SMS, copy).
+ * Returns true when native sharing handled it and our sheet isn't needed.
  */
 export async function nativeShare(t: ShareTarget): Promise<boolean> {
   if (typeof navigator === "undefined" || !navigator.share || !window.isSecureContext) return false;
@@ -59,7 +59,7 @@ export async function nativeShare(t: ShareTarget): Promise<boolean> {
     await navigator.share({ title: t.title, text: t.text, url: t.url });
     return true;
   } catch (e) {
-    return (e as Error)?.name === "AbortError"; // لغو توسط کاربر = تمام
+    return (e as Error)?.name === "AbortError"; // cancelled by the user = done
   }
 }
 
@@ -77,16 +77,16 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget | null; on
   async function instagram() {
     await copyText(full);
     setCopied("insta");
-    // اینستاگرام لینکِ اشتراکِ وب ندارد: متن کپی می‌شود و برنامه باز می‌شود تا در دایرکت/استوری بچسبانید
+    // Instagram has no web share link: copy the text and open the app to paste into a DM/story
     window.setTimeout(() => (window.location.href = "https://www.instagram.com/direct/inbox/"), 700);
   }
 
   const items = target
     ? [
-        { key: "wa", label: "واتساپ", icon: <MessageCircle className="size-6" />, cls: "bg-[#25D366] text-white", href: `https://wa.me/?text=${enc(full)}` },
-        { key: "tg", label: "تلگرام", icon: <Send className="size-6" />, cls: "bg-[#229ED9] text-white", href: `https://t.me/share/url?url=${enc(target.url)}&text=${enc(target.text)}` },
-        { key: "ig", label: "اینستاگرام", icon: <Instagram className="size-6" />, cls: "bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white", onClick: instagram },
-        { key: "sms", label: "پیامک", icon: <Smartphone className="size-6" />, cls: "bg-emerald-600 text-white", href: `sms:?&body=${enc(full)}` },
+        { key: "wa", label: "WhatsApp", icon: <MessageCircle className="size-6" />, cls: "bg-[#25D366] text-white", href: `https://wa.me/?text=${enc(full)}` },
+        { key: "tg", label: "Telegram", icon: <Send className="size-6" />, cls: "bg-[#229ED9] text-white", href: `https://t.me/share/url?url=${enc(target.url)}&text=${enc(target.text)}` },
+        { key: "ig", label: "Instagram", icon: <Instagram className="size-6" />, cls: "bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white", onClick: instagram },
+        { key: "sms", label: "SMS", icon: <Smartphone className="size-6" />, cls: "bg-emerald-600 text-white", href: `sms:?&body=${enc(full)}` },
       ]
     : [];
 
@@ -106,10 +106,10 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget | null; on
                 <img src={target.image} alt="" className="size-14 rounded-2xl object-cover" />
               ) : null}
               <div className="min-w-0 flex-1">
-                <h3 className="truncate text-lg font-extrabold">اشتراک‌گذاری «{target.title}»</h3>
-                <p className="truncate text-xs text-muted-foreground" dir="ltr">{target.url}</p>
+                <h3 className="truncate text-lg font-extrabold">Share “{target.title}”</h3>
+                <p className="truncate text-xs text-muted-foreground">{target.url}</p>
               </div>
-              <button onClick={onClose} aria-label="بستن" className="grid size-9 place-items-center rounded-full bg-muted"><X className="size-5" /></button>
+              <button onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-full bg-muted"><X className="size-5" /></button>
             </div>
 
             <div className="grid grid-cols-4 gap-2">
@@ -127,17 +127,17 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget | null; on
                 )
               )}
             </div>
-            {copied === "insta" && <p className="mt-3 rounded-xl bg-muted p-2 text-center text-xs">متن و لینک کپی شد ✅ — در اینستاگرام بچسبانید (Paste)</p>}
+            {copied === "insta" && <p className="mt-3 rounded-xl bg-muted p-2 text-center text-xs">Text and link copied ✅ — paste them in Instagram</p>}
 
             <div className="mt-4 flex gap-2">
               <button onClick={() => copy("link")} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm font-semibold transition hover:bg-muted">
-                {copied === "link" ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />} {copied === "link" ? "لینک کپی شد" : "کپی لینک"}
+                {copied === "link" ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />} {copied === "link" ? "Link copied" : "Copy link"}
               </button>
               <button onClick={() => copy("all")} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm font-semibold transition hover:bg-muted">
-                {copied === "all" ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />} {copied === "all" ? "کپی شد" : "کپی متن کامل"}
+                {copied === "all" ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />} {copied === "all" ? "Copied" : "Copy full text"}
               </button>
               {target.image && (
-                <a href={target.image} download className="grid size-11 shrink-0 place-items-center rounded-xl border border-border transition hover:bg-muted" aria-label="ذخیرهٔ عکس" title="ذخیرهٔ عکس (برای استوری)">
+                <a href={target.image} download className="grid size-11 shrink-0 place-items-center rounded-xl border border-border transition hover:bg-muted" aria-label="Save photo" title="Save photo (for stories)">
                   <Download className="size-4" />
                 </a>
               )}

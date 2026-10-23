@@ -13,8 +13,9 @@ import type {
   PayStatus,
   RequestType,
 } from "@/lib/types";
+import { roundMoney } from "@/lib/utils";
 
-// ۹۶ بیت تصادفی (۱۶ نویسه) — قابلِ حدس‌زدن نیست
+// 96 random bits (16 chars) — not guessable
 const id = (p: string) => `${p}_${crypto.randomBytes(12).toString("base64url")}`;
 const now = () => new Date().toISOString();
 
@@ -54,14 +55,14 @@ interface OrderRow {
   id: string; number: number; tbl: string; items: string; total: number;
   status: OrderStatus; paid: number; pay_status: PayStatus; receipt: string;
   receipt_reused: number; rejected_reason: string; note: string; phone: string;
-  created_at: string; updated_at: string;
+  created_at: string; updated_at: string; pay_method?: string;
 }
 function rowToOrder(r: OrderRow): Order {
   return {
     id: r.id, number: r.number, table: r.tbl, items: JSON.parse(r.items || "[]") as unknown as OrderItem[],
     total: r.total, status: r.status, paid: !!r.paid, payStatus: r.pay_status,
     receipt: r.receipt, receiptReused: !!r.receipt_reused, rejectedReason: r.rejected_reason,
-    note: r.note || "", phone: r.phone || "",
+    note: r.note || "", phone: r.phone || "", payMethod: r.pay_method || "",
     createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
@@ -73,7 +74,7 @@ export function createOrder(input: {
   note?: string;
 }): Order {
   const d = db();
-  // قیمت‌ها از روی دیتابیس محاسبه می‌شوند تا قابل دستکاری از سمت کاربر نباشد
+  // Prices come from the database so the client can't tamper with them
   const lines: OrderItem[] = [];
   for (const line of input.items) {
     const it = getItem(line.id);
@@ -81,8 +82,8 @@ export function createOrder(input: {
     const qty = Math.max(1, Math.floor(Number(line.qty) || 1));
     lines.push({ id: it.id, name: it.name, price: it.price, qty });
   }
-  if (lines.length === 0) throw new Error("هیچ آیتم معتبری در سبد نیست");
-  const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
+  if (lines.length === 0) throw new Error("Your cart has no valid items");
+  const total = roundMoney(lines.reduce((s, l) => s + l.price * l.qty, 0));
   const number =
     (d.prepare("SELECT COALESCE(MAX(number),0)+1 n FROM orders").get() as unknown as { n: number }).n;
   const oid = id("ord");
@@ -115,7 +116,7 @@ export function openBillOrders(table: string): Order[] {
 
 export function getBill(table: string): Bill {
   const orders = openBillOrders(table);
-  const total = orders.reduce((s, o) => s + o.total, 0);
+  const total = roundMoney(orders.reduce((s, o) => s + o.total, 0));
   const rejected = orders.find((o) => o.payStatus === "rejected");
   const receipt = (orders.find((o) => o.receipt)?.receipt) || "";
   const payStatus: PayStatus = orders.some((o) => o.payStatus === "pending")
@@ -136,7 +137,7 @@ export function getBill(table: string): Bill {
   };
 }
 
-/** رسید را به همهٔ سفارش‌های بازِ میز می‌چسباند و وضعیت پرداخت را «در انتظار» می‌کند */
+/** Attaches the receipt to all open orders of the table and sets their payment status to "pending" */
 export function attachReceiptToTable(table: string, imagePath: string, hash: string, reused = false): number {
   const d = db();
   const open = openBillOrders(table);
@@ -158,11 +159,11 @@ export function receiptReused(hash: string, excludeTable: string): boolean {
 }
 
 /* staff: change status / payment */
-/** «اول پرداخت، بعد آشپزخانه» (پیش‌فرض روشن) */
+/** "Pay first, then kitchen" (on by default) */
 export function payFirstEnabled(): boolean {
   return getSetting<boolean>("payFirst", true) !== false;
 }
-/** سفارشِ پرداخت‌نشده بعد از این مدت خودکار لغو می‌شود (مثلاً سفارشِ مزاحم از بیرونِ کافه) */
+/** Unpaid orders are auto-cancelled after this time (e.g. prank orders from outside the venue) */
 const UNPAID_EXPIRE_MS = 60 * 60 * 1000;
 function expireUnpaid() {
   if (!payFirstEnabled()) return;
@@ -179,13 +180,13 @@ function expireUnpaid() {
 export function setOrderStatus(orderId: string, status: OrderStatus): Order | null {
   if (status !== "cancelled" && status !== "new" && payFirstEnabled()) {
     const cur = getOrder(orderId);
-    // فقط شروعِ آماده‌سازی قفل است؛ سفارشی که از قبل در آشپزخانه بوده ادامه می‌دهد
-    if (cur && !cur.paid && cur.status === "new") throw new Error("این سفارش هنوز پرداخت نشده — اول پرداخت را در صندوق تأیید کنید");
+    // Only starting preparation is locked; an order already in the kitchen continues
+    if (cur && !cur.paid && cur.status === "new") throw new Error("This order hasn't been paid yet — confirm the payment at the cashier first");
   }
   db().prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?").run(status, now(), orderId);
   return changed(getOrder(orderId));
 }
-/** اعلامِ تغییرِ سفارش به پنل و به میزِ همان سفارش */
+/** Notifies the panel and the order's table about an order change */
 function changed(o: Order | null): Order | null {
   if (o) publish({ type: "order", table: o.table });
   return o;
@@ -193,7 +194,7 @@ function changed(o: Order | null): Order | null {
 export function setPayStatus(orderId: string, pay: PayStatus, reason = ""): Order | null {
   const d = db();
   if (pay === "confirmed") {
-    // تأییدِ فیشِ کارت‌به‌کارت
+    // Bank transfer receipt approved
     d.prepare("UPDATE orders SET pay_status='confirmed', paid=1, paid_at=CASE WHEN paid=1 AND paid_at!='' THEN paid_at ELSE ? END, pay_method=CASE WHEN pay_method!='' AND paid=1 THEN pay_method ELSE 'receipt' END, updated_at=? WHERE id=?").run(now(), now(), orderId);
   } else if (pay === "rejected") {
     const o = getOrder(orderId);
@@ -201,7 +202,7 @@ export function setPayStatus(orderId: string, pay: PayStatus, reason = ""): Orde
     d.prepare(
       "UPDATE orders SET pay_status='rejected', paid=0, receipt='', receipt_hash='', receipt_reused=0, rejected_reason=?, updated_at=? WHERE id=?"
     ).run(reason.slice(0, 200), now(), orderId);
-    // فیشِ ردشده را از سفارش پاک کن؛ اگر سفارش دیگری همان فایل را استفاده نمی‌کند، فایل را حذف کن
+    // Remove the rejected receipt from the order; delete the file if no other order uses it
     if (file) {
       const used = d.prepare("SELECT COUNT(*) c FROM orders WHERE receipt = ?").get(file) as unknown as { c: number };
       if (used.c === 0) deleteUpload(file);
@@ -212,9 +213,9 @@ export function setPayStatus(orderId: string, pay: PayStatus, reason = ""): Orde
   return changed(getOrder(orderId));
 }
 
-/** علامت «پرداخت شد» دستی (پرداخت نقدی/کارتخوان بدون فیش) */
-/** روشِ پرداخت برای حسابداری: receipt = کارت‌به‌کارت، pos = کارت‌خوان سر میز، counter = صندوق (نقدی/کارتخوان) */
-export type PayMethod = "receipt" | "pos" | "counter";
+/** Mark an order paid manually (cash / card reader without a receipt) */
+/** Payment method for accounting: receipt = bank transfer, pos = card reader at the table, counter = cashier, online = Stripe */
+export type PayMethod = "receipt" | "pos" | "counter" | "online";
 export function setPaid(orderId: string, paid: boolean, method: PayMethod = "counter"): Order | null {
   const d = db();
   if (paid) d.prepare("UPDATE orders SET paid=1, pay_status='confirmed', paid_at=?, pay_method=?, updated_at=? WHERE id=? AND paid=0").run(now(), method, now(), orderId);
@@ -222,20 +223,20 @@ export function setPaid(orderId: string, paid: boolean, method: PayMethod = "cou
   return changed(getOrder(orderId));
 }
 
-/** مشتری «کارت‌خوان سر میز» خواست: همهٔ سفارش‌های بازِ میز علامت می‌خورند + درخواست برای صندوق */
+/** Customer asked for a card reader at the table: mark all open orders + create a request for the cashier */
 export function requestPos(table: string) {
   const open = openBillOrders(table).filter((o) => o.payStatus !== "pending");
-  if (!open.length) throw new Error("صورتحساب بازی برای این میز نیست");
+  if (!open.length) throw new Error("There is no open bill for this table");
   const upd = db().prepare("UPDATE orders SET pay_status='pos', updated_at=? WHERE id=?");
   for (const o of open) upd.run(now(), o.id);
-  // درخواستِ تکراری نساز
+  // Don't create a duplicate request
   const dup = db().prepare("SELECT id FROM requests WHERE tbl=? AND type='pos' AND status='pending'").get(String(table));
   if (!dup) createRequest({ table, type: "pos" });
   publish({ type: "order", table: String(table) });
   return { ok: true };
 }
 
-/** تسویهٔ کلِ صورتحسابِ بازِ یک میز (کارت‌خوان/نقدی) + بستنِ درخواستِ کارت‌خوانِ آن میز */
+/** Settles a table's whole open bill (card reader/cash) + closes that table's card reader request */
 export function settleTable(table: string): number {
   const open = openBillOrders(table);
   for (const o of open) setPaid(o.id, true, o.payStatus === "pos" ? "pos" : "counter");
@@ -244,7 +245,7 @@ export function settleTable(table: string): number {
   return open.length;
 }
 
-/** تأیید/ردِ فیشِ کل صورتحسابِ یک میز (همهٔ سفارش‌های «در انتظار» با هم) */
+/** Approves/rejects the receipt for a table's whole bill (all "pending" orders together) */
 export function setTablePayStatus(table: string, pay: "confirmed" | "rejected", reason = ""): number {
   const rows = db()
     .prepare("SELECT id FROM orders WHERE tbl = ? AND pay_status = 'pending'")
@@ -259,7 +260,7 @@ export function createRequest(input: { table: string; type: RequestType; note?: 
   let amount = 0, orderCount = 0;
   if (input.type === "invoice" || input.type === "pos") {
     const open = openBillOrders(input.table);
-    amount = open.reduce((s, o) => s + o.total, 0);
+    amount = roundMoney(open.reduce((s, o) => s + o.total, 0));
     orderCount = open.length;
   }
   const rid = id("req");
@@ -273,7 +274,7 @@ export function createRequest(input: { table: string; type: RequestType; note?: 
 /* ---------- feedback ---------- */
 export function createFeedback(input: { table?: string; orderId?: string; rating: number; comment?: string }) {
   const r = Math.min(5, Math.max(1, Math.floor(Number(input.rating) || 0)));
-  if (!r) throw new Error("امتیاز باید بین ۱ تا ۵ باشد");
+  if (!r) throw new Error("The rating must be between 1 and 5");
   db().prepare(
     "INSERT INTO feedback (id, tbl, order_id, rating, comment, created_at) VALUES (?,?,?,?,?,?)"
   ).run(id("fb"), input.table || "", input.orderId || "", r, (input.comment || "").slice(0, 1000), now());
@@ -329,7 +330,7 @@ export interface StaffFeedback {
 }
 export interface StaffCustomer {
   phone: string; tables: string[]; visits: number; firstSeen: string; lastSeen: string;
-  /** نمی‌خواهد پیامکِ تبلیغاتی بگیرد */
+  /** Opted out of marketing SMS */
   optOut: boolean;
 }
 
@@ -401,7 +402,7 @@ export function updateCategory(cid: string, input: { name?: string; emoji?: stri
 export function deleteCategory(cid: string) {
   const d = db();
   const has = d.prepare("SELECT COUNT(*) c FROM items WHERE category_id=?").get(cid) as unknown as { c: number };
-  if (has.c > 0) throw new Error("این دسته محصول دارد؛ ابتدا محصولات آن را حذف کن");
+  if (has.c > 0) throw new Error("This category still has products. Delete its products first");
   d.prepare("DELETE FROM categories WHERE id=?").run(cid);
   return { ok: true };
 }
@@ -417,7 +418,7 @@ export function addItem(input: {
      VALUES (?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     iid, input.categoryId, String(input.name).trim(), (input.description || "").trim(),
-    Math.max(0, Math.round(Number(input.price) || 0)), Math.max(0, Math.round(Number(input.oldPrice) || 0)),
+    Math.max(0, roundMoney(Number(input.price) || 0)), Math.max(0, roundMoney(Number(input.oldPrice) || 0)),
     input.emoji?.trim() || "🍽️", input.image || "", input.tag?.trim() || "",
     input.available === false ? 0 : 1, sort
   );
@@ -432,7 +433,7 @@ export function updateItem(iid: string, input: Record<string, unknown>) {
   for (const [k, col] of Object.entries(map)) {
     if (input[k] == null) continue;
     let v: string | number = input[k] as string | number;
-    if (k === "price" || k === "oldPrice") v = Math.max(0, Math.round(Number(v) || 0));
+    if (k === "price" || k === "oldPrice") v = Math.max(0, roundMoney(Number(v) || 0));
     else v = String(v).trim();
     d.prepare(`UPDATE items SET ${col}=? WHERE id=?`).run(v, iid);
   }

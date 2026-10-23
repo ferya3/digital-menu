@@ -1,4 +1,4 @@
-/** کارهای زمان‌بندی‌شدهٔ سرور: یادآوریِ پیامکیِ تمدیدِ اشتراک (هر ساعت، فقط در حالتِ پلتفرم) */
+/** Scheduled server jobs: subscription renewal SMS reminders (hourly, platform mode only) */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || !process.env.ROOT_DOMAIN) return;
   const g = globalThis as unknown as { __reminderTimer?: NodeJS.Timeout };

@@ -8,7 +8,7 @@ import { SOLUTIONS } from "@/lib/solutions";
 export const dynamic = "force-dynamic";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-/** lastmod فقط وقتی تاریخِ واقعیِ تغییر را داریم (تاریخِ ساختگی را گوگل نادیده می‌گیرد و اعتمادش کم می‌شود) */
+/** lastmod only when we know the real change date (Google ignores fake dates and trusts the sitemap less) */
 function xml(urls: { loc: string; priority: string; freq: string; lastmod?: string }[]) {
   const body = urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ""}<changefreq>${u.freq}</changefreq><priority>${u.priority}</priority></url>`).join("\n");
   return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`, {
@@ -16,7 +16,7 @@ function xml(urls: { loc: string; priority: string; freq: string; lastmod?: stri
   });
 }
 
-/** نقشهٔ سایت: صفحه‌های پلتفرم، یا منو + صفحهٔ هر محصولِ مجموعه */
+/** Sitemap: platform pages, or a venue's menu + each product page */
 export async function GET() {
   const origin = await siteOrigin();
   if (saasEnabled()) {

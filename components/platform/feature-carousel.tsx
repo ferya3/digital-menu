@@ -1,11 +1,10 @@
 "use client";
 
-import { toFa } from "@/lib/utils";
 import { FeatureIcon } from "@/components/platform/feature-icon";
 import { DeckCarousel } from "@/components/platform/deck-carousel";
 import type { FeatureItem } from "@/lib/site-content";
 
-/** کارت‌های امکانات در دستهٔ کارت، با پخشِ خودکار */
+/** Feature cards in a card deck, with autoplay */
 export function FeatureCarousel({ items, label, autoplay }: { items: FeatureItem[]; label: string; autoplay: number }) {
   return (
     <DeckCarousel
@@ -14,7 +13,7 @@ export function FeatureCarousel({ items, label, autoplay }: { items: FeatureItem
       cardClass="h-[21rem] w-[min(19rem,74vw)] rounded-[1.75rem] border-4 border-card bg-slate-950 text-white shadow-2xl shadow-black/25 sm:h-[24rem] sm:w-[22rem] sm:rounded-[2.25rem] sm:border-8"
       titles={items.map((f) => f.title)}
       slides={items.map((f, i) => f.image ? (
-        // کارتِ عکس‌دار: عکس کلِ کارت را می‌پوشاند، متن روی سایهٔ پایینِ عکس
+        // Image card: the image covers the whole card, text sits on the bottom shade
         <div key={i} className="relative h-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={f.image} alt={f.title} loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover transition-transform duration-[6s] ease-out group-data-[on=true]:scale-105" />
@@ -45,7 +44,7 @@ export function FeatureCarousel({ items, label, autoplay }: { items: FeatureItem
   );
 }
 
-/** «۲ از ۷» بالای کارتِ فعال */
+/** "2 of 7" on top of the active card */
 function Badge({ i, n }: { i: number; n: number }) {
   return (
     <span aria-hidden className="absolute start-5 top-5 flex items-center gap-2 opacity-0 transition-opacity duration-300 group-data-[on=true]:opacity-100">
@@ -53,7 +52,7 @@ function Badge({ i, n }: { i: number; n: number }) {
         <span className="absolute inline-flex size-full animate-ping rounded-full bg-white/80 motion-reduce:animate-none" />
         <span className="relative inline-flex size-2 rounded-full bg-white" />
       </span>
-      <span className="text-[10px] font-bold tracking-widest text-white/80 drop-shadow">{toFa(i + 1)} از {toFa(n)}</span>
+      <span className="text-[10px] font-bold tracking-widest text-white/80 drop-shadow">{i + 1} of {n}</span>
     </span>
   );
 }

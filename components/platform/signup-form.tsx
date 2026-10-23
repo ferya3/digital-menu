@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Loader2, Rocket, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, toFa } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { unwrap } from "@/lib/action-result";
 import { checkSlugAction, signupAction, signupOtpAction } from "@/app/platform/actions";
 import type { BusinessKind } from "@/lib/seeds";
@@ -21,8 +21,6 @@ function Label({ text, hint, children }: { text: string; hint?: React.ReactNode;
   );
 }
 
-const toLatinDigits = (s: string) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
-
 export function SignupForm({ root, otp, kinds, texts, refCode = "" }: { root: string; otp: boolean; kinds: Record<BusinessKind, string>; texts: { title: string; subtitle: string; button: string; requireTerms: boolean }; refCode?: string }) {
   const [accepted, setAccepted] = useState(false);
   const [f, setF] = useState({ name: "", kind: "cafe" as BusinessKind, slug: "", ownerName: "", phone: "", password: "", code: "", sample: true, website: "", ref: refCode });
@@ -34,7 +32,7 @@ export function SignupForm({ root, otp, kinds, texts, refCode = "" }: { root: st
   const [err, setErr] = useState("");
   const [done, setDone] = useState<{ host: string } | null>(null);
 
-  // بررسیِ زندهٔ آزاد بودنِ آدرس
+  // Live check that the address is available
   useEffect(() => {
     if (f.slug.length < 3) { setSlugState(null); return; }
     const t = window.setTimeout(() => {
@@ -48,7 +46,7 @@ export function SignupForm({ root, otp, kinds, texts, refCode = "" }: { root: st
     try {
       const r = unwrap(await signupOtpAction(f.phone));
       setCodeSent(r.required);
-    } catch (e) { setErr(e instanceof Error ? e.message : "خطا"); } finally { setBusy(false); }
+    } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong"); } finally { setBusy(false); }
   }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,18 +54,18 @@ export function SignupForm({ root, otp, kinds, texts, refCode = "" }: { root: st
     if (otp && !codeSent) return sendCode();
     setBusy(true);
     try {
-      const r = unwrap(await signupAction({ ...f, phone: toLatinDigits(f.phone), code: toLatinDigits(f.code) }));
+      const r = unwrap(await signupAction({ ...f, phone: f.phone.trim(), code: f.code.trim() }));
       setDone({ host: r.host });
       window.location.href = r.url;
-    } catch (e) { setErr(e instanceof Error ? e.message : "خطا"); setBusy(false); }
+    } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong"); setBusy(false); }
   }
 
   if (done) {
     return (
       <div className="rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
         <Loader2 className="mx-auto size-10 animate-spin text-primary" />
-        <h1 className="mt-4 text-xl font-black">در حال آماده‌سازیِ منوی شما…</h1>
-        <p className="mt-2 text-sm text-muted-foreground" dir="ltr">{done.host}</p>
+        <h1 className="mt-4 text-xl font-black">Setting up your menu…</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{done.host}</p>
       </div>
     );
   }
@@ -78,11 +76,11 @@ export function SignupForm({ root, otp, kinds, texts, refCode = "" }: { root: st
       <p className="mt-1 text-sm text-muted-foreground">{texts.subtitle}</p>
 
       <div className="mt-6 space-y-4">
-        <Label text="نامِ مجموعه">
-          <input required value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="مثلاً کافه رویا" className={fieldCls} maxLength={60} />
+        <Label text="Business name">
+          <input required value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. Bella Café" className={fieldCls} maxLength={60} />
         </Label>
         <div>
-          <span className="mb-1.5 block text-sm font-bold">نوعِ کسب‌وکار</span>
+          <span className="mb-1.5 block text-sm font-bold">Business type</span>
           <div className="grid grid-cols-2 gap-2">
             {(Object.keys(kinds) as BusinessKind[]).map((k) => (
               <button type="button" key={k} onClick={() => set({ kind: k })} className={cn("rounded-2xl border-2 px-3 py-2.5 text-sm font-semibold transition", f.kind === k ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40")}>
@@ -92,54 +90,54 @@ export function SignupForm({ root, otp, kinds, texts, refCode = "" }: { root: st
           </div>
         </div>
         <Label
-          text="آدرسِ منو"
-          hint={slugState ? <span className={cn("flex items-center gap-1 font-semibold", slugState.ok ? "text-green-700 dark:text-green-400" : "text-primary")}>{slugState.ok ? <Check className="size-3.5" /> : <X className="size-3.5" />}{slugState.message}</span> : "حروفِ انگلیسیِ کوچک، عدد و خط‌تیره — بعداً روی QRها چاپ می‌شود"}
+          text="Menu address"
+          hint={slugState ? <span className={cn("flex items-center gap-1 font-semibold", slugState.ok ? "text-green-700 dark:text-green-400" : "text-primary")}>{slugState.ok ? <Check className="size-3.5" /> : <X className="size-3.5" />}{slugState.message}</span> : "Lowercase letters, numbers and hyphens — this will be printed on your QR codes"}
         >
-          <div dir="ltr" className="flex items-center overflow-hidden rounded-2xl border border-border bg-background focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
-            <input required value={f.slug} onChange={(e) => set({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} placeholder="roya" className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm outline-none" maxLength={30} />
+          <div className="flex items-center overflow-hidden rounded-2xl border border-border bg-background focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
+            <input required value={f.slug} onChange={(e) => set({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} placeholder="bella" className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm outline-none" maxLength={30} />
             <span className="shrink-0 bg-muted px-3 py-3 text-sm text-muted-foreground">.{root}</span>
           </div>
         </Label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Label text="نامِ شما">
-            <input value={f.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder="نام و نام خانوادگی" className={fieldCls} maxLength={60} />
+          <Label text="Your name">
+            <input value={f.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder="Full name" className={fieldCls} maxLength={60} />
           </Label>
-          <Label text="موبایل">
-            <input required value={f.phone} onChange={(e) => { set({ phone: e.target.value }); setCodeSent(false); }} inputMode="tel" dir="ltr" placeholder="09123456789" className={fieldCls} />
+          <Label text="Mobile number" hint="Include your country code">
+            <input required value={f.phone} onChange={(e) => { set({ phone: e.target.value }); setCodeSent(false); }} inputMode="tel" autoComplete="tel" placeholder="+1 555 123 4567" className={fieldCls} />
           </Label>
         </div>
-        <Label text="رمزِ پنلِ مدیریت" hint="حداقل ۸ نویسه؛ با همین رمز وارد پنلِ مجموعه می‌شوید">
+        <Label text="Dashboard password" hint="At least 8 characters — you’ll use it to log in to your dashboard">
           <input required type="password" minLength={8} value={f.password} onChange={(e) => set({ password: e.target.value })} className={fieldCls} autoComplete="new-password" />
         </Label>
         {showRef ? (
-          <Label text="کدِ معرف (اختیاری)" hint={refCode ? "از طریقِ لینکِ همکار آمده‌اید" : "اگر کسی ما را به شما معرفی کرده، کدش را وارد کنید"}>
-            <input value={f.ref} onChange={(e) => set({ ref: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} dir="ltr" className={fieldCls} maxLength={20} />
+          <Label text="Referral code (optional)" hint={refCode ? "You came here through a partner link" : "If someone referred you to us, enter their code"}>
+            <input value={f.ref} onChange={(e) => set({ ref: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} className={fieldCls} maxLength={20} />
           </Label>
         ) : (
-          <button type="button" onClick={() => setShowRef(true)} className="text-start text-xs font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">کدِ معرف دارید؟</button>
+          <button type="button" onClick={() => setShowRef(true)} className="text-start text-xs font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Have a referral code?</button>
         )}
-        {/* تلهٔ ربات‌ها: برای انسان دیده نمی‌شود */}
+        {/* Bot honeypot: invisible to humans */}
         <input tabIndex={-1} autoComplete="off" value={f.website} onChange={(e) => set({ website: e.target.value })} className="hidden" aria-hidden name="website" />
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input type="checkbox" className="size-4 accent-primary" checked={f.sample} onChange={(e) => set({ sample: e.target.checked })} />
-          با منوی نمونه شروع کن (بعداً قابل حذف است)
+          Start with a sample menu (you can delete it later)
         </label>
         {texts.requireTerms && (
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input type="checkbox" required className="size-4 accent-primary" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
-            <span><a href="/terms" target="_blank" className="font-semibold text-primary underline">قوانین</a> و <a href="/privacy" target="_blank" className="font-semibold text-primary underline">حریمِ خصوصی</a> را می‌پذیرم</span>
+            <span>I agree to the <a href="/terms" target="_blank" className="font-semibold text-primary underline">Terms</a> and <a href="/privacy" target="_blank" className="font-semibold text-primary underline">Privacy Policy</a></span>
           </label>
         )}
         {otp && codeSent && (
-          <Label text="کدِ تأییدِ پیامک‌شده" hint={<button type="button" onClick={sendCode} className="font-semibold text-primary underline">ارسالِ دوبارهٔ کد</button>}>
-            <input required value={f.code} onChange={(e) => set({ code: e.target.value })} inputMode="numeric" dir="ltr" placeholder="12345" className={fieldCls} autoFocus />
+          <Label text="Verification code (sent by SMS)" hint={<button type="button" onClick={sendCode} className="font-semibold text-primary underline">Resend code</button>}>
+            <input required value={f.code} onChange={(e) => set({ code: e.target.value })} inputMode="numeric" autoComplete="one-time-code" placeholder="12345" className={fieldCls} autoFocus />
           </Label>
         )}
       </div>
 
       {err && <p className="mt-4 rounded-2xl bg-primary/10 p-3 text-sm font-semibold text-primary">{err}</p>}
       <Button type="submit" size="lg" className="mt-6 h-12 w-full rounded-2xl text-base" disabled={busy || (slugState !== null && !slugState.ok)}>
-        {busy ? <Loader2 className="animate-spin" /> : otp && !codeSent ? "دریافتِ کدِ تأیید" : <><Rocket className="size-5" /> {texts.button}</>}
+        {busy ? <Loader2 className="animate-spin" /> : otp && !codeSent ? "Send verification code" : <><Rocket className="size-5" /> {texts.button}</>}
       </Button>
     </form>
   );

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource-variable/vazirmatn";
+import "@fontsource-variable/inter";
 import "./globals.css";
 import { headers } from "next/headers";
 import { saasEnabled } from "@/lib/tenant-context";
@@ -9,8 +9,8 @@ import { getMenu } from "@/lib/queries";
 import { NOINDEX, cafeDescription, cafeInfo, isImgSrc, siteOrigin, tenantIndexable } from "@/lib/seo";
 
 /**
- * سئو: عنوان (با الگو برای زیرصفحه‌ها)، توضیح، تصویرِ اشتراک‌گذاری، آیکون و تأییدِ گوگل.
- * آدرسِ اصلیِ (canonical) هر صفحه در خودِ صفحه تعیین می‌شود.
+ * SEO: title (with a template for sub-pages), description, share image, icon and Google verification.
+ * Each page sets its own canonical URL.
  */
 export async function generateMetadata(): Promise<Metadata> {
   try {
@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
         title: { default: title, template: `%s | ${c.brand.name}` },
         description,
         applicationName: c.brand.name,
-        openGraph: { type: "website", locale: "fa_IR", siteName: c.brand.name, title, description, images: [{ url: image, width: 1200, height: 630, alt: c.brand.name }] },
+        openGraph: { type: "website", locale: "en_US", siteName: c.brand.name, title, description, images: [{ url: image, width: 1200, height: 630, alt: c.brand.name }] },
         twitter: { card: "summary_large_image", title, description, images: [image] },
         ...(isImgSrc(c.brand.logo) ? { icons: { icon: c.brand.logo, apple: c.brand.logo } } : {}),
         ...(c.brand.googleVerification ? { verification: { google: c.brand.googleVerification } } : {}),
@@ -33,7 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
     }
     return await withTenant(() => {
       const cafe = cafeInfo();
-      const title = `منوی ${cafe.name}${cafe.city ? ` ${cafe.city}` : ""} | قیمت‌ها و سفارش آنلاین`;
+      const title = `${cafe.name}${cafe.city ? ` ${cafe.city}` : ""} Menu | Prices & Online Ordering`;
       const description = cafeDescription(cafe, getMenu());
       const image = cafe.heroPoster || "/og.png";
       return {
@@ -41,14 +41,14 @@ export async function generateMetadata(): Promise<Metadata> {
         title: { default: title, template: `%s | ${cafe.name}` },
         description,
         applicationName: cafe.name,
-        openGraph: { type: "website", locale: "fa_IR", siteName: cafe.name, title, description, images: [{ url: image, ...(cafe.heroPoster ? {} : { width: 1200, height: 630 }), alt: cafe.name }] },
+        openGraph: { type: "website", locale: "en_US", siteName: cafe.name, title, description, images: [{ url: image, ...(cafe.heroPoster ? {} : { width: 1200, height: 630 }), alt: cafe.name }] },
         twitter: { card: "summary_large_image", title, description, images: [image] },
         ...(isImgSrc(cafe.logo) ? { icons: { icon: `${cafe.logo}?w=160`, apple: `${cafe.logo}?w=320&f=jpg` } } : {}),
         ...(tenantIndexable() ? {} : NOINDEX),
       };
     });
   } catch {
-    return { title: "منوی دیجیتال", ...NOINDEX };
+    return { title: "Digital Menu", ...NOINDEX };
   }
 }
 
@@ -64,10 +64,10 @@ try{if(sessionStorage.getItem('cafe_splash_seen'))document.documentElement.class
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // nonceِ CSP (از middleware) — بدونِ آن این اسکریپتِ کوچک هم اجرا نمی‌شد
+  // CSP nonce (from middleware) — without it even this small inline script would be blocked
   const nonce = (await headers()).get("x-nonce") || undefined;
   return (
-    <html lang="fa" dir="rtl" suppressHydrationWarning>
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>

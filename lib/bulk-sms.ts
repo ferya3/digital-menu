@@ -9,15 +9,15 @@ import { currentTenant } from "@/lib/tenant-context";
 
 const MAX_RECIPIENTS = 3000;
 const MAX_CHARS = 600;
-/** پیشوند/پسوندی که پنل‌های ارسال با لینک برای پیامکِ تبلیغاتی می‌خواهند */
-export const CANCEL_FOOTER = "لغو 11";
+/** Opt-out footer appended to marketing SMS (Twilio handles STOP replies automatically) */
+export const CANCEL_FOOTER = "Reply STOP to unsubscribe";
 
 const g = globalThis as unknown as { __smsRunning?: Set<string> };
 const running = (g.__smsRunning ??= new Set());
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
 
-/** ارسالِ یک پیامکِ متنی با سامانهٔ تنظیم‌شدهٔ همین مجموعه؛ در خطا Error با پیامِ فارسی پرتاب می‌کند */
+/** Sends one text SMS via this venue's configured provider; throws an Error with a readable message on failure */
 export async function sendSmsText(phone: string, text: string): Promise<string> {
   return sendSmsWith({ ...DEFAULT_SMS, ...getSetting<Partial<SmsSettings>>("sms", {}) }, phone, text);
 }
@@ -41,25 +41,25 @@ export function listCampaigns(): Campaign[] {
   return rows.map((r) => ({ id: r.id, message: r.message, createdAt: r.created_at, status: r.status, note: r.note, ...counts(r.id) }));
 }
 
-/** ساختِ کمپین و شروعِ ارسال در پس‌زمینه. فقط به مشتریانِ ثبت‌شده که «لغو» نکرده‌اند ارسال می‌شود. */
+/** Creates a campaign and starts sending in the background. Only sent to registered customers who haven't opted out. */
 export function startCampaign(message: string, phones: string[], addCancel: boolean) {
   const base = message.trim();
-  if (!base) throw new Error("متن پیامک را بنویسید");
+  if (!base) throw new Error("Please enter the SMS text");
   const text = addCancel && !base.includes(CANCEL_FOOTER) ? `${base}\n${CANCEL_FOOTER}` : base;
-  if ([...text].length > MAX_CHARS) throw new Error(`متن پیامک بیش از ${MAX_CHARS} نویسه است`);
+  if ([...text].length > MAX_CHARS) throw new Error(`The SMS text is longer than ${MAX_CHARS} characters`);
   const d = db();
   const known = new Map(
     (d.prepare("SELECT phone, sms_optout o FROM customers").all() as unknown as { phone: string; o: number }[]).map((r) => [r.phone, !!r.o])
   );
   const list: string[] = [];
   let skipped = 0;
-  for (const raw of new Set(phones.map(normalizePhone))) {
+  for (const raw of new Set(phones.map((p) => normalizePhone(p)))) {
     if (!isValidPhone(raw) || !known.has(raw) || known.get(raw)) { skipped++; continue; }
     list.push(raw);
   }
-  if (!list.length) throw new Error("گیرندهٔ معتبری نیست (شماره‌های لغوشده یا نامعتبر حذف می‌شوند)");
-  if (list.length > MAX_RECIPIENTS) throw new Error(`حداکثر ${MAX_RECIPIENTS} گیرنده در هر ارسال مجاز است`);
-  const id = `sms_${crypto.randomBytes(12).toString("base64url")}`; // ۹۶ بیت
+  if (!list.length) throw new Error("No valid recipients (opted-out or invalid numbers are skipped)");
+  if (list.length > MAX_RECIPIENTS) throw new Error(`At most ${MAX_RECIPIENTS} recipients are allowed per send`);
+  const id = `sms_${crypto.randomBytes(12).toString("base64url")}`; // 96 bits
   d.prepare("INSERT INTO sms_campaigns (id, message, created_at, total, status) VALUES (?,?,?,?, 'running')").run(id, text, now(), list.length);
   const ins = d.prepare("INSERT INTO sms_outbox (campaign_id, phone) VALUES (?,?)");
   d.exec("BEGIN");
@@ -68,7 +68,7 @@ export function startCampaign(message: string, phones: string[], addCancel: bool
   return { id, total: list.length, skipped };
 }
 
-/** حلقهٔ ارسال: تک‌تک، با فاصلهٔ کوتاه؛ اگر پنل پشت‌سرهم ۳ بار خطا داد (مثلاً نبودِ اعتبار) متوقف می‌شود */
+/** Send loop: one at a time with a short pause; stops after 3 consecutive provider errors (e.g. no balance) */
 async function run(id: string) {
   const key = `${currentTenant().slug}:${id}`;
   if (running.has(key)) return;
@@ -89,10 +89,10 @@ async function run(id: string) {
         d.prepare("UPDATE sms_outbox SET status='sent', detail='', sent_at=? WHERE campaign_id=? AND phone=?").run(now(), id, next.phone);
         consecutive = 0;
       } catch (e) {
-        const detail = (e instanceof Error ? e.message : "خطا").slice(0, 200);
+        const detail = (e instanceof Error ? e.message : "Error").slice(0, 200);
         d.prepare("UPDATE sms_outbox SET status='failed', detail=? WHERE campaign_id=? AND phone=?").run(detail, id, next.phone);
         if (++consecutive >= 3) {
-          d.prepare("UPDATE sms_campaigns SET status='failed', note=? WHERE id=?").run(`ارسال متوقف شد: ${detail}`, id);
+          d.prepare("UPDATE sms_campaigns SET status='failed', note=? WHERE id=?").run(`Sending stopped: ${detail}`, id);
           return;
         }
       }
@@ -106,16 +106,16 @@ async function run(id: string) {
   }
 }
 
-/** ادامه (نیمه‌کاره/متوقف)، تلاش دوباره برای ناموفق‌ها، یا لغو */
+/** Resume (interrupted/stopped), retry failed ones, or cancel */
 export function controlCampaign(id: string, action: "resume" | "retry" | "cancel") {
   const d = db();
   if (action === "cancel") {
-    d.prepare("UPDATE sms_campaigns SET status='cancelled', note='لغو شد' WHERE id=? AND status IN ('running','interrupted','failed')").run(id);
+    d.prepare("UPDATE sms_campaigns SET status='cancelled', note='Cancelled' WHERE id=? AND status IN ('running','interrupted','failed')").run(id);
     return { ok: true };
   }
-  if (running.has(`${currentTenant().slug}:${id}`)) throw new Error("این ارسال هم‌اکنون در حال اجراست");
+  if (running.has(`${currentTenant().slug}:${id}`)) throw new Error("This campaign is already sending");
   if (action === "retry") d.prepare("UPDATE sms_outbox SET status='queued', detail='' WHERE campaign_id=? AND status='failed'").run(id);
-  if (!counts(id).queued) throw new Error("موردِ باقی‌مانده‌ای برای ارسال نیست");
+  if (!counts(id).queued) throw new Error("Nothing left to send");
   void run(id);
   return { ok: true };
 }

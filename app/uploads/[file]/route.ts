@@ -16,17 +16,17 @@ const TYPES: Record<string, string> = {
   ".mov": "video/quicktime",
 };
 
-/** فایل‌های آپلودی (رسید، عکس محصول، لوگو، ویدیوی هیرو) را از data/uploads سرو می‌کند */
+/** Serves uploaded files (receipts, item photos, logos, hero videos) from data/uploads */
 export async function GET(req: Request, { params }: { params: Promise<{ file: string }> }) {
   return tenantRoute(async () => {
     const { file } = await params;
-    const name = path.basename(file); // جلوگیری از خروج از پوشه (../)
+    const name = path.basename(file); // prevent path traversal (../)
     const type = TYPES[path.extname(name).toLowerCase()];
     if (!type) return new Response("Not found", { status: 404 });
     let full = path.join(uploadsDir(), name);
     let ctype = type;
 
-    // نسخهٔ کوچکِ عکس برای منو: ?w=480 (یک‌بار ساخته و روی دیسک نگه داشته می‌شود)
+    // Resized image for the menu: ?w=480 (generated once and cached on disk)
     const sp = new URL(req.url).searchParams;
     const w = Number(sp.get("w"));
     if (w && type.startsWith("image/")) {
@@ -47,7 +47,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ file: st
       "Accept-Ranges": "bytes",
     };
 
-    // ویدیو در مرورگرها (به‌خصوص سافاری) با درخواستِ Range تکه‌تکه خوانده می‌شود
+    // Browsers (especially Safari) read videos in chunks with Range requests
     const m = req.headers.get("range")?.match(/^bytes=(\d*)-(\d*)$/);
     if (m && (m[1] || m[2])) {
       const start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));

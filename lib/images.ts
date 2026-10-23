@@ -5,28 +5,28 @@ import fs from "node:fs";
 import path from "node:path";
 import { currentTenant } from "@/lib/tenant-context";
 
-// آپلودها کنارِ دیتابیسِ هر مجموعه نگه داشته می‌شوند (بک‌آپ یکجا) و با app/uploads سرو می‌شوند
+// Uploads live next to each venue's database (single backup) and are served via app/uploads
 export const uploadsDir = () => path.join(currentTenant().dir, "uploads");
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
-/** فایلِ ارسالی در FormData (کلید file) را می‌خواند و بررسی می‌کند.
- *  نوعِ فایل از روی «محتوا» (sharp) تشخیص داده می‌شود نه از MIME؛ چون بعضی گوشی‌ها webp را با نوعِ خالی/عجیب می‌فرستند. */
+/** Reads and validates the uploaded file from FormData (key "file").
+ *  The type is detected from the content (sharp), not the MIME type, since some phones send webp with an empty/odd type. */
 export async function readUpload(fd: FormData | null | undefined): Promise<Buffer | null> {
   const f = fd?.get("file");
   if (!f || typeof f === "string") return null;
-  if (f.size > MAX_BYTES) throw new Error("حجم تصویر بیش از ۱۰ مگابایت است");
+  if (f.size > MAX_BYTES) throw new Error("The image is larger than 10 MB");
   const buf = Buffer.from(await f.arrayBuffer());
   try {
     const meta = await sharp(buf).metadata();
     if (!meta.width || !meta.height) throw new Error("bad");
   } catch {
-    throw new Error("فایل، یک تصویرِ معتبر نیست (فرمت‌های JPG، PNG، WebP، AVIF، HEIC، GIF پذیرفته می‌شود)");
+    throw new Error("The file isn't a valid image (JPG, PNG, WebP, AVIF, HEIC and GIF are accepted)");
   }
   return buf;
 }
 
-/** رسید پرداخت: تبدیل به WebP + مهرِ ضدجعلِ کم‌رنگ (سمت سرور). هش برای تشخیص تکراری برمی‌گردد. */
+/** Payment receipt: converted to WebP + a subtle anti-forgery stamp (server side). Returns a hash to detect duplicates. */
 export async function saveReceiptWebp(
   buf: Buffer,
   table: string
@@ -40,7 +40,7 @@ export async function saveReceiptWebp(
   const w = Math.min(meta.width || 900, 1200);
   const img = base.resize(w, undefined, { withoutEnlargement: true });
 
-  // مهرِ ضدجعل (ASCII تا بدون نیاز به فونت خاص رندر شود)
+  // Anti-forgery stamp (ASCII so it renders without a special font)
   const stamp = `CAFE RECEIPT  table ${table}  ${new Date().toISOString().slice(0, 16).replace("T", " ")}  #${hash.slice(0, 8)}`;
   let out: Buffer;
   try {
@@ -49,14 +49,14 @@ export async function saveReceiptWebp(
     );
     out = await img.composite([{ input: svg, gravity: "south" }]).webp({ quality: 80 }).toBuffer();
   } catch {
-    // اگر حک‌کردن شکست خورد، فقط WebP ذخیره می‌شود تا پرداخت بلاک نشود
+    // If stamping fails, save the plain WebP so the payment isn't blocked
     out = await img.webp({ quality: 80 }).toBuffer();
   }
   fs.writeFileSync(path.join(uploadsDir(), file), out);
   return { path: "/uploads/" + file, hash };
 }
 
-/** عکس محصول/دسته: تبدیل به WebP بهینه */
+/** Product/category image: converted to optimized WebP */
 export async function saveImageWebp(buf: Buffer, label: string, size = 1000): Promise<string> {
   fs.mkdirSync(uploadsDir(), { recursive: true });
   const file = `${label}-${Date.now()}.webp`;
@@ -82,12 +82,12 @@ export function deleteUpload(webPath: string) {
   }
 }
 
-/** عرض‌های مجاز برای نسخهٔ کوچک (تا کسی نتواند بی‌نهایت فایل بسازد) */
+/** Allowed thumbnail widths (so nobody can generate unlimited files) */
 const THUMB_WIDTHS = [160, 320, 480, 720, 1080];
 const thumbsDir = () => path.join(uploadsDir(), ".thumbs");
 const pending = new Map<string, Promise<string>>();
 
-/** نسخهٔ کوچکِ WebP از یک عکسِ آپلودی؛ مسیرِ فایلِ کش‌شده را برمی‌گرداند */
+/** Small WebP version of an uploaded image; returns the cached file path */
 export async function thumbnail(src: string, width: number, format: "webp" | "jpg" = "webp"): Promise<string | null> {
   const w = THUMB_WIDTHS.find((x) => x >= width) ?? THUMB_WIDTHS[THUMB_WIDTHS.length - 1];
   const out = path.join(thumbsDir(), `${path.basename(src, path.extname(src))}-${w}.${format}`);
@@ -98,7 +98,7 @@ export async function thumbnail(src: string, width: number, format: "webp" | "jp
     job = (async () => {
       fs.mkdirSync(thumbsDir(), { recursive: true });
       const img = sharp(src).resize(w, w, { fit: "inside", withoutEnlargement: true });
-      // jpg برای پیش‌نمایشِ لینک در واتساپ (WebP را همه‌جا نشان نمی‌دهد)
+      // jpg for WhatsApp link previews (WebP isn't shown everywhere)
       const buf = await (format === "jpg" ? img.flatten({ background: "#ffffff" }).jpeg({ quality: 80 }) : img.webp({ quality: 74 })).toBuffer();
       fs.writeFileSync(out, buf);
       return out;

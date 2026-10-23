@@ -24,21 +24,21 @@ export function verifyPassword(pw: string, stored: string): boolean {
 
 const sha = (s: string) => crypto.createHash("sha256").update(s).digest();
 
-/** رمزِ ضعیف: کوتاه‌تر از ۸ نویسه یا رمزِ پیش‌فرضِ قدیمی */
+/** Weak password: shorter than 8 characters or an old default password */
 export const isWeakPassword = (pw: string) => pw.length < 8 || /^(cafe1234|12345678|password|admin123?)$/i.test(pw);
 
 /**
- * رمز مدیر: اگر در تنظیمات هش ذخیره شده باشد از آن، وگرنه ADMIN_PASSWORD (رمزِ زمانِ نصب).
- * رمزِ پیش‌فرضِ ثابت دیگر وجود ندارد. خروجیِ mustChange: رمزِ نصب ضعیف است و باید همین حالا عوض شود.
+ * Admin password: the hash stored in settings if present, otherwise ADMIN_PASSWORD (set at install time).
+ * There is no fixed default password. mustChange: the install password is weak and must be changed now.
  */
 export function checkAdmin(pw: string): { ok: boolean; mustChange: boolean } {
   const stored = getSetting<string>("admin_pw", "");
   if (stored) {
     const ok = verifyPassword(pw, stored);
-    // admin_pw_weak: رمزِ منتقل‌شده از نصبِ قدیمی ضعیف بوده ← باید عوض شود
+    // admin_pw_weak: the password migrated from an old install was weak → must be changed
     return { ok, mustChange: ok && getSetting<boolean>("admin_pw_weak", false) === true };
   }
-  // در حالتِ چندمستاجری هر مجموعه رمزِ خودش را دارد؛ رمزِ محیطی پذیرفته نمی‌شود
+  // In multi-tenant mode each venue has its own password; the env password is not accepted
   if (saasEnabled()) return { ok: false, mustChange: false };
   const env = process.env.ADMIN_PASSWORD || "";
   if (!env) return { ok: false, mustChange: false };
@@ -46,7 +46,7 @@ export function checkAdmin(pw: string): { ok: boolean; mustChange: boolean } {
   return { ok, mustChange: ok && isWeakPassword(env) };
 }
 export function setAdminPassword(pw: string) {
-  if (isWeakPassword(pw)) throw new Error("رمزِ پنل حداقل ۸ نویسه باشد و رمزِ ساده/پیش‌فرض نباشد");
+  if (isWeakPassword(pw)) throw new Error("The password must be at least 8 characters and not a simple/default password");
   setSetting("admin_pw_weak", false);
   setSetting("admin_pw", hashPassword(pw));
 }
@@ -57,7 +57,7 @@ function secret(): string {
     s = crypto.randomBytes(32).toString("hex");
     setSetting("session_secret", s);
   }
-  // کلید به نامِ مجموعه گره خورده: توکنِ یک مجموعه روی مجموعهٔ دیگر معتبر نیست
+  // Key is bound to the venue slug: one venue's token isn't valid on another venue
   const base = process.env.SESSION_SECRET || s;
   return crypto.createHmac("sha256", base).update("tenant:" + currentTenant().slug).digest("hex");
 }
@@ -67,7 +67,7 @@ export function signSession(mustChange = false): string {
   const sig = crypto.createHmac("sha256", secret()).update(payload).digest("base64url");
   return `${payload}.${sig}`;
 }
-/** null = نشستِ نامعتبر؛ mustChange = فقط اجازهٔ عوض‌کردنِ رمز */
+/** null = invalid session; mustChange = may only change the password */
 function readSession(token: string | undefined): { mustChange: boolean } | null {
   if (!token || !token.includes(".")) return null;
   const [payload, sig] = token.split(".");
@@ -85,7 +85,7 @@ export function verifySessionToken(token: string | undefined): boolean {
   return !!s && !s.mustChange;
 }
 
-/** دادهٔ کوچکِ امضاشده (مثلاً شمارهٔ تأییدشدهٔ مشتری) برای کوکی */
+/** Small signed payload (e.g. a customer's verified phone number) for a cookie */
 export function signData(data: Record<string, unknown>, ttlMs: number): string {
   const payload = Buffer.from(JSON.stringify({ ...data, exp: Date.now() + ttlMs })).toString("base64url");
   const sig = crypto.createHmac("sha256", secret()).update(payload).digest("base64url");
@@ -112,7 +112,7 @@ export async function startSession(mustChange = false) {
     sameSite: "lax",
     path: "/",
     maxAge: TTL_MS / 1000,
-    secure: https, // روی HTTPS کوکی هرگز روی اتصالِ ناامن فرستاده نمی‌شود
+    secure: https, // On HTTPS the cookie is never sent over an insecure connection
   });
 }
 export async function endSession() {
@@ -122,7 +122,7 @@ export async function isAuthed(): Promise<boolean> {
   const token = (await cookies()).get(COOKIE)?.value;
   return verifySessionToken(token);
 }
-/** نشستی که فقط برای عوض‌کردنِ رمزِ ضعیف باز شده */
+/** A session opened only to change a weak password */
 export async function needsPasswordChange(): Promise<boolean> {
   return !!readSession((await cookies()).get(COOKIE)?.value)?.mustChange;
 }

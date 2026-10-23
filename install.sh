@@ -1,111 +1,136 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  نصب «منوی دیجیتال کافه» (Next.js) روی اوبونتو ۲۴ — اجرای دائمی با pm2
-#  از داخلِ پوشهٔ همین ریپو و با root اجرا شود.
+#  Installs the Digital QR Menu (Next.js) on Ubuntu 22.04/24.04 — runs permanently with pm2.
+#  Run as root from inside the app folder (the folder you unzipped/uploaded).
 #
-#  متغیرها (همه اختیاری):
-#    DOMAIN          دامنه (بدون آن، سایت روی IP سرور باز می‌شود)
-#    EMAIL           ایمیل برای گواهی SSL رایگان (فقط همراه با DOMAIN)
-#    ADMIN_PASSWORD  رمز اولیهٔ پنل کارکنان (اگر ندهید، یک رمزِ قوی و تصادفی ساخته و در پایان چاپ می‌شود)
-#    APP_PORT        پورت داخلی برنامه (پیش‌فرض 3000)
-#    ROOT_DOMAIN     حالتِ «پلتفرمِ اشتراکی»: سایتِ ثبت‌نام روی این دامنه و هر مجموعه روی <آدرس>.ROOT_DOMAIN
-#                    (همراه با PLATFORM_ADMIN_PASSWORD؛ جزئیات در set-saas.sh)
-#    RESTORE         مسیر فایلِ بک‌آپِ سرور قبلی (data-*.tar.gz از backup.sh) برای انتقالِ منو، عکس‌ها،
-#                    تنظیمات، مشتری‌ها و سفارش‌ها؛ رمز پنل هم از همان بک‌آپ می‌آید (مگر ADMIN_PASSWORD بدهید)
+#  Variables (all optional):
+#    DOMAIN               Domain name (without it, the site is served on the server's IP)
+#    EMAIL                Email for the free SSL certificate (only with DOMAIN)
+#    ADMIN_PASSWORD       Initial staff panel password (if omitted, a strong random password is generated and printed at the end)
+#    APP_PORT             Internal app port (default 3000)
+#    APP_TIMEZONE         IANA time zone for reports and stats, e.g. America/New_York (default UTC)
+#    DEFAULT_COUNTRY_CODE Country calling code for phone numbers typed without "+", e.g. 1 (US/Canada), 44 (UK)
+#    ROOT_DOMAIN          SaaS platform mode: signup site on this domain and each venue on <slug>.ROOT_DOMAIN
+#                         (together with PLATFORM_ADMIN_PASSWORD; see set-saas.sh for details)
+#    RESTORE              Path to a backup from a previous server (data-*.tar.gz from backup.sh) to move the menu,
+#                         images, settings, customers and orders; the panel password also comes from that backup
+#                         (unless you pass ADMIN_PASSWORD)
 #
-#  نمونه با IP:      sudo ADMIN_PASSWORD='Str0ng!' bash install.sh
-#  نمونه با دامنه:  sudo DOMAIN=example.com EMAIL=you@mail.com ADMIN_PASSWORD='Str0ng!' bash install.sh
+#  Example with IP:      sudo ADMIN_PASSWORD='Str0ng!Pass' bash install.sh
+#  Example with domain:  sudo DOMAIN=example.com EMAIL=you@example.com ADMIN_PASSWORD='Str0ng!Pass' bash install.sh
 # ============================================================================
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-}"
 EMAIL="${EMAIL:-}"
-ADMIN_PASSWORD_GIVEN="${ADMIN_PASSWORD:-}"   # آیا رمز صراحتاً در دستور داده شده؟
-# رمزِ پیش‌فرضِ ثابت وجود ندارد: اگر داده نشود، رمزِ تصادفیِ ۱۴ نویسه‌ای ساخته می‌شود
+ADMIN_PASSWORD_GIVEN="${ADMIN_PASSWORD:-}"   # was a password passed explicitly?
+# There is no fixed default password: if none is given, a random 14-character one is generated
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(head -c 64 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 14)}"
 RESTORE="${RESTORE:-}"
 PW_RESTORED=0
 APP_PORT="${APP_PORT:-3000}"
+APP_TIMEZONE="${APP_TIMEZONE:-}"
+DEFAULT_COUNTRY_CODE="${DEFAULT_COUNTRY_CODE:-}"
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 say(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
-[ "$(id -u)" -eq 0 ] || { echo "این اسکریپت را با sudo یا root اجرا کن."; exit 1; }
+[ "$(id -u)" -eq 0 ] || { echo "Please run this script with sudo or as root."; exit 1; }
 export DEBIAN_FRONTEND=noninteractive
 
-say "نصب پیش‌نیازها"
+if [ -n "$APP_TIMEZONE" ] && ! [[ "$APP_TIMEZONE" =~ ^[A-Za-z0-9_+/-]+$ ]]; then
+  echo "APP_TIMEZONE must be an IANA time zone name, e.g. America/New_York"; exit 1
+fi
+DEFAULT_COUNTRY_CODE="${DEFAULT_COUNTRY_CODE//[^0-9]/}"
+
+say "Installing prerequisites"
 apt-get update -y
 apt-get install -y curl git nginx ca-certificates ffmpeg
 
-# ---------- Node.js 22 (برای node:sqlite) ----------
+# ---------- Node.js 22 (required for node:sqlite) ----------
 NODE_MAJOR=0
 command -v node >/dev/null 2>&1 && NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
 if [ "$NODE_MAJOR" -lt 22 ]; then
-  say "نصب Node.js 22"
+  say "Installing Node.js 22"
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 fi
 say "Node $(node -v) · npm $(npm -v)"
 
-# ---------- swap برای سرورهای کم‌حافظه (build نکست حافظه می‌خواهد) ----------
+# ---------- Swap for low-memory servers (the Next.js build needs memory) ----------
 MEM_MB="$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)"
 if [ "$MEM_MB" -lt 2000 ] && ! swapon --show | grep -q .; then
-  say "ساخت ۲ گیگ swap (رم سرور ${MEM_MB}MB است)"
+  say "Creating 2 GB of swap (server RAM is ${MEM_MB}MB)"
   fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
   chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
   grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
-# ---------- کنار گذاشتنِ نسخهٔ قبلی (سرویس systemd «cafe» در صورت وجود) ----------
+# ---------- Retire an older version (systemd service "cafe", if present) ----------
 if systemctl list-unit-files 2>/dev/null | grep -q '^cafe\.service'; then
-  say "غیرفعال‌کردن سرویس قدیمی cafe (نسخهٔ قبلی)"
+  say "Disabling the old cafe systemd service (previous version)"
   systemctl disable --now cafe || true
 fi
 
-# ---------- نصب وابستگی‌ها و build ----------
+# ---------- Dependencies and build ----------
 cd "$APP_DIR"
-say "نصب وابستگی‌ها"
-npm ci --no-audit --no-fund
+say "Installing dependencies"
+if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
 mkdir -p data/uploads
-chmod 700 data   # دیتابیس‌ها، رمزها و کلیدها فقط برای root
-# انتقال از سرورِ قبلی: دیتابیس + عکس‌ها + تنظیمات از فایلِ بک‌آپ (قبل از اولین اجرا)
+chmod 700 data   # databases, passwords and keys are root-only
+# Moving from a previous server: database + images + settings from the backup file (before the first start)
 if [ -n "$RESTORE" ]; then
-  say "بازیابی داده‌ها از $RESTORE"
-  # اگر رمز صراحتاً داده شده همان می‌ماند؛ وگرنه رمزِ سرورِ قبلی از بک‌آپ می‌آید
+  say "Restoring data from $RESTORE"
+  # An explicitly passed password is kept; otherwise the previous server's password comes from the backup
   NO_RESTART=1 KEEP_PASSWORD="$([ -n "$ADMIN_PASSWORD_GIVEN" ] && echo 1 || echo 0)" bash "$APP_DIR/restore.sh" "$RESTORE" || exit 1
-  # رمزِ پنل فقط وقتی در دیتابیس هست که از داخلِ پنل عوض شده باشد
+  # The panel password is only in the database if it was changed from inside the panel
   if (cd "$APP_DIR" && node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync("data/cafe.db",{readOnly:true});process.exit(d.prepare("SELECT 1 FROM settings WHERE key=? AND value!=?").get("admin_pw","\"\"")?0:1)' 2>/dev/null); then
     PW_RESTORED=1
   elif [ -z "$ADMIN_PASSWORD_GIVEN" ] && [ -f "$APP_DIR/.env.production.local" ]; then
     ADMIN_PASSWORD="$(sed -n 's/^ADMIN_PASSWORD=//p' "$APP_DIR/.env.production.local" | head -1)"
   fi
 fi
-# رمز اولیه؛ Next این فایل را در حالت production می‌خواند (وارد گیت نمی‌شود)
-touch .env.production.local; chmod 600 .env.production.local
-OLD_PW="$(sed -n 's/^ADMIN_PASSWORD=//p' .env.production.local | head -1)"
+# Environment file; Next.js reads it in production (never commit it)
+ENVF=.env.production.local
+touch "$ENVF"; chmod 600 "$ENVF"
+OLD_PW="$(sed -n 's/^ADMIN_PASSWORD=//p' "$ENVF" | head -1)"
 if [ -z "$ADMIN_PASSWORD_GIVEN" ] && [ -n "$OLD_PW" ]; then
-  ADMIN_PASSWORD="$OLD_PW"   # نصبِ دوباره: رمزِ قبلی حفظ می‌شود (رمزِ تصادفیِ تازه چاپ نمی‌شود)
+  ADMIN_PASSWORD="$OLD_PW"   # re-install: keep the existing password (no new random password is printed)
   ADMIN_PASSWORD_GIVEN="$OLD_PW"
 else
-  # فقط همین کلید عوض می‌شود؛ بقیهٔ تنظیمات (مثل ROOT_DOMAIN) دست نمی‌خورد
-  { grep -v '^ADMIN_PASSWORD=' .env.production.local || true; printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD"; } > .env.tmp && mv .env.tmp .env.production.local
-  chmod 600 .env.production.local
+  # Only this key changes; other settings (like ROOT_DOMAIN) are left untouched
+  { grep -v '^ADMIN_PASSWORD=' "$ENVF" || true; printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD"; } > .env.tmp && mv .env.tmp "$ENVF"
+  chmod 600 "$ENVF"
 fi
-say "build برنامه (چند دقیقه طول می‌کشد)"
+# Optional regional settings: set the key when a value is given; otherwise add a commented-out example once
+set_env(){ # set_env KEY VALUE COMMENT EXAMPLE
+  local k="$1" v="$2" c="$3" ex="$4"
+  if [ -n "$v" ]; then
+    if grep -q -e "^$k=" -e "^# $k=" "$ENVF"; then sed -i "s|^\(# \)\?$k=.*|$k=$v|" "$ENVF"
+    else printf '# %s\n%s=%s\n' "$c" "$k" "$v" >> "$ENVF"; fi
+  elif ! grep -q -e "^$k=" -e "^# $k=" "$ENVF"; then
+    printf '# %s\n# %s=%s\n' "$c" "$k" "$ex" >> "$ENVF"
+  fi
+  chmod 600 "$ENVF"
+}
+set_env APP_TIMEZONE "$APP_TIMEZONE" "Time zone for reports and stats (IANA name). Default: UTC" "America/New_York"
+set_env DEFAULT_COUNTRY_CODE "$DEFAULT_COUNTRY_CODE" "Country calling code added to phone numbers typed without + (e.g. 1 = US/Canada, 44 = UK)" "1"
+
+say "Building the app (this takes a few minutes)"
 NODE_OPTIONS="--max-old-space-size=1536" npm run build
 
-# ---------- pm2: اجرای دائمی + بالا آمدن خودکار بعد از ری‌بوت ----------
-say "راه‌اندازی با pm2"
+# ---------- pm2: run permanently + start automatically after reboot ----------
+say "Starting with pm2"
 command -v pm2 >/dev/null 2>&1 || npm install -g pm2
 pm2 delete cafe >/dev/null 2>&1 || true
 APP_PORT="$APP_PORT" pm2 start ecosystem.config.cjs
 pm2 save
-pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || echo "⚠️  راه‌اندازیِ خودکارِ pm2 بعد از ری‌بوت تنظیم نشد؛ بعداً:  pm2 startup && pm2 save"
+pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || echo "⚠️  pm2 auto-start after reboot wasn't configured; later run:  pm2 startup && pm2 save"
 systemctl enable pm2-root >/dev/null 2>&1 || true
 
 # ---------- Nginx ----------
-say "پیکربندی Nginx"
+say "Configuring Nginx"
 SERVER_NAME="${DOMAIN:-_}"
-# روی سرورهایی که IPv6 ندارند «listen [::]» باعثِ خطای Nginx می‌شود
+# On servers without IPv6, "listen [::]" makes Nginx fail
 LISTEN6=""
 [ -f /proc/net/if_inet6 ] && LISTEN6="listen [::]:80 default_server;"
 cat >/etc/nginx/sites-available/cafe <<NGINX
@@ -133,7 +158,7 @@ nginx -t
 systemctl enable nginx >/dev/null 2>&1 || true
 systemctl restart nginx || nginx -s reload
 
-# فایروال (اگر فعال است)
+# Firewall (if active)
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   ufw allow OpenSSH >/dev/null || true
   ufw allow 'Nginx Full' >/dev/null || true
@@ -142,41 +167,41 @@ fi
 # ---------- SSL ----------
 PROTO="http"
 if [ -n "${ROOT_DOMAIN:-}" ]; then
-  # پلتفرمِ اشتراکی: Nginx برای همهٔ زیردامنه‌ها + گواهیِ خودکارِ هر مجموعه
+  # SaaS platform: Nginx for all subdomains + automatic certificate per venue
   if ROOT_DOMAIN="$ROOT_DOMAIN" EMAIL="${EMAIL:-}" APP_PORT="$APP_PORT" PLATFORM_ADMIN_PASSWORD="${PLATFORM_ADMIN_PASSWORD:-}" LEGACY_TENANT="${LEGACY_TENANT:-}" bash ./set-saas.sh; then
     PROTO="https"; DOMAIN="$ROOT_DOMAIN"
   else
-    echo "⚠️  set-saas.sh کامل نشد؛ بعد از تنظیمِ DNS دوباره اجرا کنید:  sudo bash set-saas.sh"
+    echo "⚠️  set-saas.sh didn't finish; run it again after setting up DNS:  sudo bash set-saas.sh"
   fi
 elif [ -n "$DOMAIN" ]; then
-  # دامنه + HTTPS با set-domain.sh (QRهای IP هم به دامنه هدایت می‌شوند)
+  # Domain + HTTPS via set-domain.sh (IP-based QR codes are redirected to the domain too)
   if DOMAIN="$DOMAIN" EMAIL="${EMAIL:-}" APP_PORT="$APP_PORT" bash ./set-domain.sh; then
     PROTO="https"
   else
-    echo "⚠️  SSL نگرفت؛ سایت روی HTTP کار می‌کند. بعد از تنظیمِ DNS:  sudo DOMAIN=$DOMAIN bash set-domain.sh"
+    echo "⚠️  Couldn't get an SSL certificate; the site runs on HTTP. After setting up DNS:  sudo DOMAIN=$DOMAIN bash set-domain.sh"
   fi
 fi
 
-# ---------- بررسی نهایی ----------
+# ---------- Final check ----------
 sleep 3
 CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$APP_PORT/" || true)"
 HOST="${DOMAIN:-$(curl -s --max-time 5 https://api.ipify.org || hostname -I | awk '{print $1}')}"
-say "تمام شد ✅  (پاسخ برنامه: $CODE)"
+say "Done ✅  (app response: $CODE)"
 if [ -n "${ROOT_DOMAIN:-}" ]; then
-  echo "  سایتِ پلتفرم و ثبت‌نام:  $PROTO://$ROOT_DOMAIN"
-  echo "  پنلِ مدیرِ کل:          $PROTO://$ROOT_DOMAIN/admin"
-  [ -n "${LEGACY_TENANT:-}" ] && echo "  منوی قبلی:              $PROTO://$LEGACY_TENANT.$ROOT_DOMAIN/staff"
+  echo "  Platform site and signup:  $PROTO://$ROOT_DOMAIN"
+  echo "  Super admin panel:         $PROTO://$ROOT_DOMAIN/admin"
+  [ -n "${LEGACY_TENANT:-}" ] && echo "  Previous menu:             $PROTO://$LEGACY_TENANT.$ROOT_DOMAIN/staff"
 else
-  echo "  منوی مشتری:   $PROTO://$HOST/?table=1"
-  echo "  پنل کارکنان:  $PROTO://$HOST/staff"
+  echo "  Customer menu:   $PROTO://$HOST/?table=1"
+  echo "  Staff panel:     $PROTO://$HOST/staff"
 fi
 if [ "$PW_RESTORED" = "1" ]; then
-  echo "  رمز پنل:      همان رمزِ سرورِ قبلی (از بک‌آپ بازیابی شد)"
+  echo "  Panel password:  same as on the previous server (restored from backup)"
 else
-  echo "  رمز پنل:      $ADMIN_PASSWORD   (از تنظیماتِ پنل قابل تغییر است)"
+  echo "  Panel password:  $ADMIN_PASSWORD   (you can change it in the panel settings)"
 fi
-echo "  وضعیت:  pm2 status   ·   لاگ:  pm2 logs cafe   ·   به‌روزرسانی:  sudo bash update.sh   ·   بک‌آپ:  sudo bash backup.sh"
+echo "  Status:  pm2 status   ·   Logs:  pm2 logs cafe   ·   Update:  sudo bash update.sh   ·   Backup:  sudo bash backup.sh"
 if [ "$PW_RESTORED" != "1" ] && [ -z "$ADMIN_PASSWORD_GIVEN" ]; then
-  echo "  ⚠️  این رمز به‌صورت تصادفی ساخته شد؛ همین حالا یادداشتش کنید (در فایلِ .env.production.local هم هست)."
+  echo "  ⚠️  This password was generated randomly — write it down now (it's also in .env.production.local)."
 fi
 exit 0

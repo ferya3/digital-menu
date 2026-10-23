@@ -5,27 +5,27 @@ import {
   CakeSlice, Check, ChevronDown, Coffee, Croissant, CupSoda, GalleryHorizontalEnd, IceCreamCone, LayoutGrid,
   List as ListIcon, Plus, Share2, type LucideIcon,
 } from "lucide-react";
-import { cn, money } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import type { SiteContent } from "@/lib/site-content";
 
 /**
- * معرفیِ سه حالتِ نمایشِ منو در صفحهٔ اصلی: انتخابِ حالت (یا پخشِ خودکار) و پیش‌نمایشِ زنده روی گوشی.
- * پیش‌نمایش‌ها نسخهٔ کوچکِ همان کاروسلِ سه‌بعدی، شبکه و لیستِ منوی واقعی‌اند.
+ * Showcases the three menu display modes on the home page: pick a mode (or autoplay) with a live phone preview.
+ * The previews are miniature versions of the real menu's 3D carousel, grid and list.
  */
 const MODES: { id: "carousel" | "grid" | "list"; icon: LucideIcon; short: string }[] = [
-  { id: "carousel", icon: GalleryHorizontalEnd, short: "کاروسل" },
-  { id: "grid", icon: LayoutGrid, short: "شبکه‌ای" },
-  { id: "list", icon: ListIcon, short: "لیستی" },
+  { id: "carousel", icon: GalleryHorizontalEnd, short: "Carousel" },
+  { id: "grid", icon: LayoutGrid, short: "Grid" },
+  { id: "list", icon: ListIcon, short: "List" },
 ];
 const AUTOPLAY_MS = 5000;
 
 const DISHES: { name: string; price: number; icon: LucideIcon; tone: string; desc: string }[] = [
-  { name: "کاپوچینو", price: 72000, icon: Coffee, tone: "from-amber-200 to-orange-500", desc: "اسپرسوی دوبل با فومِ مخملیِ شیر" },
-  { name: "چیزکیک", price: 110000, icon: CakeSlice, tone: "from-rose-200 to-pink-500", desc: "چیزکیکِ نیویورکی با سسِ توت‌فرنگی" },
-  { name: "موهیتو", price: 88000, icon: CupSoda, tone: "from-lime-200 to-emerald-500", desc: "لیمو، نعنای تازه و سودا" },
-  { name: "کروسان", price: 65000, icon: Croissant, tone: "from-yellow-100 to-amber-500", desc: "کره‌ای و تازه، هر صبح" },
-  { name: "بستنی", price: 79000, icon: IceCreamCone, tone: "from-sky-200 to-indigo-400", desc: "سه اسکوپ با تاپینگِ دلخواه" },
-  { name: "لاته", price: 76000, icon: Coffee, tone: "from-orange-100 to-amber-700", desc: "اسپرسو و شیرِ بخارداده" },
+  { name: "Cappuccino", price: 4.5, icon: Coffee, tone: "from-amber-200 to-orange-500", desc: "Double espresso with velvety milk foam" },
+  { name: "Cheesecake", price: 6, icon: CakeSlice, tone: "from-rose-200 to-pink-500", desc: "New York cheesecake with strawberry sauce" },
+  { name: "Mojito", price: 5.5, icon: CupSoda, tone: "from-lime-200 to-emerald-500", desc: "Lime, fresh mint and soda" },
+  { name: "Croissant", price: 3.75, icon: Croissant, tone: "from-yellow-100 to-amber-500", desc: "Buttery and fresh, baked every morning" },
+  { name: "Ice cream", price: 4.95, icon: IceCreamCone, tone: "from-sky-200 to-indigo-400", desc: "Three scoops with your choice of toppings" },
+  { name: "Latte", price: 4.75, icon: Coffee, tone: "from-orange-100 to-amber-700", desc: "Espresso with steamed milk" },
 ];
 
 export function MenuModesShowcase({ v, cafeName }: { v: SiteContent["views"]; cafeName: string }) {
@@ -52,13 +52,13 @@ export function MenuModesShowcase({ v, cafeName }: { v: SiteContent["views"]; ca
 
   return (
     <div
-      className="mt-10 grid items-center gap-x-16 gap-y-6 sm:mt-14 lg:grid-cols-[auto_1fr]"
+      className="mt-10 grid items-center gap-x-16 gap-y-6 sm:mt-14 lg:grid-cols-[1fr_auto]"
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}
     >
-      {/* انتخابِ حالت: موبایل سه دکمهٔ کنارِ هم، دسکتاپ سه کارتِ توضیح‌دار */}
-      <div className="lg:col-start-2 lg:row-start-1 lg:self-end">
-        <div role="tablist" aria-label="حالت‌های نمایشِ منو" className="grid grid-cols-3 gap-2 lg:grid-cols-1 lg:gap-3">
+      {/* Mode picker: three side-by-side buttons on mobile, three descriptive cards on desktop */}
+      <div className="lg:col-start-1 lg:row-start-1 lg:self-end">
+        <div role="tablist" aria-label="Menu display modes" className="grid grid-cols-3 gap-2 lg:grid-cols-1 lg:gap-3">
           {items.map((m, i) => {
             const on = i === mode;
             return (
@@ -76,16 +76,16 @@ export function MenuModesShowcase({ v, cafeName }: { v: SiteContent["views"]; ca
                   <b className="block text-xs font-extrabold sm:text-sm lg:text-lg">{m.title}</b>
                   {m.text && <span className="mt-1 hidden text-sm leading-7 text-muted-foreground lg:block">{m.text}</span>}
                 </span>
-                {/* نوارِ زمانِ پخشِ خودکار */}
-                {on && auto && <span key={mode} aria-hidden className="mm-progress absolute inset-x-0 bottom-0 h-[3px] origin-right bg-primary" style={{ animationDuration: `${AUTOPLAY_MS}ms` }} />}
+                {/* Autoplay progress bar */}
+                {on && auto && <span key={mode} aria-hidden className="mm-progress absolute inset-x-0 bottom-0 h-[3px] origin-left bg-primary" style={{ animationDuration: `${AUTOPLAY_MS}ms` }} />}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* پیش‌نمایشِ زنده روی گوشی (موبایل: بینِ دکمه‌ها و توضیح) */}
-      <div className="relative mx-auto lg:col-start-1 lg:row-span-2 lg:row-start-1" aria-hidden>
+      {/* Live phone preview (mobile: between the buttons and the description) */}
+      <div className="relative mx-auto lg:col-start-2 lg:row-span-2 lg:row-start-1" aria-hidden>
         <div className="absolute inset-x-6 bottom-6 top-10 -z-10 rounded-full bg-primary/25 blur-3xl" />
         <div className="relative w-[16.5rem] rounded-[2.75rem] bg-slate-900 p-2.5 shadow-2xl shadow-black/30 ring-1 ring-black/5 sm:w-[17.5rem]">
           <div className="absolute left-1/2 top-3.5 z-20 h-5 w-20 -translate-x-1/2 rounded-full bg-slate-900" />
@@ -101,7 +101,7 @@ export function MenuModesShowcase({ v, cafeName }: { v: SiteContent["views"]; ca
               </span>
             </div>
             <div className="flex gap-1.5 px-4 pb-3 text-[10px] font-bold">
-              {["همه", "نوشیدنی", "کیک", "صبحانه"].map((x, i) => (
+              {["All", "Drinks", "Cakes", "Breakfast"].map((x, i) => (
                 <span key={x} className={i === 0 ? "rounded-full bg-primary px-2.5 py-1 text-white" : "rounded-full bg-slate-200/70 px-2.5 py-1 text-slate-600"}>{x}</span>
               ))}
             </div>
@@ -114,7 +114,7 @@ export function MenuModesShowcase({ v, cafeName }: { v: SiteContent["views"]; ca
         </div>
       </div>
 
-      <div className="lg:col-start-2 lg:row-start-2 lg:self-start">
+      <div className="lg:col-start-1 lg:row-start-2 lg:self-start">
         {active.text && <p className="min-h-14 text-center text-sm leading-7 text-muted-foreground lg:hidden" aria-live="polite">{active.text}</p>}
         {v.bullets.length > 0 && (
           <ul className="mt-4 flex flex-wrap justify-center gap-2 lg:mt-8 lg:justify-start">
@@ -144,7 +144,7 @@ function Tile({ d, className, iconClass = "size-8" }: { d: (typeof DISHES)[numbe
   );
 }
 
-/** کاروسلِ سه‌بعدیِ کوچک: کارتِ وسط بزرگ، کناری‌ها کج و محو */
+/** Mini 3D carousel: large center card, side cards angled and faded */
 function MiniCarousel({ run, name }: { run: boolean; name: string }) {
   const n = 5;
   const [idx, setIdx] = useState(0);
@@ -156,8 +156,9 @@ function MiniCarousel({ run, name }: { run: boolean; name: string }) {
   const pose = (i: number) => {
     const off = (i - idx + n) % n;
     if (off === 0) return { t: "translateX(0) scale(1) rotateY(0deg)", o: 1, z: 30, f: "none" };
-    if (off === 1) return { t: "translateX(-118px) scale(.8) rotateY(28deg)", o: 0.75, z: 20, f: "brightness(.9)" };
-    if (off === n - 1) return { t: "translateX(118px) scale(.8) rotateY(-28deg)", o: 0.75, z: 20, f: "brightness(.9)" };
+    // LTR: the next card waits on the right, the previous one on the left
+    if (off === 1) return { t: "translateX(118px) scale(.8) rotateY(-28deg)", o: 0.75, z: 20, f: "brightness(.9)" };
+    if (off === n - 1) return { t: "translateX(-118px) scale(.8) rotateY(28deg)", o: 0.75, z: 20, f: "brightness(.9)" };
     return { t: "translateX(0) scale(.5)", o: 0, z: 0, f: "none" };
   };
   return (
@@ -176,21 +177,21 @@ function MiniCarousel({ run, name }: { run: boolean; name: string }) {
                 <b className="block text-base font-black">{d.name}</b>
                 <span className="mx-auto my-1.5 block h-[2px] w-8 rounded bg-white/70" />
                 <span className="mx-auto flex w-fit items-center gap-2 rounded-full bg-white/15 py-1 pe-1 ps-3 text-[11px] font-extrabold backdrop-blur">
-                  {money(d.price)}<span className="grid size-5 place-items-center rounded-full bg-primary"><Plus className="size-3" /></span>
+                  {formatMoney(d.price, "USD")}<span className="grid size-5 place-items-center rounded-full bg-primary"><Plus className="size-3" /></span>
                 </span>
               </div>
             </div>
           );
         })}
       </div>
-      <div className="flex justify-center gap-1.5 pb-5" dir="ltr">
+      <div className="flex justify-center gap-1.5 pb-5">
         {Array.from({ length: n }, (_, i) => <span key={i} className={cn("h-1.5 rounded-full transition-all duration-500", i === idx ? "w-5 bg-primary" : "w-1.5 bg-slate-300")} />)}
       </div>
     </div>
   );
 }
 
-/** شبکهٔ دوستونهٔ کارت‌های عکس‌دار */
+/** Two-column grid of image cards */
 function MiniGrid() {
   return (
     <div className="grid grid-cols-2 gap-2 px-3">
@@ -200,7 +201,7 @@ function MiniGrid() {
           <div className="p-2">
             <b className="block text-[11px]">{d.name}</b>
             <div className="mt-1 flex items-center justify-between">
-              <span className="text-[10px] font-extrabold text-primary">{money(d.price)}</span>
+              <span className="text-[10px] font-extrabold text-primary">{formatMoney(d.price, "USD")}</span>
               <span className="grid size-5 place-items-center rounded-full bg-primary text-white"><Plus className="size-3" /></span>
             </div>
           </div>
@@ -210,7 +211,7 @@ function MiniGrid() {
   );
 }
 
-/** لیستِ جمع‌وجور؛ یک ردیف باز می‌شود و عکس و توضیح را نشان می‌دهد */
+/** Compact list; one row expands to show the image and description */
 function MiniList({ run }: { run: boolean }) {
   const [open, setOpen] = useState(1);
   useEffect(() => {
@@ -226,7 +227,7 @@ function MiniList({ run }: { run: boolean }) {
           <div key={d.name} className={cn("overflow-hidden rounded-xl border bg-white transition-shadow duration-300", on ? "border-primary/30 shadow-md" : "border-slate-200/80 shadow-sm")}>
             <div className="flex items-center gap-2 px-3 py-2.5 text-[11px]">
               <b className="flex-1">{d.name}</b>
-              <span className="font-extrabold text-primary">{money(d.price)}</span>
+              <span className="font-extrabold text-primary">{formatMoney(d.price, "USD")}</span>
               <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform duration-300", on && "rotate-180")} />
             </div>
             <div className={cn("grid transition-[grid-template-rows] duration-500 ease-out", on ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>

@@ -7,9 +7,9 @@ import { hit } from "@/lib/limits";
 export const dynamic = "force-dynamic";
 
 /**
- * کانال زندهٔ مشتری: فقط تغییراتِ میزِ خودش (وضعیت سفارش، تأیید/رد فیش) —
- * و فقط برای مرورگری که روی همین میز سفارش داده (کوکیِ امضاشدهٔ سفارش‌ها).
- * پاسخِ غیر از ۲۰۰ باعث می‌شود مرورگر دوباره وصل نشود.
+ * Customer live channel: only changes for their own table (order status, receipt approved/rejected) —
+ * and only for the browser that ordered at this table (signed orders cookie).
+ * Any non-200 response stops the browser from reconnecting.
  */
 export async function GET(req: Request) {
   return tenantRoute(async () => {
