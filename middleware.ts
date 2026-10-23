@@ -74,6 +74,13 @@ export function middleware(req: NextRequest) {
 
   if (!onRoot) return secure(req);
 
+  // www → دامنهٔ اصلی (۳۰۱): گوگل دو نسخهٔ تکراری از سایت نبیند
+  if (host === `www.${r}`) {
+    const proto = req.headers.get("x-forwarded-proto") === "https" ? "https" : "http";
+    const port = rawHost.match(/:\d+$/)?.[0] || "";
+    return secure(req, NextResponse.redirect(`${proto}://${r}${port}${url.pathname}${url.search}`, 301));
+  }
+
   // QR/لینک‌های قدیمیِ دامنهٔ اصلی → زیردامنهٔ مجموعهٔ اصلی (LEGACY_TENANT)
   const legacy = (process.env.LEGACY_TENANT || "").trim().toLowerCase();
   if (legacy && (LEGACY.test(url.pathname) || (url.pathname === "/" && url.searchParams.has("table")))) {

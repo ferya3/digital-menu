@@ -10,16 +10,25 @@ import {
   type Plan, type Tenant,
 } from "@/lib/platform";
 import { DEFAULT_CONTENT, fill, mergeContent, type SiteContent } from "@/lib/site-content";
+import { SLUG_RE, type Article } from "@/lib/articles";
+import { SEED_ARTICLES } from "@/lib/article-seeds";
 import { toFa } from "@/lib/utils";
 
 const DAY = 86_400_000;
 const now = () => new Date().toISOString();
 
 /* ============================ محتوای سایت ============================ */
+const OLD_SEO = {
+  title: ["{brand} — منوی QR، سفارش آنلاین و پنل مدیریت", ""],
+  description: ["منوی QR، سفارش آنلاین و پنل مدیریت برای کافه، رستوران و فست‌فود. {trialDays} روز رایگان.", ""],
+};
 export function siteContent(): SiteContent {
   const c = mergeContent(rawGet<Partial<SiteContent>>("content", {}));
   // نامِ برندِ نسخه‌های قبلی (تنظیمات) اگر محتوا هنوز ذخیره نشده
   if (!rawGet<unknown>("content", null)) c.brand.name = platformSettings().brand || DEFAULT_CONTENT.brand.name;
+  // عنوان/توضیحِ پیش‌فرضِ نسخه‌های قبل (اگر دستی عوض نشده) → نسخهٔ جدیدِ پرکلیدواژه
+  if (OLD_SEO.title.includes(c.brand.seoTitle)) c.brand.seoTitle = DEFAULT_CONTENT.brand.seoTitle;
+  if (OLD_SEO.description.includes(c.brand.seoDescription)) c.brand.seoDescription = DEFAULT_CONTENT.brand.seoDescription;
   return c;
 }
 const clip = (v: unknown, n: number) => String(v ?? "").slice(0, n);
@@ -346,4 +355,40 @@ export function allCustomers(onlySlug = ""): { rows: PlatformCustomer[]; perTena
   rows.sort((a, b) => (b.lastSeen > a.lastSeen ? 1 : -1));
   perTenant.sort((a, b) => b.count - a.count);
   return { rows, perTenant };
+}
+
+/* ============================ مقاله‌ها (وبلاگ) ============================ */
+const ART_COVER = /^(\/brand\/[\w.-]+\.webp|https:\/\/[^\s"'<>]{1,280})?$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export function listArticles(): Article[] {
+  return rawGet<Article[] | null>("articles", null) ?? SEED_ARTICLES;
+}
+export function publishedArticles(): Article[] {
+  return listArticles().filter((a) => a.published).sort((a, b) => b.date.localeCompare(a.date));
+}
+export function getArticle(slug: string): Article | undefined {
+  return listArticles().find((a) => a.slug === slug);
+}
+/** ذخیره/ویرایشِ یک مقاله؛ prevSlug برای وقتی آدرسِ مقاله عوض شده */
+export function saveArticle(input: Article, prevSlug?: string): Article {
+  const today = new Date().toISOString().slice(0, 10);
+  const a: Article = {
+    slug: clip(input.slug, 80).trim().toLowerCase(),
+    title: clip(input.title, 160).trim(),
+    description: clip(input.description, 300).trim(),
+    cover: ART_COVER.test(input.cover || "") ? input.cover || "" : "",
+    body: clip(input.body, 60000),
+    published: !!input.published,
+    date: DATE_RE.test(input.date) ? input.date : today,
+    updated: today,
+  };
+  if (!SLUG_RE.test(a.slug)) throw new Error("آدرسِ مقاله فقط حروفِ انگلیسیِ کوچک، عدد و خط‌تیره (مثل qr-menu-guide)");
+  if (!a.title) throw new Error("عنوانِ مقاله خالی است");
+  const list = listArticles().filter((x) => x.slug !== (prevSlug || a.slug));
+  if (list.some((x) => x.slug === a.slug)) throw new Error("مقاله‌ای با این آدرس وجود دارد");
+  rawSet("articles", [a, ...list].slice(0, 300));
+  return a;
+}
+export function deleteArticle(slug: string) {
+  rawSet("articles", listArticles().filter((a) => a.slug !== slug));
 }

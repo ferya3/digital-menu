@@ -10,6 +10,7 @@ import { FeatureIcon } from "@/components/platform/feature-icon";
 import { FeatureCarousel } from "@/components/platform/feature-carousel";
 import { MenuModesShowcase } from "@/components/platform/menu-modes-showcase";
 import { DeckCarousel } from "@/components/platform/deck-carousel";
+import { SOLUTIONS } from "@/lib/solutions";
 
 export interface PublicPlatform {
   trialDays: number; allowSignup: boolean; plans: Plan[]; root: string; otp: boolean;
@@ -29,8 +30,8 @@ function kindIcon(k: string) {
   return Store;
 }
 
-const container = "mx-auto w-full max-w-6xl px-4 sm:px-6";
-const btnPrimary = "inline-flex h-11 sm:h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-6 font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-[filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-xl hover:shadow-primary/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30";
+export const container = "mx-auto w-full max-w-6xl px-4 sm:px-6";
+export const btnPrimary = "inline-flex h-11 sm:h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-6 font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-[filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-xl hover:shadow-primary/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30";
 
 /** قاب مشترکِ صفحه‌های پلتفرم: پالتِ خنثی + رنگِ برند، نوارِ اعلان، منوی شناور و پاورقی */
 export function PlatformShell({ p, children }: { p: PublicPlatform; children: React.ReactNode }) {
@@ -71,8 +72,8 @@ export function PlatformNav({ p }: { p: PublicPlatform }) {
       <header className="mx-auto flex max-w-6xl items-center gap-2 rounded-2xl border border-border/70 bg-background/80 px-3 py-2.5 shadow-sm shadow-black/5 backdrop-blur-xl sm:px-4">
         <Link href="/" className="flex items-center gap-2 font-black"><BrandMark c={p.c} />{p.c.brand.name}</Link>
         <nav className="mx-auto hidden items-center gap-1 text-sm font-semibold text-muted-foreground md:flex">
-          {[["امکانات", "/#features"], ["حالت‌های نمایش", "/#views"], ["روشِ کار", "/#how"], ["تعرفه‌ها", "/#pricing"], ["سؤالات", "/#faq"]].map(([l, h]) => (
-            <a key={h} href={h} className="rounded-lg px-3 py-2 transition-colors duration-200 hover:bg-muted hover:text-foreground">{l}</a>
+          {[["امکانات", "/#features"], ["حالت‌های نمایش", "/#views"], ["روشِ کار", "/#how"], ["تعرفه‌ها", "/#pricing"], ["سؤالات", "/#faq"], ["مقالات", "/blog"]].map(([l, h]) => (
+            <a key={h} href={h} className={`rounded-lg px-3 py-2 transition-colors duration-200 hover:bg-muted hover:text-foreground ${h === "/#how" || h === "/#faq" ? "hidden lg:block" : ""}`}>{l}</a>
           ))}
         </nav>
         <div className="ms-auto flex items-center gap-1.5 md:ms-0">
@@ -186,7 +187,7 @@ function DashboardMock() {
 
 /* ---------------------------------- صفحهٔ اصلی ---------------------------------- */
 
-function SectionHead({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
+export function SectionHead({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
       <span className="text-xs font-bold text-primary sm:text-sm">{eyebrow}</span>
@@ -196,7 +197,10 @@ function SectionHead({ eyebrow, title, subtitle }: { eyebrow: string; title: str
   );
 }
 
-export function PlatformHome({ p }: { p: PublicPlatform }) {
+/** خلاصهٔ مقاله برای بخشِ «راهنماها»ی صفحهٔ اصلی (متغیرها از قبل جایگذاری‌شده) */
+export interface ArticleTeaser { slug: string; title: string; description: string }
+
+export function PlatformHome({ p, articles = [] }: { p: PublicPlatform; articles?: ArticleTeaser[] }) {
   const { c } = p;
   const [big, ...rest] = c.features.items.filter((f) => !f.hidden);
   return (
@@ -394,6 +398,31 @@ export function PlatformHome({ p }: { p: PublicPlatform }) {
         )}
       </section>
 
+      {/* ===== راهنماها و مقالات (لینکِ داخلی به صفحه‌های موضوعی و وبلاگ) ===== */}
+      <section id="guides" className={`scroll-mt-24 pb-16 sm:pb-24 ${container}`}>
+        <SectionHead eyebrow="راهنماها" title="منوی دیجیتال برای هر نوع کسب‌وکار" subtitle="راهکارِ مخصوصِ کسب‌وکارتان را ببینید یا راهنماهای عملی را بخوانید." />
+        <div className="mt-8 grid grid-cols-2 gap-2.5 sm:mt-10 sm:gap-3 lg:grid-cols-4">
+          {SOLUTIONS.map((x) => (
+            <Link key={x.slug} href={`/${x.slug}`} className="group flex items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-3.5 text-sm font-bold transition-[border-color,box-shadow] duration-200 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 sm:px-5 sm:py-4 sm:text-base">
+              {x.label}<ArrowLeft className="size-4 shrink-0 text-primary transition-transform duration-200 group-hover:-translate-x-1" />
+            </Link>
+          ))}
+        </div>
+        {articles.length > 0 && (
+          <>
+            <div className="mt-8 grid gap-3 sm:mt-10 sm:grid-cols-3 sm:gap-4">
+              {articles.slice(0, 3).map((a) => (
+                <Link key={a.slug} href={`/blog/${a.slug}`} className="group rounded-3xl border border-border bg-card p-5 transition-[border-color,box-shadow] duration-200 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5">
+                  <h3 className="text-[0.95rem] font-extrabold leading-7 group-hover:text-primary sm:text-base">{a.title}</h3>
+                  <p className="mt-2 line-clamp-2 text-[0.8125rem] leading-6 text-muted-foreground sm:text-sm sm:leading-7">{a.description}</p>
+                </Link>
+              ))}
+            </div>
+            <div className="mt-6 text-center"><Link href="/blog" className="inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline">همهٔ مقالات<ArrowLeft className="size-4" /></Link></div>
+          </>
+        )}
+      </section>
+
       {/* ===== سؤالات ===== */}
       {c.faq.items.length > 0 && (
         <section id="faq" className="scroll-mt-24 border-t border-border bg-muted/50 py-16 sm:py-28">
@@ -444,7 +473,7 @@ export function PlatformFooter({ p }: { p: PublicPlatform }) {
   const col = "text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground";
   return (
     <footer className="border-t border-border bg-muted/40">
-      <div className={`grid grid-cols-2 gap-x-6 gap-y-10 py-12 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr] lg:py-14 ${container}`}>
+      <div className={`grid grid-cols-2 gap-x-6 gap-y-10 py-12 lg:grid-cols-[1.3fr_1fr_1.15fr_1fr_1.2fr] lg:py-14 ${container}`}>
         <div className="col-span-2 lg:col-span-1">
           <div className="flex items-center gap-2 font-black"><BrandMark c={p.c} />{p.c.brand.name}</div>
           <p className="mt-4 max-w-xs text-sm leading-7 text-muted-foreground">{f.text}</p>
@@ -465,6 +494,14 @@ export function PlatformFooter({ p }: { p: PublicPlatform }) {
             <li><a href="/#faq" className={col}>سؤالاتِ رایج</a></li>
           </ul>
         </div>
+        {/* لینک‌های داخلی به صفحه‌های موضوعی و مقاله‌ها (برای کاربر و برای خزندهٔ گوگل) */}
+        <div>
+          <h3 className="text-sm font-extrabold">راهکارها</h3>
+          <ul className="mt-4 space-y-2.5">
+            {SOLUTIONS.map((x) => <li key={x.slug}><Link href={`/${x.slug}`} className={col}>{x.label}</Link></li>)}
+            <li><Link href="/blog" className={col}>مقالات و آموزش‌ها</Link></li>
+          </ul>
+        </div>
         <div>
           <h3 className="text-sm font-extrabold">حساب</h3>
           <ul className="mt-4 space-y-2.5">
@@ -474,7 +511,7 @@ export function PlatformFooter({ p }: { p: PublicPlatform }) {
             <li><Link href="/privacy" className={col}>حریمِ خصوصی</Link></li>
           </ul>
         </div>
-        <div className="col-span-2 lg:col-span-1">
+        <div>
           <h3 className="text-sm font-extrabold">تماس</h3>
           <ul className="mt-4 space-y-2.5 text-sm text-muted-foreground">
             {f.phone && <li className="flex items-center gap-2"><Phone className="size-4 shrink-0" /><a href={`tel:${f.phone}`} dir="ltr" className="hover:text-foreground">{toFa(f.phone)}</a></li>}

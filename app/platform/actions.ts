@@ -23,11 +23,12 @@ import type { ActionFail } from "@/lib/action-result";
 import {
   announcement, applyCoupon, audit, deleteCoupon, listAudit, listCoupons, listOwnerSms, listReminders,
   notifySettings, ownersFor, platformStats, runReminders, saveAnnouncement, saveCoupon, saveNotifySettings, savePlatformLogo,
-  saveSiteContent, siteContent, startOwnerSms, allCustomers, savePlatformOgImage, savePlatformCardImage,
+  saveSiteContent, siteContent, startOwnerSms, allCustomers, savePlatformOgImage, savePlatformCardImage, listArticles, saveArticle, deleteArticle,
   type Announcement, type AuditRow, type Coupon, type NotifySettings, type OwnerAudience, type PlatformStats, type PlatformCustomer,
 } from "@/lib/platform-admin";
 import { readUpload } from "@/lib/images";
 import type { SiteContent } from "@/lib/site-content";
+import type { Article } from "@/lib/articles";
 
 /** خطای فارسی به مرورگر برسد (Next در production پیامِ خطای اکشن را پنهان می‌کند) */
 async function guard<T>(fn: () => Promise<T> | T): Promise<T | ActionFail> {
@@ -317,6 +318,20 @@ export async function adminUploadCardImageAction(fd: FormData) {
     if (!buf) throw new Error("عکسی انتخاب نشده");
     return { url: await savePlatformCardImage(buf) };
   });
+}
+/* ---------- مقاله‌ها ---------- */
+export async function adminArticlesAction() {
+  return adminGuard((): Article[] => listArticles());
+}
+export async function adminSaveArticleAction(a: Article, prevSlug?: string) {
+  return adminGuard(async () => {
+    const saved = saveArticle(a, prevSlug);
+    await log(prevSlug ? "ویرایشِ مقاله" : "مقالهٔ جدید", saved.slug, saved.title);
+    return saved;
+  });
+}
+export async function adminDeleteArticleAction(slug: string) {
+  return adminGuard(async () => { deleteArticle(slug); await log("حذفِ مقاله", slug); return true; });
 }
 export async function adminCouponsAction() {
   return adminGuard((): Coupon[] => listCoupons());

@@ -5,9 +5,13 @@ import { tenantPage } from "@/lib/tenant-page";
 import type { Metadata } from "next";
 import { onPlatformHost } from "@/lib/tenant";
 import { JsonLd } from "@/components/json-ld";
+import { PoweredBy } from "@/components/powered-by";
 import { platformJsonLd, restaurantJsonLd, siteOrigin } from "@/lib/seo";
 import { PlatformHome } from "@/components/platform/home";
 import { publicPlatform } from "@/app/platform/public";
+import { publishedArticles } from "@/lib/platform-admin";
+import { fill } from "@/lib/site-content";
+import { toFa } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +28,9 @@ export default async function Home({
   // دامنهٔ اصلیِ پلتفرم: صفحهٔ معرفی و تعرفه‌ها
   if (await onPlatformHost()) {
     const p = publicPlatform();
-    return <><JsonLd data={platformJsonLd(await siteOrigin(), p.c, p.plans)} /><PlatformHome p={p} /></>;
+    const vars = { brand: p.c.brand.name, trialDays: toFa(p.trialDays), root: p.root };
+    const articles = publishedArticles().slice(0, 3).map((x) => ({ slug: x.slug, title: fill(x.title, vars), description: fill(x.description, vars) }));
+    return <><JsonLd data={platformJsonLd(await siteOrigin(), p.c, p.plans)} /><PlatformHome p={p} articles={articles} /></>;
   }
   const origin = await siteOrigin();
   const sp = await searchParams;
@@ -53,6 +59,7 @@ export default async function Home({
     <>
       <JsonLd data={restaurantJsonLd(origin, cafe, menu)} />
       <Landing menu={menu} table={table} cafe={cafe} payment={payment} otp={otp} payFirst={payFirst} />
+      <PoweredBy />
     </>
   );
   }, { active: true });

@@ -100,15 +100,17 @@ export function platformJsonLd(origin: string, c: import("@/lib/site-content").S
     f.instagram && (/^https?:/.test(f.instagram) ? f.instagram : `https://instagram.com/${f.instagram.replace(/^@/, "")}`),
     f.telegram && (/^https?:/.test(f.telegram) ? f.telegram : `https://t.me/${f.telegram.replace(/^@/, "")}`),
   ].filter(Boolean);
+  // نامِ دیگرِ برند (مثلاً «منوچی» و «menuchii») تا جستجوی هر دو به همین سایت برسد
+  const alternateName = [...new Set([new URL(origin).hostname.replace(/^www\./, "").split(".")[0], new URL(origin).hostname.replace(/^www\./, "")])].filter((n) => n && n !== c.brand.name);
   const org = {
-    "@type": "Organization", "@id": `${origin}/#org`, name: c.brand.name, url: `${origin}/`,
+    "@type": "Organization", "@id": `${origin}/#org`, name: c.brand.name, alternateName, url: `${origin}/`,
     ...(isImgSrc(c.brand.logo) ? { logo: absUrl(origin, c.brand.logo) } : {}),
     ...(sameAs.length ? { sameAs } : {}),
     ...(f.phone || f.email ? { contactPoint: { "@type": "ContactPoint", contactType: "customer support", availableLanguage: "fa", ...(f.phone ? { telephone: f.phone } : {}), ...(f.email ? { email: f.email } : {}) } } : {}),
   };
   const graph: Record<string, unknown>[] = [
     org,
-    { "@type": "WebSite", "@id": `${origin}/#site`, name: c.brand.name, url: `${origin}/`, inLanguage: "fa-IR", publisher: { "@id": `${origin}/#org` } },
+    { "@type": "WebSite", "@id": `${origin}/#site`, name: c.brand.name, alternateName, url: `${origin}/`, inLanguage: "fa-IR", publisher: { "@id": `${origin}/#org` } },
     {
       "@type": "SoftwareApplication", name: c.brand.name, applicationCategory: "BusinessApplication", operatingSystem: "Web",
       description: c.brand.seoDescription, url: `${origin}/`, inLanguage: "fa-IR", publisher: { "@id": `${origin}/#org` },
@@ -119,4 +121,46 @@ export function platformJsonLd(origin: string, c: import("@/lib/site-content").S
     graph.push({ "@type": "FAQPage", mainEntity: c.faq.items.map((q) => ({ "@type": "Question", name: q.q, acceptedAnswer: { "@type": "Answer", text: q.a } })) });
   }
   return { "@context": "https://schema.org", "@graph": graph };
+}
+
+/** مسیرِ راهنما برای نتایجِ گوگل */
+export function breadcrumbLd(origin: string, items: { name: string; path?: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((it, i) => ({ "@type": "ListItem", position: i + 1, name: it.name, ...(it.path !== undefined ? { item: `${origin}${it.path}` } : {}) })),
+  };
+}
+
+/** مقالهٔ وبلاگ */
+export function articleLd(origin: string, a: { slug: string; title: string; description: string; cover: string; date: string; updated: string }, brand: string, logo: string) {
+  const url = `${origin}/blog/${a.slug}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "@id": `${url}#article`,
+    mainEntityOfPage: url,
+    headline: a.title.slice(0, 110),
+    description: a.description,
+    inLanguage: "fa-IR",
+    datePublished: a.date,
+    dateModified: a.updated || a.date,
+    image: [absUrl(origin, a.cover || "/og.png")],
+    author: { "@type": "Organization", name: brand, url: `${origin}/` },
+    publisher: { "@type": "Organization", "@id": `${origin}/#org`, name: brand, ...(isImgSrc(logo) ? { logo: { "@type": "ImageObject", url: absUrl(origin, logo) } } : {}) },
+  };
+}
+
+/** صفحهٔ موضوعی: خدمت + سؤالاتِ رایج */
+export function solutionLd(origin: string, s: { slug: string; h1: string; description: string; faq: { q: string; a: string }[] }, brand: string) {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Service", "@id": `${origin}/${s.slug}#service`, name: s.h1, description: s.description, serviceType: s.h1,
+        areaServed: { "@type": "Country", name: "Iran" }, provider: { "@type": "Organization", "@id": `${origin}/#org`, name: brand }, url: `${origin}/${s.slug}`,
+      },
+      { "@type": "FAQPage", mainEntity: s.faq.map((q) => ({ "@type": "Question", name: q.q, acceptedAnswer: { "@type": "Answer", text: q.a } })) },
+    ],
+  };
 }

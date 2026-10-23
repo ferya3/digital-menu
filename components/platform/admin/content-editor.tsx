@@ -70,6 +70,8 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
     try { const { url } = unwrap(await adminUploadLogoAction(imageForm(await compressImage(f, 512, 0.9)))); set("brand", { logo: url }); }
     catch (e) { flash("❌ " + err(e)); } finally { setLogoBusy(false); }
   }
+  /** متن با متغیرهای جایگذاری‌شده، همان‌طور که در گوگل دیده می‌شود */
+  const fillPreview = (t: string) => t.replaceAll("{brand}", c.brand.name).replaceAll("{trialDays}", "۱۴").replaceAll("{root}", siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, ""));
   const resetBtn = (k: keyof SiteContent) => <button type="button" onClick={() => reset(k)} className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="size-3.5" /> پیش‌فرض</button>;
   const inp = (v: string, on: (s: string) => void, ph = "", ltr = false) => <input value={v} onChange={(e) => on(e.target.value)} placeholder={ph} dir={ltr ? "ltr" : undefined} className={smallField} />;
   const area = (v: string, on: (s: string) => void, rows = 3) => <textarea value={v} onChange={(e) => on(e.target.value)} rows={rows} className={cn(smallField, "resize-y leading-7")} />;
@@ -124,8 +126,11 @@ export function ContentEditor({ flash, siteUrl }: { flash: Flash; siteUrl: strin
             </div>
           </L>
           <L t="کدِ تأییدِ گوگل (Search Console)" hint='از Search Console ← «HTML tag» فقط مقدارِ content را کپی کنید'>{inp(c.brand.googleVerification, (v) => set("brand", { googleVerification: v.replace(/.*content="([^"]+)".*/, "$1").trim() }), "abc123…", true)}</L>
-          <L t="عنوانِ صفحه در گوگل و تبِ مرورگر">{inp(c.brand.seoTitle, (v) => set("brand", { seoTitle: v }))}</L>
-          <L t="توضیحِ صفحه در نتایجِ گوگل">{area(c.brand.seoDescription, (v) => set("brand", { seoDescription: v }), 2)}</L>
+          <L t="عنوانِ صفحه در گوگل و تبِ مرورگر" hint={<Count n={fillPreview(c.brand.seoTitle).length} max={60} tip="کلیدواژهٔ اصلی (مثلاً «منوی دیجیتال») را اولِ عنوان بیاورید" />}>{inp(c.brand.seoTitle, (v) => set("brand", { seoTitle: v }))}</L>
+          <L t="توضیحِ صفحه در نتایجِ گوگل" hint={<Count n={fillPreview(c.brand.seoDescription).length} max={160} min={110} tip="یک جملهٔ کامل که بگوید چه می‌دهید و چرا کلیک کنند" />}>{area(c.brand.seoDescription, (v) => set("brand", { seoDescription: v }), 2)}</L>
+          <GooglePreview url={siteUrl} title={fillPreview(c.brand.seoTitle)} description={fillPreview(c.brand.seoDescription)} />
+          <Toggle checked={c.brand.poweredBy !== false} onChange={(v) => set("brand", { poweredBy: v })}
+            label={<span>لینکِ «منوی دیجیتال با {c.brand.name || "…"}» پایینِ منوی مجموعه‌ها <span className="text-xs text-muted-foreground">(بک‌لینک به سایت؛ برای سئو روشن بماند)</span></span>} />
         </Box>
       )}
 
@@ -434,6 +439,31 @@ function FeaturesEditor({ c, set, resetBtn, flash }: {
         </p>
         {items.length ? items.map(card) : <p className="py-6 text-center text-sm text-muted-foreground">هنوز کارتی نیست.</p>}
       </Box>
+    </div>
+  );
+}
+
+/* ============================ پیش‌نمایشِ نتیجهٔ گوگل ============================ */
+function Count({ n, max, min = 0, tip }: { n: number; max: number; min?: number; tip: string }) {
+  const bad = n > max, short = min > 0 && n < min;
+  return (
+    <span className="flex flex-wrap items-center gap-x-2">
+      <span className={cn("font-bold", bad ? "text-primary" : short ? "text-amber-600" : "text-green-600")} dir="ltr">{toFa(n)} / {toFa(max)}</span>
+      <span>{bad ? "طولانی است؛ گوگل آخرش را کوتاه می‌کند." : short ? "کمی کوتاه است." : tip}</span>
+    </span>
+  );
+}
+
+/** تقریبِ نمایشِ صفحه در نتایجِ گوگل */
+function GooglePreview({ url, title, description }: { url: string; title: string; description: string }) {
+  const host = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const cut = (t: string, n: number) => (t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t);
+  return (
+    <div className="rounded-2xl border border-border bg-white p-4 text-start dark:bg-[#202124]" aria-label="پیش‌نمایش در گوگل">
+      <div className="mb-1 text-[11px] font-semibold text-muted-foreground">پیش‌نمایش در نتایجِ گوگل</div>
+      <div className="text-xs text-[#4d5156] dark:text-[#bdc1c6]" dir="ltr">{host}</div>
+      <div className="mt-0.5 text-lg leading-snug text-[#1a0dab] dark:text-[#8ab4f8]">{cut(title || "بدونِ عنوان", 62)}</div>
+      <div className="mt-1 text-sm leading-6 text-[#4d5156] dark:text-[#bdc1c6]">{cut(description || "—", 160)}</div>
     </div>
   );
 }
